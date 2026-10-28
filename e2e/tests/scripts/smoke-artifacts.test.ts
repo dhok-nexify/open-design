@@ -166,7 +166,7 @@ describe("smoke-artifacts", () => {
       "namespaces",
       "release-prerelease",
       "dmg",
-      "Open Design-release-prerelease.dmg",
+      "NexTore Designer-release-prerelease.dmg",
     );
     expect(existsSync(staged)).toBe(true);
     expect(await readFile(staged)).toEqual(DMG_BYTES);
@@ -199,7 +199,7 @@ describe("smoke-artifacts", () => {
       "namespaces",
       "release-prerelease-win",
       "builder",
-      "Open Design-release-prerelease-win-setup.exe",
+      "NexTore Designer-release-prerelease-win-setup.exe",
     );
     expect(existsSync(staged)).toBe(true);
     expect(await readFile(staged)).toEqual(EXE_BYTES);

@@ -154,7 +154,7 @@ vi.mock('../../src/components/AssistantMessage', () => ({
           disabled={shareToOpenDesignBusy}
           onClick={onShareToOpenDesign}
         >
-          {shareToOpenDesignBusy ? 'Preparing package…' : 'Share to OpenDesign'}
+          {shareToOpenDesignBusy ? 'Preparing package…' : 'Share to NexTore Designer'}
         </button>
       ) : null}
     </>
@@ -605,7 +605,7 @@ describe('ChatPane streaming state', () => {
       agentId: 'amr',
     });
 
-    expect(text).toMatch(/^json-rpc id 4: Connection reset by server\n\nOpenDesign run error diagnostics/);
+    expect(text).toMatch(/^json-rpc id 4: Connection reset by server\n\nNexTore Designer run error diagnostics/);
     expect(text).not.toContain('raw_error:');
     expect(text).toContain('error_code: UPSTREAM_UNAVAILABLE');
     expect(text).not.toContain('\nerror:\n');
@@ -623,7 +623,7 @@ describe('ChatPane streaming state', () => {
       agentId: 'amr',
     });
 
-    expect(text).toMatch(/^Connection dropped\. Try again\.\n\nOpenDesign run error diagnostics/);
+    expect(text).toMatch(/^Connection dropped\. Try again\.\n\nNexTore Designer run error diagnostics/);
     expect(text).not.toContain('raw_error:');
     expect(text).toContain('error_code: AGENT_CONNECTION_DROPPED');
     expect(text).not.toContain('\nerror:\n');
@@ -671,7 +671,7 @@ describe('ChatPane streaming state', () => {
 
     expect(text).not.toContain('agent_stderr_tail');
     expect(text).toMatch(
-      /^json-rpc id 4: Connection reset by server\n\nOpenDesign run error diagnostics/,
+      /^json-rpc id 4: Connection reset by server\n\nNexTore Designer run error diagnostics/,
     );
   });
 
@@ -1255,7 +1255,7 @@ Expected output:
     expect(screen.getByTestId('assistant-streaming-assistant-1').textContent).toBe('streaming');
   });
 
-  it('keeps Share to OpenDesign busy on the assistant turn that started packaging', () => {
+  it('keeps Share to NexTore Designer busy on the assistant turn that started packaging', () => {
     const onShareToOpenDesign = vi.fn();
     const completedAssistant: ChatMessage = {
       id: 'assistant-1',
@@ -1303,7 +1303,7 @@ Expected output:
         {...commonProps}
         messages={[
           ...initialMessages,
-          { id: 'user-2', role: 'user', content: 'Share to OpenDesign', createdAt: 4 },
+          { id: 'user-2', role: 'user', content: 'Share to NexTore Designer', createdAt: 4 },
           {
             id: 'assistant-2',
             role: 'assistant',

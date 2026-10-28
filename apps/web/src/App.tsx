@@ -143,7 +143,6 @@ import {
 } from './collab/useProjectRouteWorkspaceContext';
 import { resolvePlanTier } from './collab/team-plan';
 import { deriveTabIdentityScope, UNSET_ACCOUNT_BUCKET } from './collab/tab-scope';
-import { CommunityView } from './components/CommunityView';
 import { seedHomeComposerPrompt } from './components/HomeView';
 import {
   createPluginUseHandoff,
@@ -5096,76 +5095,6 @@ function AppInner() {
     );
   } else if (route.kind === 'collab-demo') {
     appMain = <CollabDemoView projectId={route.projectId} />;
-  } else if (route.kind === 'community') {
-    appMain = (
-      <CommunityView
-        onRemixTemplate={({ templateId, prompt }) => {
-          // Remix carries the template's PROJECT along, not just its prompt:
-          // duplicate the plugin's example artifact into a fresh project,
-          // seed the composer with the template prompt, then open it on the
-          // copied entry file (keep in sync with the EntryShell-embedded
-          // community tab). Templates without a duplicable artifact fall
-          // back to the old prompt-only project.
-          void (async () => {
-            const name = summarizeProjectNameFromPrompt(prompt) || t('common.untitled');
-            try {
-              // One resolved authority for BOTH requests: the create binds the
-              // copied project to this workspace, and the seed patch is then
-              // authorized against that same binding. A headerless create is
-              // read by the daemon as a legacy caller and leaves the project
-              // bound to no workspace at all, which is what kept remixed
-              // projects out of the member's own 草稿 list.
-              const writeContext = resolvedWorkspaceContextForWrite(workspaceContextState);
-              const result = await duplicatePluginAsProject(templateId, { name }, writeContext);
-              const seeded = await patchProject(
-                result.projectId,
-                { pendingPrompt: prompt },
-                writeContext,
-              );
-              if (!seeded) {
-                // The project itself exists and is bound — only the prompt seed
-                // was refused. Keep the user on it (retrying through the catch
-                // below would leave the copy orphaned and create a second,
-                // empty project) and surface the dropped seed instead of
-                // discarding it silently.
-                console.error('Community remix: could not seed the template prompt.');
-              }
-              navigate({
-                kind: 'project',
-                projectId: result.projectId,
-                conversationId: result.conversationId,
-                fileName: result.relPath,
-              });
-            } catch {
-              await handleCreateProject({
-                name,
-                skillId: null,
-                designSystemId: null,
-                metadata: { kind: 'other', nameSource: 'prompt' },
-                pendingPrompt: prompt,
-              });
-            }
-          })();
-        }}
-        onUsePrompt={(target) => {
-          seedHomeComposerPrompt(target.prompt);
-          stashHomePromptHandoff(createPluginUseHandoff(Date.now(), target.templateId, {
-            action: 'use',
-            chipId: target.chipId,
-            projectKind: target.projectKind,
-          }));
-          navigate({ kind: 'home', view: 'home' });
-        }}
-        onUsePlugin={(record, action, target) => {
-          stashHomePromptHandoff(createPluginUseHandoff(Date.now(), record.id, {
-            action,
-            chipId: target.chipId,
-            projectKind: target.projectKind,
-          }));
-          navigate({ kind: 'home', view: 'home' });
-        }}
-      />
-    );
   } else if (route.kind === 'design-system-create') {
     appMain = (
       <DesignSystemCreationFlow

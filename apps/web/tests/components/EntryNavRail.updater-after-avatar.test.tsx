@@ -82,7 +82,7 @@ function downloadedStatus(): OpenDesignHostUpdaterStatusSnapshot {
   return {
     ...idleStatus(),
     availableVersion: '0.16.2-beta.146',
-    downloadPath: '/tmp/open-design-updater/Open Design Beta.dmg',
+    downloadPath: '/tmp/open-design-updater/NexTore Designer Beta.dmg',
     state: 'downloaded',
   };
 }

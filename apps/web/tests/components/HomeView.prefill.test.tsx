@@ -56,7 +56,7 @@ const AUTHORING_PLUGIN = {
     od: {
       kind: 'scenario',
       taskKind: 'new-generation',
-      useCase: { query: 'Create an OpenDesign plugin for {{pluginGoal}}.' },
+      useCase: { query: 'Create an NexTore Designer plugin for {{pluginGoal}}.' },
       inputs: [
         {
           name: 'pluginGoal',
@@ -291,14 +291,14 @@ const LIVE_ARTIFACT_PLUGIN = {
     ...DEFAULT_PLUGIN.manifest,
     name: 'example-live-artifact',
     title: 'Live Artifact',
-    description: 'Create refreshable, auditable OpenDesign artifacts.',
+    description: 'Create refreshable, auditable NexTore Designer artifacts.',
     od: {
       kind: 'scenario',
       taskKind: 'new-generation',
       mode: 'prototype',
       scenario: 'live',
       useCase: {
-        query: 'Create refreshable, auditable OpenDesign artifacts backed by connector or local data.',
+        query: 'Create refreshable, auditable NexTore Designer artifacts backed by connector or local data.',
       },
       context: {
         skills: [{ path: './SKILL.md' }],
@@ -333,9 +333,9 @@ const LIVE_ARTIFACT_IMAGE_TEMPLATE_PLUGIN = {
 };
 
 const AUTHORING_DEFAULT_SCENARIO_INPUTS = {
-  artifactKind: 'OpenDesign plugin',
-  audience: 'OpenDesign plugin authors',
-  topic: 'packaging a reusable workflow as an OpenDesign plugin',
+  artifactKind: 'NexTore Designer plugin',
+  audience: 'NexTore Designer plugin authors',
+  topic: 'packaging a reusable workflow as a NexTore Designer plugin',
 };
 
 const REFLY_DESIGN_SYSTEM = {
@@ -1006,9 +1006,9 @@ describe('HomeView prompt handoff', () => {
     ));
     expect(JSON.parse(String((applyCall?.[1] as RequestInit).body))).toMatchObject({
       inputs: {
-        artifactKind: 'OpenDesign plugin',
-        audience: 'OpenDesign plugin authors',
-        topic: 'packaging a reusable workflow as an OpenDesign plugin',
+        artifactKind: 'NexTore Designer plugin',
+        audience: 'NexTore Designer plugin authors',
+        topic: 'packaging a reusable workflow as a NexTore Designer plugin',
       },
     });
     await waitFor(() => {
@@ -1023,9 +1023,9 @@ describe('HomeView prompt handoff', () => {
       pluginId: 'od-new-generation',
       appliedPluginSnapshotId: 'snap-default',
       pluginInputs: {
-        artifactKind: 'OpenDesign plugin',
-        audience: 'OpenDesign plugin authors',
-        topic: 'packaging a reusable workflow as an OpenDesign plugin',
+        artifactKind: 'NexTore Designer plugin',
+        audience: 'NexTore Designer plugin authors',
+        topic: 'packaging a reusable workflow as a NexTore Designer plugin',
       },
       projectKind: 'other',
     }));
@@ -1801,153 +1801,6 @@ describe('HomeView prompt handoff', () => {
     expect(submittedUse).not.toHaveProperty('exampleReference');
     expect(submittedUse).not.toHaveProperty('automaticStrategyTaskProfile');
     expect(submittedUse).toHaveProperty('pluginInputs');
-  });
-
-  it('binds the picked preset plugin on submit while preserving the chip metadata', async () => {
-    const fetchMock = vi.fn<typeof fetch>(async (url) => {
-      if (typeof url === 'string' && url === '/api/plugins') {
-        return new Response(JSON.stringify({
-          plugins: [LIVE_ARTIFACT_PLUGIN, LIVE_ARTIFACT_IMAGE_TEMPLATE_PLUGIN],
-        }), {
-          status: 200,
-          headers: { 'content-type': 'application/json' },
-        });
-      }
-      if (typeof url === 'string' && url.includes('/apply-local')) {
-        return new Response(JSON.stringify(LIVE_ARTIFACT_APPLY_RESULT), {
-          status: 200,
-          headers: { 'content-type': 'application/json' },
-        });
-      }
-      throw new Error(`unexpected fetch ${url}`);
-    });
-    vi.stubGlobal('fetch', fetchMock);
-    stubAnimationFrame();
-    const onSubmit = vi.fn();
-
-    render(
-      <HomeView
-        projects={[]}
-        onSubmit={onSubmit}
-        onOpenProject={() => undefined}
-        onViewAllProjects={() => undefined}
-      />,
-    );
-
-    await clearActiveTypeChip();
-    await pickHomeTemplate('live-artifact');
-
-    await waitFor(() => {
-      expect(screen.getAllByTestId('home-hero-plugin-preset').length).toBeGreaterThan(0);
-    });
-    const liveArtifactTemplatePreset = screen.getAllByTestId('home-hero-plugin-preset')
-      .find((item) => item.getAttribute('data-plugin-id') === LIVE_ARTIFACT_IMAGE_TEMPLATE_PLUGIN.id);
-    if (!liveArtifactTemplatePreset) {
-      throw new Error('expected live artifact image template preset to render');
-    }
-    // The card itself is the single click-to-use affordance — clicking it
-    // directly seeds the composer.
-    fireEvent.click(liveArtifactTemplatePreset);
-
-    screen.getByTestId('home-hero-input');
-    // The composer seed prefers the curated description over the query head
-    // (the query is generator-facing; it still reaches the agent as plugin
-    // context on apply).
-    await waitFor(() => {
-      expect(homeHeroPromptText()).toBe('Create a live Notion dashboard artifact.');
-    });
-    expect(fetchMock.mock.calls.some(([url]) => (
-      typeof url === 'string' && url.includes('/apply-local')
-    ))).toBe(false);
-    expect(screen.getByTestId('home-hero-template-trigger').textContent).toContain('Live artifact');
-    expect(screen.queryByTestId('plugin-inputs-form')).toBeNull();
-
-    fireEvent.click(screen.getByTestId('home-hero-submit'));
-
-    // Picking a preset binds the preset's OWN plugin (so its SKILL.md /
-    // example.html become generation context and the output recreates that
-    // reference), while the live-artifact chip's project kind + metadata are
-    // carried forward. Submit resolves the snapshot for the preset plugin.
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
-      '/api/plugins/image-template-notion-team-dashboard-live-artifact/apply-local',
-      expect.anything(),
-    ));
-    await waitFor(() => expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({
-      pluginId: 'image-template-notion-team-dashboard-live-artifact',
-      appliedPluginSnapshotId: 'snap-live-artifact',
-      projectKind: 'prototype',
-      projectMetadata: expect.objectContaining({
-        kind: 'prototype',
-        intent: 'live-artifact',
-        fidelity: 'high-fidelity',
-      }),
-      prompt: 'Create a live Notion dashboard artifact.',
-    })));
-  });
-
-  it('binds the Home rail Live artifact chip with live-artifact metadata and applies it on submit', async () => {
-    const fetchMock = vi.fn<typeof fetch>(async (url) => {
-      if (typeof url === 'string' && url === '/api/plugins') {
-        return new Response(JSON.stringify({ plugins: [WEB_PROTOTYPE_PLUGIN, LIVE_ARTIFACT_PLUGIN] }), {
-          status: 200,
-          headers: { 'content-type': 'application/json' },
-        });
-      }
-      if (typeof url === 'string' && url.includes('/api/plugins/example-live-artifact/apply-local')) {
-        return new Response(JSON.stringify(LIVE_ARTIFACT_APPLY_RESULT), {
-          status: 200,
-          headers: { 'content-type': 'application/json' },
-        });
-      }
-      throw new Error(`unexpected fetch ${url}`);
-    });
-    vi.stubGlobal('fetch', fetchMock);
-    stubAnimationFrame();
-    const onSubmit = vi.fn();
-
-    render(
-      <HomeView
-        projects={[]}
-        onSubmit={onSubmit}
-        onOpenProject={() => undefined}
-        onViewAllProjects={() => undefined}
-      />,
-    );
-
-    await clearActiveTypeChip();
-    await pickHomeTemplate('live-artifact');
-
-    await waitFor(() => {
-      expect(screen.getByTestId('home-hero-template-trigger').textContent).toContain('Live artifact');
-    });
-    expect(fetchMock.mock.calls.some(([url]) => (
-      typeof url === 'string' && url.includes('/api/plugins/example-live-artifact/apply-local')
-    ))).toBe(false);
-    await setPromptAndSettle('Build a refreshable Stripe revenue dashboard.');
-    fireEvent.click(screen.getByTestId('home-hero-submit'));
-
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
-      '/api/plugins/example-live-artifact/apply-local',
-      expect.anything(),
-    ));
-    const applyCall = fetchMock.mock.calls.find(([url]) => (
-      typeof url === 'string' && url.includes('/api/plugins/example-live-artifact/apply-local')
-    ));
-    expect(JSON.parse(String((applyCall?.[1] as RequestInit).body))).toMatchObject({
-      inputs: {},
-    });
-    await waitFor(() => expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({
-      pluginId: 'example-live-artifact',
-      appliedPluginSnapshotId: 'snap-live-artifact',
-      projectKind: 'prototype',
-      projectMetadata: expect.objectContaining({
-        kind: 'prototype',
-        intent: 'live-artifact',
-        fidelity: 'high-fidelity',
-      }),
-      prompt: 'Build a refreshable Stripe revenue dashboard.',
-    })));
-    expect(screen.queryByRole('alert')).toBeNull();
   });
 
   it('binds the deck chip and keeps only the design-system picker in the footer', async () => {

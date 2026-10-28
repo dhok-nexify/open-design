@@ -808,7 +808,7 @@ export async function createProject(
       }
       if (await isDaemonProxyConnectionFailure(resp)) {
         throw new ProjectCreateError(
-          'Could not reach the local OpenDesign service',
+          'Could not reach the local NexTore Designer service',
           null,
           null,
           true,

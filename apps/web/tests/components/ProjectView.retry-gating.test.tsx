@@ -388,12 +388,12 @@ const localConfig: AppConfig = {
   designSystemId: null,
 };
 
-/** OpenDesign Cloud:2719 那条路唯一会跑预检的配置。 */
+/** NexTore Designer Cloud:2719 那条路唯一会跑预检的配置。 */
 const amrConfig: AppConfig = { ...localConfig, agentId: 'amr' };
 
 const agents = [
   { id: 'agent-1', name: 'OpenCode', bin: 'opencode', available: true, models: [] },
-  { id: 'amr', name: 'OpenDesign Cloud', available: true, models: [] },
+  { id: 'amr', name: 'NexTore Designer Cloud', available: true, models: [] },
 ] as unknown as AgentInfo[];
 
 const userMessage: ChatMessage = {

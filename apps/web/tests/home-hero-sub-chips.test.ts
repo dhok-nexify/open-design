@@ -140,11 +140,21 @@ describe('prototypeSceneProjectMetadata', () => {
   it('lets the parent keep the fields the scene does not refine', () => {
     // Witness for a parent that already stamps metadata of its own: a scene
     // layers onto it rather than replacing it, and can never restate `kind`.
-    const webClone = findChip('web-clone')!;
-    expect(prototypeSceneProjectMetadata(webClone, prototypeSubChipForSlug('wireframe')))
-      .toEqual({ kind: 'prototype', intent: 'web-clone', fidelity: 'wireframe' });
-    expect(prototypeSceneProjectMetadata(webClone, null))
-      .toEqual({ kind: 'prototype', intent: 'web-clone' });
+    // Uses the WebGL experience chip, whose action carries both `intent` and
+    // `fidelity` metadata of its own.
+    const webgl = findChip('webgl')!;
+    expect(prototypeSceneProjectMetadata(webgl, prototypeSubChipForSlug('wireframe')))
+      .toEqual({
+        kind: 'prototype',
+        intent: 'webgl-experience',
+        fidelity: 'wireframe',
+      });
+    expect(prototypeSceneProjectMetadata(webgl, null))
+      .toEqual({
+        kind: 'prototype',
+        intent: 'webgl-experience',
+        fidelity: 'high-fidelity',
+      });
   });
 });
 
@@ -174,7 +184,7 @@ describe('legacyPrototypeSceneForChipId', () => {
       .filter((chip) => automaticStrategyTaskProfileForRouteId(chip.id) !== null)
       .map((chip) => chip.id)
       .sort();
-    expect(routed).toEqual(['deck', 'hyperframes', 'prototype']);
+    expect(routed).toEqual(['deck', 'prototype']);
     // And a second-level scene has no id of its own to route by, so it can
     // neither claim a route nor strand its parent's.
     for (const scene of subChipsForChip('prototype', [])) {

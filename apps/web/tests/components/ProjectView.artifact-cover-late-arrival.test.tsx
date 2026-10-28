@@ -214,7 +214,7 @@ const readyRef = {
 function renderProjectView() {
   const project = {
     id: PROJECT_ID,
-    name: 'OpenDesign 种子轮路演 Deck',
+    name: 'NexTore Designer 种子轮路演 Deck',
     skillId: null,
     designSystemId: null,
   } as never;

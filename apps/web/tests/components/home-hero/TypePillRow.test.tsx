@@ -9,7 +9,7 @@ import {
   type HomeHeroChip,
 } from '../../../src/components/home-hero/chips';
 
-const chips = ['deck', 'prototype', 'document', 'image', 'video'].map((chipId) => {
+const chips = ['deck', 'prototype', 'document', 'image', 'webgl'].map((chipId) => {
   const chip = HOME_HERO_CHIPS.find((candidate) => candidate.id === chipId);
   if (!chip) throw new Error(`Missing chip fixture: ${chipId}`);
   return chip;
@@ -69,11 +69,11 @@ describe('TypePillRow', () => {
     expect(screen.queryByTestId('home-hero-type-pill-prototype')).not.toBeNull();
     expect(screen.queryByTestId('home-hero-type-pill-document')).not.toBeNull();
     expect(screen.queryByTestId('home-hero-type-pill-image')).toBeNull();
-    expect(screen.queryByTestId('home-hero-type-pill-video')).toBeNull();
+    expect(screen.queryByTestId('home-hero-type-pill-webgl')).toBeNull();
 
     fireEvent.click(screen.getByTestId('home-hero-type-pills-more'));
     expect(screen.queryByTestId('home-hero-type-pill-image-more')).not.toBeNull();
-    expect(screen.queryByTestId('home-hero-type-pill-video-more')).not.toBeNull();
+    expect(screen.queryByTestId('home-hero-type-pill-webgl-more')).not.toBeNull();
   });
 
   it('recomputes the inline split when rendered labels change without resizing the container', () => {

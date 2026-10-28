@@ -24,13 +24,12 @@ import type { DefaultScenarioPluginId } from '@open-design/contracts';
 import type { IconName } from '../Icon';
 
 // Plugin ids the chip rail can dispatch to. Most chips route to a
-// `DefaultScenarioPluginId` so the same fallback table the daemon
-// uses for naked Home queries stays the source of truth. Specialised
-// chips (HyperFrames lives under `plugins/_official/examples/hyperframes/`
-// and surfaces as the `example-hyperframes` bundled plugin id) bypass
-// the default table by carrying their own plugin id directly. The
-// curated union keeps typo safety while letting the rail evolve
-// independently of the default-binding mapping.
+// `DefaultScenarioPluginId` so the same fallback table the daemon uses for
+// naked Home queries stays the source of truth. A specialised chip can bypass
+// the default table by carrying its own plugin id directly (the WebGL
+// experience chip names `example-webgl-experience`). The curated union keeps
+// typo safety while letting the rail evolve independently of the
+// default-binding mapping.
 export type ChipScenarioPluginId =
   | DefaultScenarioPluginId
   | 'example-hyperframes'
@@ -140,30 +139,6 @@ export const HOME_HERO_CHIPS: ReadonlyArray<HomeHeroChip> = [
       automaticDefault: true,
     },
   },
-  {
-    id: 'web-clone',
-    label: 'Website clone',
-    icon: 'globe',
-    group: 'create',
-    description: 'Recreate an existing website',
-    hint: 'Paste a site URL and recreate its structure, visuals, and interactions from real source evidence.',
-    // Website reproduction is its own creation workflow (start from a target
-    // URL, source-first recon, preserve real structure/assets), so it binds
-    // the bundled `example-web-clone` skill instead of the blank prototype
-    // seed. The project still stores `kind: 'prototype'` for preview
-    // behavior; `intent: 'web-clone'` routes the scenario plugin and splits
-    // the analytics `project_kind` (see contracts scenario-defaults/events).
-    action: {
-      kind: 'apply-scenario',
-      pluginId: 'example-web-clone',
-      projectKind: 'prototype',
-      automaticDefault: true,
-      projectMetadata: {
-        kind: 'prototype',
-        intent: 'web-clone',
-      },
-    },
-  },
   // Wireframe and Mobile app are NOT here: they are second-level scenes under
   // Prototype, not task types. Each is the Prototype chip plus the metadata
   // refinement it carries in `home-hero/sub-chips.ts` (a lo-fi fidelity, mobile
@@ -223,29 +198,6 @@ export const HOME_HERO_CHIPS: ReadonlyArray<HomeHeroChip> = [
     },
   },
   {
-    id: 'hyperframes',
-    label: 'HyperFrames',
-    icon: 'orbit',
-    group: 'create',
-    description: 'Motion graphics & loops',
-    hint: 'Author HTML-based motion: captions, audio-reactive visuals, scene transitions.',
-    // HyperFrames is its own bundled scenario (motion-graphics
-    // specialisation of Video). It surfaces in PluginsHomeSection's
-    // primary category list, so the rail picks it up too rather than
-    // hiding the specialised bucket behind the generic Video chip.
-    action: {
-      kind: 'apply-scenario',
-      pluginId: 'example-hyperframes',
-      projectKind: 'video',
-      automaticDefault: true,
-      projectMetadata: {
-        kind: 'video',
-        intent: 'hyperframes',
-        videoModel: 'hyperframes-html',
-      },
-    },
-  },
-  {
     id: 'webgl',
     label: 'WebGL experience',
     icon: 'sparkles',
@@ -263,25 +215,6 @@ export const HOME_HERO_CHIPS: ReadonlyArray<HomeHeroChip> = [
       projectMetadata: {
         kind: 'prototype',
         intent: 'webgl-experience',
-        fidelity: 'high-fidelity',
-      },
-    },
-  },
-  {
-    id: 'live-artifact',
-    label: 'Live artifact',
-    icon: 'bar-chart-box',
-    group: 'create',
-    description: 'Data-backed live dashboards',
-    hint: 'Build a refreshable artifact backed by connector or local data.',
-    action: {
-      kind: 'apply-scenario',
-      pluginId: 'example-live-artifact',
-      projectKind: 'prototype',
-      automaticDefault: true,
-      projectMetadata: {
-        kind: 'prototype',
-        intent: 'live-artifact',
         fidelity: 'high-fidelity',
       },
     },
@@ -306,49 +239,11 @@ export const HOME_HERO_CHIPS: ReadonlyArray<HomeHeroChip> = [
     },
   },
   {
-    id: 'video',
-    label: 'Video',
-    icon: 'video-ai',
-    group: 'create',
-    description: 'Clips, reels & promos',
-    action: {
-      kind: 'apply-scenario',
-      pluginId: 'od-media-generation',
-      projectKind: 'video',
-      automaticDefault: true,
-      inputs: {
-        mediaKind: 'video',
-        subject: 'a short product reveal',
-        style: 'cinematic, high-quality, on-brand',
-        aspect: '16:9',
-      },
-    },
-  },
-  {
-    id: 'audio',
-    label: 'Audio',
-    icon: 'mic',
-    group: 'create',
-    description: 'Voiceovers, music & SFX',
-    action: {
-      kind: 'apply-scenario',
-      pluginId: 'od-media-generation',
-      projectKind: 'audio',
-      automaticDefault: true,
-      inputs: {
-        mediaKind: 'audio',
-        subject: 'a concise audio identity for a product',
-        style: 'clear, polished, modern',
-        aspect: '16:9',
-      },
-    },
-  },
-  {
     id: 'create-plugin',
     label: 'Create plugin',
     icon: 'edit',
     group: 'migrate',
-    hint: 'Author a reusable OpenDesign plugin and add it to My plugins.',
+    hint: 'Author a reusable NexTore Designer plugin and add it to My plugins.',
     action: { kind: 'create-plugin' },
   },
   {
@@ -381,37 +276,27 @@ export function chipsForGroup(group: ChipGroup): HomeHeroChip[] {
   return HOME_HERO_CHIPS.filter((c) => c.group === group);
 }
 
-// Fixed Home information architecture. Only these ten output types are
+// Fixed Home information architecture. Only these five output types are
 // top-level choices. Action-only create entries (for example Create Design
 // System) are intentionally excluded.
+//
+// Video / Audio / HyperFrames / Live artifact / Website clone were removed as
+// Home task types to keep the first screen to design outputs. Their underlying
+// plugins stay installed and reachable from the Plugins tab and the composer
+// "+" menu; only the Home rail entries are gone.
 export const CREATE_RAIL_ORDER = [
   'prototype',
   'deck',
   'image',
   'document',
-  'hyperframes',
-  'web-clone',
-  'video',
-  'audio',
-  'live-artifact',
   'webgl',
 ] as const;
 
-// Chip ids the onboarding "build a design system" teaser intentionally omits.
-// Video and Audio are pure-media outputs and the least central to the
-// design-system story, so they are omitted to keep the teaser chips to a
-// single tidy row. Website clone starts
-// from someone else's site rather than the user's design system, so it stays
-// off the design-system teaser too.
-const ONBOARDING_ARTIFACT_OMIT = new Set<string>(['web-clone', 'video', 'audio']);
-
-// The artifact chips shown on the onboarding "build a design system" step — a
-// curated single-row subset of the create rail. Derived from CREATE_RAIL_ORDER
-// (not a separately maintained list) so it stays in the same priority order as
-// the Home rail and never drifts from the real template catalog.
-export const ONBOARDING_ARTIFACT_CHIP_IDS = CREATE_RAIL_ORDER.filter(
-  (id) => !ONBOARDING_ARTIFACT_OMIT.has(id),
-);
+// The artifact chips shown on the onboarding "build a design system" step.
+// Derived from CREATE_RAIL_ORDER (not a separately maintained list) so it stays
+// in the same priority order as the Home rail and never drifts from the real
+// template catalog.
+export const ONBOARDING_ARTIFACT_CHIP_IDS = CREATE_RAIL_ORDER;
 
 // The top-level Home chips in their exact product order. Action-only catalog
 // entries must not leak into the rail or template picker.

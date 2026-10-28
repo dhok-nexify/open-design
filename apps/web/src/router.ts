@@ -20,11 +20,9 @@ export type EntryHomeView =
   | 'library'
   | 'brands'
   | 'integrations'
-  // Team-edition navigation-shell destinations. `community` is the shared
-  // template gallery surfaced as a rail destination (rather than only a home
-  // sub-section); the rest are team-workspace slots (project spaces + members +
-  // board + workspace settings) whose views are provided by other lanes.
-  | 'community'
+  // Team-edition navigation-shell destinations. The rest are team-workspace
+  // slots (project spaces + members + board + workspace settings) whose views
+  // are provided by other lanes.
   | 'drafts'
   | 'all-projects'
   | 'members'
@@ -68,9 +66,7 @@ export type Route =
   // against the real daemon routes with a clearly-stubbed demo identity (real
   // B identity / D visibility integration pending). Deep-linkable so a second
   // browser tab can join the same project and appear in the presence overlay.
-  | { kind: 'collab-demo'; projectId: string | null }
-  // Community template gallery — browse and remix shared design templates.
-  | { kind: 'community' };
+  | { kind: 'collab-demo'; projectId: string | null };
 
 export function parseRoute(pathname: string): Route {
   const parts = pathname.replace(/\/+$/, '').split('/').filter(Boolean);
@@ -140,11 +136,6 @@ export function parseRoute(pathname: string): Route {
   if (parts[0] === 'collab-demo') {
     return { kind: 'collab-demo', projectId: parts[1] ? decodeURIComponent(parts[1]) : null };
   }
-  if (parts[0] === 'community') {
-    // Community is now a rail destination inside the entry shell so the nav rail
-    // stays visible alongside the gallery.
-    return { kind: 'home', view: 'community' };
-  }
   if (parts[0] === 'drafts' && !parts[1]) {
     return { kind: 'home', view: 'drafts' };
   }
@@ -186,7 +177,6 @@ export function buildPath(route: Route): string {
       return route.brandId ? `/brands/${encodeURIComponent(route.brandId)}` : '/brands';
     }
     if (route.view === 'integrations') return '/integrations';
-    if (route.view === 'community') return '/community';
     if (route.view === 'drafts') return '/drafts';
     if (route.view === 'all-projects') return '/all-projects';
     if (route.view === 'members') return '/members';
@@ -200,7 +190,6 @@ export function buildPath(route: Route): string {
   if (route.kind === 'collab-demo') {
     return route.projectId ? `/collab-demo/${encodeURIComponent(route.projectId)}` : '/collab-demo';
   }
-  if (route.kind === 'community') return '/community';
   if (route.kind === 'design-system-create') return '/design-systems/create';
   if (route.kind === 'design-system-detail') {
     return `/design-systems/${encodeURIComponent(route.designSystemId)}`;

@@ -198,7 +198,7 @@ const mockedFetchPreviewComments = vi.mocked(fetchPreviewComments);
 const mockedFetchProjectFiles = vi.mocked(fetchProjectFiles);
 const mockedFetchBrands = vi.mocked(fetchBrands);
 
-/** AMR on a daemon runtime — 报告里的那套配置(Agent 为 OpenDesign)。 */
+/** AMR on a daemon runtime — 报告里的那套配置(Agent 为 NexTore Designer)。 */
 const config: AppConfig = {
   mode: 'daemon',
   apiProtocol: 'openai',

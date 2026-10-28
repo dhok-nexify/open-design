@@ -159,7 +159,7 @@ type PlatformCase = {
   expectedPayloadExecutablePath: (root: string, namespace: string) => string;
   expectedResourceRoot: (root: string, namespace: string) => string;
   fixturePlatformKey: "mac" | "win";
-  productName: "Open Design" | "Open Design Beta" | "Open Design Prerelease";
+  productName: "NexTore Designer" | "NexTore Designer Beta" | "NexTore Designer Prerelease";
   namespace: "release-beta" | "release-beta-win" | "release-prerelease";
   payloadArchiveName: string;
   payloadPath: string;
@@ -399,12 +399,12 @@ const platformCases: PlatformCase[] = [
     channel: "beta",
     currentVersion: "1.2.3-beta.4",
     expectedPayloadExecutablePath: (root, namespace) =>
-      join(root, "launcher", "channels", "beta", "namespaces", namespace, "versions", "1.2.3-beta.5", "payload", "Open Design.exe"),
+      join(root, "launcher", "channels", "beta", "namespaces", namespace, "versions", "1.2.3-beta.5", "payload", "NexTore Designer.exe"),
     expectedResourceRoot: (root, namespace) =>
       join(root, "launcher", "channels", "beta", "namespaces", namespace, "versions", "1.2.3-beta.5", "payload", "resources", "open-design"),
     fixturePlatformKey: "win",
     namespace: "release-beta-win",
-    productName: "Open Design",
+    productName: "NexTore Designer",
     payloadArchiveName: "open-design-1.2.3-beta.5-win-x64-payload.7z",
     payloadPath: "/payload.7z",
     platform: "win32",
@@ -416,12 +416,12 @@ const platformCases: PlatformCase[] = [
     channel: "beta",
     currentVersion: "1.2.3-beta.4",
     expectedPayloadExecutablePath: (root, namespace) =>
-      join(root, "launcher", "channels", "beta", "namespaces", namespace, "versions", "1.2.3-beta.5", "payload", "Open Design Beta.app", "Contents", "MacOS", "Open Design Beta"),
+      join(root, "launcher", "channels", "beta", "namespaces", namespace, "versions", "1.2.3-beta.5", "payload", "NexTore Designer Beta.app", "Contents", "MacOS", "NexTore Designer Beta"),
     expectedResourceRoot: (root, namespace) =>
-      join(root, "launcher", "channels", "beta", "namespaces", namespace, "versions", "1.2.3-beta.5", "payload", "Open Design Beta.app", "Contents", "Resources", "open-design"),
+      join(root, "launcher", "channels", "beta", "namespaces", namespace, "versions", "1.2.3-beta.5", "payload", "NexTore Designer Beta.app", "Contents", "Resources", "open-design"),
     fixturePlatformKey: "mac",
     namespace: "release-beta",
-    productName: "Open Design Beta",
+    productName: "NexTore Designer Beta",
     payloadArchiveName: "open-design-1.2.3-beta.5-mac-arm64-payload.zip",
     payloadPath: "/payload.zip",
     platform: "darwin",
@@ -433,12 +433,12 @@ const platformCases: PlatformCase[] = [
     channel: "prerelease",
     currentVersion: "1.2.3-prerelease.4",
     expectedPayloadExecutablePath: (root, namespace) =>
-      join(root, "launcher", "channels", "prerelease", "namespaces", namespace, "versions", "1.2.3-prerelease.5", "payload", "Open Design Prerelease.app", "Contents", "MacOS", "Open Design Prerelease"),
+      join(root, "launcher", "channels", "prerelease", "namespaces", namespace, "versions", "1.2.3-prerelease.5", "payload", "NexTore Designer Prerelease.app", "Contents", "MacOS", "NexTore Designer Prerelease"),
     expectedResourceRoot: (root, namespace) =>
-      join(root, "launcher", "channels", "prerelease", "namespaces", namespace, "versions", "1.2.3-prerelease.5", "payload", "Open Design Prerelease.app", "Contents", "Resources", "open-design"),
+      join(root, "launcher", "channels", "prerelease", "namespaces", namespace, "versions", "1.2.3-prerelease.5", "payload", "NexTore Designer Prerelease.app", "Contents", "Resources", "open-design"),
     fixturePlatformKey: "mac",
     namespace: "release-prerelease",
-    productName: "Open Design Prerelease",
+    productName: "NexTore Designer Prerelease",
     payloadArchiveName: "open-design-1.2.3-prerelease.5-mac-arm64-payload.zip",
     payloadPath: "/prerelease-payload.zip",
     platform: "darwin",
@@ -849,14 +849,14 @@ type FloorPlatformTarget = {
  * effect stays the only difference between scenarios.
  */
 async function writeExtractedFloorMacPayload(destinationRoot: string): Promise<void> {
-  const appBundleName = "Open Design.app";
+  const appBundleName = "NexTore Designer.app";
   const bundleRoot = join(destinationRoot, "payload", appBundleName);
   const resourcesRoot = join(bundleRoot, "Contents", "Resources");
   await mkdir(join(resourcesRoot, "open-design", "bin"), { recursive: true });
   await mkdir(join(resourcesRoot, "prebundled", "daemon"), { recursive: true });
   await mkdir(join(resourcesRoot, "prebundled", "web"), { recursive: true });
   await mkdir(join(bundleRoot, "Contents", "MacOS"), { recursive: true });
-  await writeFile(join(bundleRoot, "Contents", "MacOS", "Open Design"), "");
+  await writeFile(join(bundleRoot, "Contents", "MacOS", "NexTore Designer"), "");
   await writeFile(join(resourcesRoot, "open-design", "bin", "node"), "");
   await writeFile(join(resourcesRoot, "prebundled", "daemon", "daemon-sidecar.mjs"), "");
   await writeFile(join(resourcesRoot, "prebundled", "web", "web-sidecar.mjs"), "");
@@ -876,7 +876,7 @@ async function writeExtractedFloorMacPayload(destinationRoot: string): Promise<v
       channel: CHANNEL,
       entry: {
         cwd: `payload/${appBundleName}`,
-        executable: `payload/${appBundleName}/Contents/MacOS/Open Design`,
+        executable: `payload/${appBundleName}/Contents/MacOS/NexTore Designer`,
       },
       namespace: "default",
       payloadRoot: "payload",
@@ -889,7 +889,7 @@ async function writeExtractedFloorMacPayload(destinationRoot: string): Promise<v
 
 /** The Windows counterpart: a flat payload rooted at the executable. */
 async function writeExtractedFloorWindowsPayload(destinationRoot: string): Promise<void> {
-  const executableName = "Open Design.exe";
+  const executableName = "NexTore Designer.exe";
   const payloadRoot = join(destinationRoot, "payload");
   const resourcesRoot = join(payloadRoot, "resources");
   await mkdir(join(resourcesRoot, "open-design", "bin"), { recursive: true });
@@ -928,7 +928,7 @@ const floorPlatformTargets = {
     arch: "arm64",
     // Inside the bundle: <launchPath>/Contents/Resources/open-design-config.json
     installedOuterConfigPath: (launchPath) => join(launchPath, "Contents", "Resources", "open-design-config.json"),
-    installedLaunchPath: (installedRoot) => join(installedRoot, "Open Design.app"),
+    installedLaunchPath: (installedRoot) => join(installedRoot, "NexTore Designer.app"),
     installedLaunchPathIsDirectory: true,
     installerArtifactKey: "dmg",
     installerExtension: ".dmg",
@@ -941,7 +941,7 @@ const floorPlatformTargets = {
     arch: "x64",
     // Beside the executable: dirname(<launchPath>)/resources/open-design-config.json
     installedOuterConfigPath: (launchPath) => join(dirname(launchPath), "resources", "open-design-config.json"),
-    installedLaunchPath: (installedRoot) => join(installedRoot, "Open Design.exe"),
+    installedLaunchPath: (installedRoot) => join(installedRoot, "NexTore Designer.exe"),
     installedLaunchPathIsDirectory: false,
     installerArtifactKey: "installer",
     installerExtension: ".exe",

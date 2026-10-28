@@ -21,7 +21,6 @@ vi.mock('../../src/components/home-hero/PlaceholderCarousel', () => ({
   PlaceholderCarousel: () => null,
 }));
 
-import { CommunityView } from '../../src/components/CommunityView';
 import { HomeView } from '../../src/components/HomeView';
 import { HomeHero } from '../../src/components/HomeHero';
 import { createPluginUseHandoff } from '../../src/components/home-hero/plugin-authoring';
@@ -130,29 +129,6 @@ afterEach(() => {
   vi.restoreAllMocks();
   window.localStorage.clear();
   window.sessionStorage.clear();
-});
-
-describe('Community template card → full details modal', () => {
-  it('opens the full plugin details modal (Use split action + Share + close), not the lightweight preview', async () => {
-    render(<CommunityView />);
-    await waitFor(() => {
-      expect(document.querySelector('.community-template-card')).not.toBeNull();
-    });
-
-    fireEvent.click(document.querySelector('.community-template-card')!);
-
-    // Full modal chrome: the Use split action (main face + caret), the
-    // template Share menu trigger, and the shared ds-modal backdrop.
-    await waitFor(() => {
-      expect(screen.queryByTestId('plugin-details-use-example-fundraising-deck')).not.toBeNull();
-    });
-    expect(screen.getByTestId('plugin-details-use-example-fundraising-deck-menu')).toBeTruthy();
-    expect(document.querySelector('.template-share-trigger')).not.toBeNull();
-    expect(document.querySelector('.ds-modal-backdrop')).not.toBeNull();
-
-    // The lightweight footer-Remix preview must NOT be what this card opens.
-    expect(document.querySelector('.community-template-preview')).toBeNull();
-  });
 });
 
 describe('creation page active template chip → lightweight preview', () => {

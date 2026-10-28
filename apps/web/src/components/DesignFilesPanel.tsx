@@ -1772,7 +1772,7 @@ export function DesignFilesPanel({
                               void handlePluginFolderAgentAction(folder.path, 'contribute')
                             }
                           >
-                            {sharingFolder === `contribute:${folder.path}` ? 'Sending…' : 'OpenDesign PR'}
+                            {sharingFolder === `contribute:${folder.path}` ? 'Sending…' : 'NexTore Designer PR'}
                           </button>
                         </div>
                       ) : null}

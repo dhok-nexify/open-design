@@ -2957,7 +2957,7 @@ async function assertMacInviteProtocolRegistration(installedAppPath: string): Pr
 
 async function invokeMacInviteDeeplink(installedAppPath: string): Promise<void> {
   // `-a` pins delivery to this namespace's installed test bundle instead of a
-  // developer's stable OpenDesign app that may own the same global scheme.
+  // developer's stable NexTore Designer app that may own the same global scheme.
   await execFileAsync('/usr/bin/open', ['-a', installedAppPath, packagedInviteDeeplink]);
 }
 

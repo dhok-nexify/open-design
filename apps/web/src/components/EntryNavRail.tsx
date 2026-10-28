@@ -53,7 +53,6 @@ import { resetCloudSignInTipDismissal } from './CloudSignInTip';
 import { SignOutConfirmDialog } from './SignOutConfirmDialog';
 import { notifyAmrLoginStatusChanged } from './amrLoginPolling';
 import { Icon } from './Icon';
-import { GITHUB_STARS_FALLBACK_LABEL, formatStars, useGithubStars } from './useGithubStars';
 import { PlanWordmark, planBadgeTierForWorkspace } from './PlanWordmark';
 import { RemixIcon } from './RemixIcon';
 import { InviteDialog } from './InviteDialog';
@@ -107,9 +106,6 @@ import { workspaceChromeAccountActionsHost } from './workspaceChromeActions';
 const REPO_URL = 'https://github.com/nexu-io/open-design';
 const GITHUB_HELP_URL = `${REPO_URL}/issues/new`;
 const GITHUB_FEATURE_URL = `${REPO_URL}/pulls`;
-const DISCORD_URL = 'https://discord.gg/mHAjSMV6gz';
-const X_URL = 'https://x.com/OpenDesignHQ';
-const CONTACT_EMAIL_URL = 'mailto:support@open-design.ai';
 const externalLinkProps = { target: '_blank', rel: 'noreferrer noopener' } as const;
 
 // Last directory this shell successfully read. `coalescedGet` only collapses
@@ -735,7 +731,6 @@ export function EntryTopRightCluster({
   // Sign-out confirm gate (recvqgMWpJZqhL): the menu item only ARMS the
   // confirmation dialog; the real logout chain runs on explicit confirm.
   const [confirmSignOut, setConfirmSignOut] = useState(false);
-  const githubStars = useGithubStars();
   // Signed-in account email for the menu head (#5517 shows it under the
   // display name). The workspace context carries no email, so lazily read the
   // vela login-status projection the first time the menu opens — never on
@@ -866,23 +861,6 @@ export function EntryTopRightCluster({
       {createPortal(
         <div className={clusterVisible ? 'entry-top-right-cluster' : undefined}>
           {leadingSlot}
-          {/* GitHub star chip: its own option in the cluster, right after the
-              campaign badge (per product) — it used to live in the account
-              menu's social row. */}
-          {clusterVisible ? (
-            <a
-              className="entry-top-right-github"
-              href={REPO_URL}
-              {...externalLinkProps}
-              aria-label={`GitHub · ${githubStars == null ? GITHUB_STARS_FALLBACK_LABEL : formatStars(githubStars)} stars`}
-              title={`GitHub · ${githubStars == null ? GITHUB_STARS_FALLBACK_LABEL : formatStars(githubStars)} stars`}
-              data-testid="entry-top-right-github"
-              onClick={() => trackAccountAction('github')}
-            >
-              <Icon name="github-filled" size={14} />
-              <span>{githubStars == null ? GITHUB_STARS_FALLBACK_LABEL : formatStars(githubStars)}</span>
-            </a>
-          ) : null}
           {/* One shared capsule for the account module (per product: 头像和积分
               合并成一个胶囊): credits segment on the left (same availability
               rule as the menu's billing card; clicking jumps to B's billing
@@ -1065,10 +1043,6 @@ export function EntryTopRightCluster({
                     >
                       <Icon name="sparkles" size={15} /> {t('entry.accountFeatureRequest')}
                     </a>
-                    {/* The Discord/X/mail social row used to sit here (#5517).
-                        It now lives in the nav rail's footer — see
-                        `RailSocialRow` — so the account menu stays a pure list
-                        of account actions. */}
                     <div className="entry-nav-rail__menu-divider" />
                     <button
                       type="button"
@@ -1237,86 +1211,6 @@ export function WorkspaceTopRightAccountCluster({
   );
 }
 
-/**
- * Community/contact links pinned to the bottom of the nav rail.
- *
- * The row's first slot is the Discord invite for every locale (the Chinese
- * Feishu group entry was retired so there is one community to point at).
- * All three labels are translated and surface through the shared
- * `.od-tooltip` layer. Analytics keeps reporting these
- * under `area: 'account_menu'` so the existing funnel stays comparable across
- * the move out of that menu.
- */
-function RailSocialRow({
-  page,
-  dimensions,
-}: {
-  page: TrackingWorkspacePage;
-  dimensions: ReturnType<typeof workspaceAnalyticsDimensions>;
-}) {
-  const { t, locale } = useI18n();
-  const analytics = useAnalytics();
-  // The rail sits on the leading edge, so tooltips open away from it —
-  // right in LTR, left once RTL moves the whole rail to the right edge.
-  // Without the flip the bubble would be clamped against the viewport
-  // and land back on top of the icons it describes.
-  const tooltipPlacement = isRtlLocale(locale) ? 'left' : 'right';
-  // One string per link doubles as the accessible name and the hover
-  // tooltip: the bubble is the only place the icons say what they do, so
-  // the copy leads with the payoff (Discord hands out credits) rather
-  // than naming the destination.
-  const communityLabel = t('entry.discordAria');
-  const xLabel = t('entry.xAria');
-  const mailLabel = t('entry.mailAria');
-
-  function track(element: AccountMenuClickProps['element']) {
-    trackAccountMenuClick(analytics.track, {
-      page_name: page,
-      area: 'account_menu',
-      element,
-      ...dimensions,
-    });
-  }
-
-  return (
-    <div className="entry-nav-rail__social" data-testid="entry-nav-rail-social">
-      <a
-        className="entry-nav-rail__social-btn od-tooltip"
-        href={DISCORD_URL}
-        {...externalLinkProps}
-        aria-label={communityLabel}
-        data-tooltip={communityLabel}
-        data-tooltip-placement={tooltipPlacement}
-        data-testid="entry-nav-rail-discord"
-        onClick={() => track('discord')}
-      >
-        <Icon name="discord" size={15} />
-      </a>
-      <a
-        className="entry-nav-rail__social-btn od-tooltip"
-        href={X_URL}
-        {...externalLinkProps}
-        aria-label={xLabel}
-        data-tooltip={xLabel}
-        data-tooltip-placement={tooltipPlacement}
-        onClick={() => track('twitter')}
-      >
-        <span className="entry-nav-rail__menu-x" aria-hidden>X</span>
-      </a>
-      <a
-        className="entry-nav-rail__social-btn od-tooltip"
-        href={CONTACT_EMAIL_URL}
-        aria-label={mailLabel}
-        data-tooltip={mailLabel}
-        data-tooltip-placement={tooltipPlacement}
-        onClick={() => track('email')}
-      >
-        <Icon name="mail" size={15} />
-      </a>
-    </div>
-  );
-}
-
 export function EntryNavRail({
   view,
   onViewChange,
@@ -1342,7 +1236,6 @@ export function EntryNavRail({
   const analytics = useAnalytics();
   const analyticsPage = entryViewToTracking(view);
   const workspaceDimensions = workspaceAnalyticsDimensions(context);
-  const communityLabel = t('pluginsHome.title');
   // #5517 renamed the rail's first item from 最近 (Recents) to 首页 (Home) —
   // the key keeps its historical name, the VALUE now reads Home in every
   // locale (polish round 2, ref 1db2d00c2).
@@ -1805,15 +1698,6 @@ export function EntryNavRail({
         >
           <Icon name="home" size={16} />
         </NavButton>
-        <NavButton
-          active={view === 'community'}
-          ariaLabel={communityLabel}
-          label={communityLabel}
-          onClick={() => selectView('community')}
-          testId="entry-nav-community"
-        >
-          <Icon name="globe" size={16} />
-        </NavButton>
 
         {context ? (
           <div className="entry-nav-rail__team-section">
@@ -1954,13 +1838,6 @@ export function EntryNavRail({
             </NavButton>
           </>
         )}
-      </div>
-      {/* The footer always has the social row to show now, so it no longer
-          collapses to nothing. The updater has one shared home in the
-          top-right cluster for both signed-in and signed-out shells. */}
-      <div className="entry-nav-rail__footer">
-        {footerNotice}
-        <RailSocialRow page={analyticsPage} dimensions={workspaceDimensions} />
       </div>
       </div>
 

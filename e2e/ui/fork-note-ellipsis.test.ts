@@ -35,7 +35,7 @@ import { T } from '@/timeouts';
 
 const AGENT = {
   id: 'amr',
-  name: 'OpenDesign AMR',
+  name: 'NexTore Designer AMR',
   bin: 'vela',
   available: true,
   version: 'test',

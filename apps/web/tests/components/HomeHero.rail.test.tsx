@@ -169,11 +169,11 @@ describe('HomeHero intent rail', () => {
   });
 
   it('moves the active creation chip into the composer and hides the tab row', () => {
-    renderHero({ activeChipId: 'video' });
+    renderHero({ activeChipId: 'image' });
     expect(screen.queryByTestId('home-hero-type-tabs')).toBeNull();
-    expect(screen.queryByTestId('home-hero-rail-video')).toBeNull();
+    expect(screen.queryByTestId('home-hero-rail-image')).toBeNull();
     const node = screen.getByTestId('home-hero-template-trigger');
-    expect(node.textContent).toContain('Video');
+    expect(node.textContent).toContain('Image');
   });
 
   it('does not reserve an empty active-context row for a hidden chip-bound plugin', () => {
@@ -410,7 +410,7 @@ describe('HomeHero intent rail', () => {
     ]);
   });
 
-  it('moves live artifact presets out of Image and into Live artifact examples', () => {
+  it('keeps live-artifact presets out of the Image example set', () => {
     const imagePoster = makePlugin('image-template-poster', 'image', 'Image Poster');
     const liveDashboard = makePlugin(
       'example-live-dashboard',
@@ -424,56 +424,14 @@ describe('HomeHero intent rail', () => {
       'Notion-style Team Dashboard (Live Artifact)',
       ['live-artifact'],
     );
-    const socialTracker = makePlugin(
-      'example-social-media-matrix-tracker-template',
-      'template',
-      'Social Media Matrix Tracker Template',
-      ['live-artifacts'],
-    );
-    const tradingDashboard = makePlugin(
-      'example-trading-analysis-dashboard-template',
-      'template',
-      'Trading Analysis Dashboard Template',
-      ['live-artifacts'],
-    );
-    const liveArtifact = makePlugin(
-      'example-live-artifact',
-      'prototype',
-      'Live Artifact',
-      ['live-artifact'],
-    );
     renderHero({
       activeChipId: 'image',
       pluginOptions: [imagePoster, liveDashboard, notionDashboard],
     });
 
-    let presets = screen.getAllByTestId('home-hero-plugin-preset');
+    const presets = screen.getAllByTestId('home-hero-plugin-preset');
     expect(presets).toHaveLength(1);
     expect(presets[0]?.textContent).toContain('Image Poster');
-
-    cleanup();
-    renderHero({
-      activeChipId: 'live-artifact',
-      pluginOptions: [
-        imagePoster,
-        liveArtifact,
-        tradingDashboard,
-        notionDashboard,
-        socialTracker,
-        liveDashboard,
-      ],
-    });
-
-    presets = screen.getAllByTestId('home-hero-plugin-preset');
-    // Order within a facet is now usage/sink-driven (OPEND-449); this test is
-    // about which presets route into Live Artifact, so assert membership only.
-    expect(presets.map((preset) => preset.getAttribute('data-plugin-id')).sort()).toEqual([
-      'example-live-artifact',
-      'example-live-dashboard',
-      'example-social-media-matrix-tracker-template',
-      'example-trading-analysis-dashboard-template',
-      'image-template-notion-team-dashboard-live-artifact',
-    ]);
   });
 
   it('disables every template while a plugin apply is in flight', () => {
@@ -520,8 +478,6 @@ describe('HomeHero intent rail', () => {
       pluginId: 'od-media-generation',
       projectKind: 'image',
     });
-    expect(findChip('video')?.action).toMatchObject({ pluginId: 'od-media-generation', projectKind: 'video' });
-    expect(findChip('audio')?.action).toMatchObject({ pluginId: 'od-media-generation', projectKind: 'audio' });
   });
 
   it('marks prototype and slide-deck as daemon-owned automatic scenarios', () => {
@@ -542,26 +498,12 @@ describe('HomeHero intent rail', () => {
   });
 
   it('specialised category chips route to their bundled scenario plugin', () => {
-    // HyperFrames is the motion-graphics specialisation of Video,
-    // surfaced as a separate chip so users can target it directly
-    // instead of routing through the generic Video chip.
-    expect(findChip('hyperframes')?.action).toMatchObject({
+    expect(findChip('webgl')?.action).toMatchObject({
       kind: 'apply-scenario',
-      pluginId: 'example-hyperframes',
-      projectKind: 'video',
-      automaticDefault: true,
-      projectMetadata: expect.objectContaining({ intent: 'hyperframes' }),
-    });
-    expect(findChip('live-artifact')?.action).toMatchObject({
-      kind: 'apply-scenario',
-      pluginId: 'example-live-artifact',
+      pluginId: 'example-webgl-experience',
       projectKind: 'prototype',
       automaticDefault: true,
-      projectMetadata: {
-        kind: 'prototype',
-        intent: 'live-artifact',
-        fidelity: 'high-fidelity',
-      },
+      projectMetadata: expect.objectContaining({ intent: 'webgl-experience' }),
     });
   });
 
@@ -571,7 +513,7 @@ describe('HomeHero intent rail', () => {
   // binding. The OD Next route is decided separately, by chip id, and these
   // surfaces own none.
   it('keeps ordinary media chips outside automatic OD Next routing', () => {
-    for (const id of ['image', 'video', 'audio', 'live-artifact']) {
+    for (const id of ['image']) {
       expect(automaticStrategyTaskProfileForRouteId(id), id).toBeNull();
       expect(findChip(id)?.action, id).toMatchObject({ automaticDefault: true });
     }

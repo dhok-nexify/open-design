@@ -41,7 +41,7 @@ describe('EntryNavRail analytics', () => {
       </I18nProvider>,
     );
 
-    fireEvent.click(screen.getByTestId('entry-nav-community'));
+    fireEvent.click(screen.getByTestId('entry-nav-home'));
     fireEvent.click(screen.getByTestId('entry-nav-design-systems'));
     fireEvent.click(screen.getByTestId('entry-nav-plugins'));
     fireEvent.click(screen.getByTestId('entry-nav-search'));
@@ -50,7 +50,7 @@ describe('EntryNavRail analytics', () => {
     expect(analytics.track).toHaveBeenCalledWith('ui_click', expect.objectContaining({
       area: 'entry_nav',
       element: 'nav_item',
-      target: 'community',
+      target: 'home',
       entry_from: 'sidebar',
     }), undefined);
     expect(analytics.track).toHaveBeenCalledWith('ui_click', expect.objectContaining({

@@ -617,7 +617,7 @@ winDescribe('packaged windows runtime smoke', () => {
       expect(basename(install.startMenuShortcutPath)).toBe(`${installIdentity.displayName}.lnk`);
       expect(install.registryEntries.length).toBeGreaterThan(0);
       expect(JSON.stringify(install.registryEntries)).toContain(installIdentity.displayName);
-      expect(JSON.stringify(install.registryEntries)).toContain(`Open Design-${installIdentity.namespaceToken}`);
+      expect(JSON.stringify(install.registryEntries)).toContain(`NexTore Designer-${installIdentity.namespaceToken}`);
       await assertWindowsInviteProtocolRegistration(install.installDir);
       expect(install.installPayload.fileCount).toBeGreaterThan(0);
       expect(install.installPayload.totalBytes).toBeGreaterThan(0);
@@ -867,7 +867,7 @@ winDescribe('packaged windows runtime smoke', () => {
                 expectedVersion: expectedPayloadUpdateVersion,
                 ...(intermediateUpdateFixture == null
                   ? {}
-                  : { legacyInstalledExecutablePath: join(install.installDir, 'Open Design.exe') }),
+                  : { legacyInstalledExecutablePath: join(install.installDir, 'NexTore Designer.exe') }),
                 persistedProjectId,
                 verifyPptx: intermediateUpdateFixture == null,
               }),
@@ -1763,7 +1763,7 @@ async function runInstallerFallbackAcceptance(options: {
 
   const start = await runToolsPackJsonForVersion<WinStartResult>('start', targetVersion);
   expect(start.source).toBe('installed');
-  expect(start.executablePath).toBe(join(options.installDir, 'Open Design.exe'));
+  expect(start.executablePath).toBe(join(options.installDir, 'NexTore Designer.exe'));
   // The updater-owned installer may preserve the already-confirmed payload
   // desktop while replacing the physical outer. Verify continuity here; the
   // explicit full stop + installed-outer cold start below owns the stronger
@@ -1882,7 +1882,7 @@ async function runDirectInstaller(
   // Portable NSIS writes under $TEMP; build-tree logs only contain the
   // tools-pack wrapper's install/exit events. Capture deltas from both so
   // downloaded portable installers retain the actual overwrite assertions.
-  const logPaths = [...new Set([nsisLogPath, join(tmpdir(), 'Open Design', namespace, 'nsis.log')])];
+  const logPaths = [...new Set([nsisLogPath, join(tmpdir(), 'NexTore Designer', namespace, 'nsis.log')])];
   const previousLogs = await Promise.all(logPaths.map((path) => readNsisLogLines(path)));
   const command =
     process.platform === 'win32'
@@ -2162,7 +2162,7 @@ async function fetchPackagedHealth(daemonUrl: string): Promise<HealthEvalValue> 
       health: await response.json() as HealthEvalValue['health'],
       href: daemonUrl,
       status: response.status,
-      title: 'Open Design Beta',
+      title: 'NexTore Designer Beta',
     };
   } finally {
     clearTimeout(timeout);

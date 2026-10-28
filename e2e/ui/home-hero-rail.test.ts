@@ -181,7 +181,7 @@ const HOME_PLUGINS = [
       name: 'example-live-artifact',
       title: 'Live Artifact',
       version: '0.1.0',
-      description: 'Create refreshable, auditable OpenDesign artifacts.',
+      description: 'Create refreshable, auditable NexTore Designer artifacts.',
       od: {
         kind: 'scenario',
         taskKind: 'new-generation',
@@ -189,7 +189,7 @@ const HOME_PLUGINS = [
         scenario: 'live',
         useCase: {
           query:
-            'Create refreshable, auditable OpenDesign artifacts backed by connector or local data.',
+            'Create refreshable, auditable NexTore Designer artifacts backed by connector or local data.',
         },
       },
     },
@@ -438,7 +438,7 @@ const PROMPT_TEMPLATES = [
 ];
 
 async function waitForLoadingToClear(page: Page) {
-  await page.getByText('Loading OpenDesign…').waitFor({ state: 'hidden', timeout: 15_000 });
+  await page.getByText('Loading NexTore Designer…').waitFor({ state: 'hidden', timeout: 15_000 });
 }
 
 async function seedBrowserConfig(page: Page, config: Record<string, unknown>) {
@@ -463,7 +463,7 @@ async function seedBrowserLocale(page: Page, locale: string) {
 async function gotoEntryHome(page: Page) {
   await page.goto('/', { waitUntil: 'domcontentloaded' });
   await waitForLoadingToClear(page);
-  const privacyDialog = page.getByRole('dialog').filter({ hasText: 'Help us improve OpenDesign' });
+  const privacyDialog = page.getByRole('dialog').filter({ hasText: 'Help us improve NexTore Designer' });
   if (await privacyDialog.isVisible().catch(() => false)) {
     await privacyDialog.getByRole('button', { name: /I get it|not now|got it|don't share/i }).click();
   }
@@ -1373,7 +1373,7 @@ test('[P2] home hero exposes the composer footer pickers and the full template s
   await expect(page.getByTestId('home-hero-shortcuts-trigger')).toHaveCount(0);
 
   const menu = await openHomeTemplateMenu(page);
-  for (const id of ['prototype', 'live-artifact', 'deck', 'image', 'video', 'hyperframes', 'audio']) {
+  for (const id of ['prototype', 'deck', 'image', 'document', 'webgl']) {
     await expect(menu.getByTestId(`home-hero-template-wedge-${id}`)).toBeVisible();
   }
 });
@@ -1642,7 +1642,7 @@ test('[P1] home creation picker switches non-media modes without surfacing media
   await expect(page.getByTestId('home-hero-footer-option-duration')).toHaveCount(0);
   await expect(page.getByTestId('home-hero-footer-option-audioType')).toHaveCount(0);
 
-  await pickHomeTemplate(page, 'live-artifact');
+  await pickHomeTemplate(page, 'document');
   await expect(page.getByTestId('home-hero-footer-option-duration')).toHaveCount(0);
   await expect(page.getByTestId('home-hero-footer-option-audioType')).toHaveCount(0);
 
@@ -1652,27 +1652,13 @@ test('[P1] home creation picker switches non-media modes without surfacing media
   await expect(page.getByTestId('home-hero-footer-option-audioType')).toHaveCount(0);
 });
 
-test('[P1] home template picker defers media settings for image, video, hyperframes, and audio', async ({ page }) => {
+test('[P1] home template picker defers media settings for image', async ({ page }) => {
   await gotoEntryHome(page);
 
   await pickHomeTemplate(page, 'image');
   await expect(page.getByTestId('home-hero-design-system-trigger')).toBeVisible();
   await expect(page.getByTestId('home-hero-footer-option-ratio')).toHaveCount(0);
   await expect(page.getByTestId('home-hero-footer-option-resolution')).toHaveCount(0);
-  await expect(page.getByTestId('home-hero-footer-option-duration')).toHaveCount(0);
-
-  await pickHomeTemplate(page, 'video');
-  await expect(page.getByTestId('home-hero-design-system-trigger')).toBeVisible();
-  await expect(page.getByTestId('home-hero-footer-option-ratio')).toHaveCount(0);
-  await expect(page.getByTestId('home-hero-footer-option-resolution')).toHaveCount(0);
-  await expect(page.getByTestId('home-hero-footer-option-duration')).toHaveCount(0);
-
-  await pickHomeTemplate(page, 'hyperframes');
-  await expect(page.getByTestId('home-hero-footer-option-ratio')).toHaveCount(0);
-  await expect(page.getByTestId('home-hero-footer-option-duration')).toHaveCount(0);
-
-  await pickHomeTemplate(page, 'audio');
-  await expect(page.getByTestId('home-hero-footer-option-audioType')).toHaveCount(0);
   await expect(page.getByTestId('home-hero-footer-option-duration')).toHaveCount(0);
 });
 
@@ -1923,7 +1909,7 @@ test('[P1] home hero prompt example cards fill the composer for fallback modes',
   await gotoEntryHome(page);
 
   const input = page.getByTestId('home-hero-input');
-  await pickHomeTemplate(page, 'audio');
+  await pickHomeTemplate(page, 'document');
   await expect(page.getByTestId('home-hero-prompt-examples')).toBeVisible();
   await expect(page.getByTestId('home-hero-plugin-presets')).toHaveCount(0);
 
@@ -1943,14 +1929,13 @@ test('[P2] switching the selected hero template swaps preset chrome and keeps th
   await expect(page.getByTestId('home-hero-design-system-trigger')).toBeVisible();
 
   // Clearing was removed, so switching is what drops the previous type's
-  // footer chrome — audio carries none of prototype's options.
-  await pickHomeTemplate(page, 'audio');
-  await expect(page.getByTestId('home-hero-footer-option-designSystem')).toHaveCount(0);
+  // footer chrome — Document carries none of Prototype's media options.
+  await pickHomeTemplate(page, 'document');
   await expect(page.getByTestId('home-hero-footer-option-ratio')).toHaveCount(0);
   await expect(page.getByTestId('home-hero-footer-option-duration')).toHaveCount(0);
   // Every template stays on offer whatever is selected.
   const menu = await openHomeTemplateMenu(page);
-  await expect(menu.getByTestId('home-hero-template-wedge-live-artifact')).toBeVisible();
+  await expect(menu.getByTestId('home-hero-template-wedge-webgl')).toBeVisible();
   await expect(menu.getByTestId('home-hero-template-wedge-prototype')).toBeVisible();
 });
 
@@ -1991,7 +1976,7 @@ test('[P1] selecting another example updates the composer input', async ({ page 
   await expect(input).toHaveText('Create a live Notion dashboard artifact.');
 
   await useExamplePreset(page, 'example-live-artifact');
-  await expect(input).toHaveText('Create refreshable, auditable OpenDesign artifacts.');
+  await expect(input).toHaveText('Create refreshable, auditable NexTore Designer artifacts.');
 });
 
 /**
