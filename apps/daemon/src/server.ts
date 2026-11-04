@@ -407,6 +407,10 @@ import {
 import { prepareDesignTokenContractRebuild } from './design-systems/token-contract-rebuild.js';
 import { registerBrandRoutes } from './brand-routes.js';
 import {
+  createEditionRouteKillSwitch,
+  resolveEdition,
+} from './edition/index.js';
+import {
   authorizeCreatedProjectWorkspace,
   bindCreatedProjectToWorkspace,
   createCreatedProjectWorkspaceResolver,
@@ -3142,8 +3146,12 @@ export async function startServer({
     );
   }
 
+  const edition = resolveEdition(process.env.OD_EDITION);
   const app = express();
   installRouteRegistrationGuard(app);
+  // NEXTORE: disabled product surfaces fail closed before body parsers and
+  // route registrars, while an unset OD_EDITION leaves upstream behavior intact.
+  app.use(createEditionRouteKillSwitch(edition));
   // Clipper page captures are self-contained HTML with inlined images plus a
   // Figma IR, which for an image-heavy site (The Economist, news front pages)
   // runs to tens of MB — far past a normal JSON body. Give the ingest route a

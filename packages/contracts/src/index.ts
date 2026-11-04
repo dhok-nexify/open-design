@@ -2,6 +2,7 @@ export * from './common.js';
 export * from './errors.js';
 export * from './settings-nav.js';
 export * from './tasks.js';
+export * from './nextore/edition.js';
 export * from './api/app-config.js';
 export * from './api/strategy-rollout.js';
 export * from './api/agent-sessions.js';
