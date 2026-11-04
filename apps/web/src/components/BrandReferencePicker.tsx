@@ -93,7 +93,10 @@ function BrandFavicon({ domain, name }: { domain: string; name: string }) {
     setFailed(false);
   }, [domain]);
 
-  if (failed) {
+  // An empty URL means this edition does not query a favicon service, so the
+  // monogram is the placeholder rather than a broken image (DESIGN §13.3).
+  const faviconUrl = brandFaviconUrl(domain, 64);
+  if (failed || !faviconUrl) {
     return (
       <span className={styles.faviconFallback} aria-hidden>
         {name.slice(0, 1).toUpperCase()}
@@ -103,7 +106,7 @@ function BrandFavicon({ domain, name }: { domain: string; name: string }) {
   return (
     <img
       className={styles.favicon}
-      src={brandFaviconUrl(domain, 64)}
+      src={faviconUrl}
       alt=""
       loading="lazy"
       decoding="async"

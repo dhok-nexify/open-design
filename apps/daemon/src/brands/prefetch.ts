@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { harvestFonts, type FontFile } from "./fonts.js";
 import { fetchExternalBrandAsset } from "./safe-fetch.js";
+import { publicFaviconServicesAllowed } from "./offline-policy.js";
 import { findRealElementRange, findRealTagOffset, HTML_TAG_PATTERNS } from '@open-design/contracts/runtime/html-injection-points';
 
 /**
@@ -567,6 +568,9 @@ function pngSize(buf: Buffer): { w: number; h: number } | null {
  * that so a placeholder never becomes the brand mark.
  */
 async function fetchServiceFavicons(host: string, logosDir: string): Promise<LogoCandidate[]> {
+  // NexTore edition: no third-party favicon services (DESIGN §13.3).
+  if (!publicFaviconServicesAllowed()) return [];
+
   const out: LogoCandidate[] = [];
   const services = [
     {

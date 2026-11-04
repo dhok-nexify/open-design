@@ -4,7 +4,10 @@
 // from the public favicon service keyed on the domain, so this module carries
 // no dependency on any private ad-library storage.
 
+import type { Edition } from '@open-design/contracts';
+
 import data from './brand-references.json';
+import { NEXTORE_WEB_EDITION } from '../nextore/features';
 
 export interface BrandReference {
   /** Brand display name, e.g. 'Webflow'. */
@@ -98,6 +101,13 @@ export const QUICK_PICK_BRANDS: BrandReference[] = (() => {
 })();
 
 // Public favicon for a brand domain, sized for crisp rendering on retina tiles.
-export function brandFaviconUrl(domain: string, size = 64): string {
+// The NexTore edition returns an empty string so callers render their local
+// monogram/glyph placeholder instead of making a third-party request (DESIGN §13.3).
+export function resolveBrandFaviconUrl(domain: string, size: number, edition: Edition): string {
+  if (edition === 'nextore') return '';
   return `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=${size}`;
+}
+
+export function brandFaviconUrl(domain: string, size = 64): string {
+  return resolveBrandFaviconUrl(domain, size, NEXTORE_WEB_EDITION);
 }

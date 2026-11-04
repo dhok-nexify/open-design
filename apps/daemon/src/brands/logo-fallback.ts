@@ -10,6 +10,8 @@
 // hostile origin just yields an empty result, preserving the prior behavior.
 
 import fs from 'node:fs';
+
+import { publicFaviconServicesAllowed } from './offline-policy.js';
 import path from 'node:path';
 
 import { fetchExternalBrandAsset } from './safe-fetch.js';
@@ -212,7 +214,7 @@ export async function harvestFallbackLogos(
   // Last resort: public favicon services keyed by hostname (never touch the
   // origin, so they survive hotlink protection / bot walls). Google falls back
   // to a tiny generic globe for unknown domains — the size check rejects that.
-  if (saved.length === 0) {
+  if (saved.length === 0 && publicFaviconServicesAllowed()) {
     const services: Array<{ url: string; accept: (buf: Buffer) => boolean }> = [
       {
         url: `https://www.google.com/s2/favicons?domain=${host}&sz=256`,

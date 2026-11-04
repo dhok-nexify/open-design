@@ -30,6 +30,7 @@ import { Button, Textarea } from '@open-design/components';
 import type { WorkspaceCollabContext } from '@open-design/contracts';
 import type { DesignSystemEditClickProps } from '@open-design/contracts/analytics';
 import { useT } from '../i18n';
+import { NEXTORE_WEB_EDITION } from '../nextore/features';
 import {
   fetchProjectFileText,
   openExternalUrl,
@@ -105,7 +106,16 @@ export function BrandLogo({
   readGeneration,
 }: KitLogoProps) {
   const bid = brandId ?? id;
-  const first: LogoStage = bid ? 'brand' : logoSrc ? 'custom' : host ? 'favicon' : 'letter';
+  // NexTore edition: never query the public favicon service (DESIGN §13.3);
+  // the chain falls through to the monogram placeholder.
+  const externalFaviconsAllowed = NEXTORE_WEB_EDITION !== 'nextore';
+  const first: LogoStage = bid
+    ? 'brand'
+    : logoSrc
+      ? 'custom'
+      : host && externalFaviconsAllowed
+        ? 'favicon'
+        : 'letter';
   const workspaceIdentity = workspaceIdentityCacheKey(workspaceContext);
   const [stage, setStage] = useState<LogoStage>(first);
   useEffect(() => {
@@ -117,7 +127,7 @@ export function BrandLogo({
       ? workspaceResourceUrl(`/api/brands/${encodeURIComponent(bid)}/logo`, workspaceContext)
       : stage === 'custom' && logoSrc
         ? logoSrc
-        : stage === 'favicon' && host
+        : stage === 'favicon' && host && externalFaviconsAllowed
           ? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(host)}&sz=${faviconSize}`
           : null;
 
@@ -138,7 +148,17 @@ export function BrandLogo({
       referrerPolicy="no-referrer"
       onError={() =>
         setStage((s) =>
-          s === 'brand' ? (logoSrc ? 'custom' : host ? 'favicon' : 'letter') : s === 'custom' ? 'favicon' : 'letter',
+          s === 'brand'
+            ? logoSrc
+              ? 'custom'
+              : host && externalFaviconsAllowed
+                ? 'favicon'
+                : 'letter'
+            : s === 'custom'
+              ? externalFaviconsAllowed
+                ? 'favicon'
+                : 'letter'
+              : 'letter',
         )
       }
     />

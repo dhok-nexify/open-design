@@ -77,6 +77,8 @@ const BUNDLED_RESOURCE_TREES = [
   // packaged case). Without it the packaged daemon reads an empty manifest and the
   // gallery falls back to live, GPU-expensive iframes instead of the baked clips.
   { from: join("data", "plugin-previews"), to: join("data", "plugin-previews") },
+  // Pinned offline runtime assets served by the daemon at /vendor/* (DESIGN §13.3).
+  { from: join("apps", "daemon", "vendor"), to: "vendor" },
 ] as const;
 
 export async function copyBundledResourceTrees({

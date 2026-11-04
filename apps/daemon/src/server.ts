@@ -893,6 +893,7 @@ import { registerAutomationRoutes } from './routes/automation.js';
 import { registerAttributionRoutes } from './routes/attribution.js';
 import { registerDaemonRoutes } from './routes/daemon.js';
 import { registerGenuiRoutes } from './routes/genui.js';
+import { registerVendorRoutes } from './routes/vendor.js';
 import { registerDesignSystemRoutes } from './routes/design-systems.js';
 import { registerHostToolsRoutes } from './routes/host-tools.js';
 import { registerPluginAssetRoutes } from './routes/plugins/assets.js';
@@ -1296,6 +1297,13 @@ const DESIGN_SYSTEMS_DIR = resolveDaemonResourceDir(
   DAEMON_RESOURCE_ROOT,
   'design-systems',
   path.join(PROJECT_ROOT, 'design-systems'),
+);
+// Pinned offline assets for generated artifacts and previews (DESIGN §13.3). Packaged builds
+// copy apps/daemon/vendor to <OD_RESOURCE_ROOT>/vendor.
+const VENDOR_DIR = resolveDaemonResourceDir(
+  DAEMON_RESOURCE_ROOT,
+  'vendor',
+  path.join(PROJECT_ROOT, 'apps', 'daemon', 'vendor'),
 );
 // Renderable templates pulled out of `skills/` by the skills/design-templates
 // split (PR #955) so the EntryView Templates tab gets the large rendering
@@ -9025,6 +9033,11 @@ export async function startServer({
     http: httpDeps,
     paths: pathDeps,
     projects: { getProject: (id: string) => getProject(db, id) },
+  });
+  // NEXTORE: pinned offline assets for generated artifacts and previews (DESIGN §13.3).
+  registerVendorRoutes(app, {
+    vendorDir: VENDOR_DIR,
+    logError: (message) => console.warn(message),
   });
   app.use('/artifacts', express.static(ARTIFACTS_DIR));
   app.use(
