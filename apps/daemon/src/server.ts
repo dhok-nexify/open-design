@@ -412,6 +412,7 @@ import {
 } from './edition/index.js';
 import { createNextoreClient } from './nextore/client.js';
 import { readNextoreConfig } from './nextore/config.js';
+import { migrateNextoreDatabase } from './nextore/db.js';
 import {
   nextoreHealthMetadata,
   registerNextoreRoutes,
@@ -3445,6 +3446,9 @@ export async function startServer({
     next();
   });
   const db = openDatabase(PROJECT_ROOT, { dataDir: RUNTIME_DATA_DIR });
+  // NEXTORE: edition-owned tables are applied after the upstream migration,
+  // keeping the base schema unchanged for upstream builds.
+  if (edition === 'nextore') migrateNextoreDatabase(db);
   const amrTerminalReportOutbox = createAmrTerminalReportOutboxStore(db);
   const amrTerminalReportDelivery = createAmrTerminalReportDeliveryService({
     store: amrTerminalReportOutbox,
