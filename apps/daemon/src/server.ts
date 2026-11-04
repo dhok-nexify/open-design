@@ -410,6 +410,12 @@ import {
   createEditionRouteKillSwitch,
   resolveEdition,
 } from './edition/index.js';
+import { createNextoreClient } from './nextore/client.js';
+import { readNextoreConfig } from './nextore/config.js';
+import {
+  nextoreHealthMetadata,
+  registerNextoreRoutes,
+} from './nextore/routes.js';
 import {
   authorizeCreatedProjectWorkspace,
   bindCreatedProjectToWorkspace,
@@ -3147,6 +3153,8 @@ export async function startServer({
   }
 
   const edition = resolveEdition(process.env.OD_EDITION);
+  const nextoreConfig = readNextoreConfig(process.env, edition);
+  const nextoreClient = nextoreConfig ? createNextoreClient({ config: nextoreConfig }) : null;
   const app = express();
   installRouteRegistrationGuard(app);
   // NEXTORE: disabled product surfaces fail closed before body parsers and
@@ -8039,6 +8047,7 @@ export async function startServer({
     res.json({
       ok: true,
       version: versionInfo.version,
+      ...nextoreHealthMetadata(edition, versionInfo.version),
       amrTerminalReporter: {
         status: 'active',
         pending,
@@ -8049,6 +8058,10 @@ export async function startServer({
       },
     });
   });
+
+  if (nextoreClient) {
+    registerNextoreRoutes(app, { client: nextoreClient });
+  }
 
   app.get('/api/ready', async (_req, res) => {
     const versionInfo = await readCurrentAppVersionInfo();
