@@ -222,7 +222,7 @@ function resolveDaemonOrigin(): string | null {
   const port = parsePort(process.env[DAEMON_PORT_ENV]);
   if (port === 0) {
     console.warn(
-      `[open-design web] ${DAEMON_PORT_ENV} is not set; /api, /artifacts and /frames will answer ${DAEMON_PROXY_UNAVAILABLE_MESSAGE}`,
+      `[open-design web] ${DAEMON_PORT_ENV} is not set; /api, /artifacts, /frames and /vendor will answer ${DAEMON_PROXY_UNAVAILABLE_MESSAGE}`,
     );
     return null;
   }
@@ -246,7 +246,9 @@ function isDaemonProxyPathname(pathname: string): boolean {
     pathname === "/artifacts" ||
     pathname.startsWith("/artifacts/") ||
     pathname === "/frames" ||
-    pathname.startsWith("/frames/")
+    pathname.startsWith("/frames/") ||
+    pathname === "/vendor" ||
+    pathname.startsWith("/vendor/")
   );
 }
 

@@ -244,7 +244,10 @@ export function isPathLikeChatHref(href: string | null | undefined): boolean {
 // shows actual content, so they are neither file links nor SPA routes.
 function isDaemonServedPath(path: string): boolean {
   return (
-    path.startsWith('/api/') || path.startsWith('/artifacts/') || path.startsWith('/frames/')
+    path.startsWith('/api/') ||
+    path.startsWith('/artifacts/') ||
+    path.startsWith('/frames/') ||
+    path.startsWith('/vendor/')
   );
 }
 

@@ -348,6 +348,7 @@ function userArtifactRoute(pathname: string): string {
   }
   if (segments[0] === 'artifacts') return '/artifacts/:resource';
   if (segments[0] === 'frames') return '/frames/:resource';
+  if (segments[0] === 'vendor') return '/vendor/:resource';
   return '/same-origin/:resource';
 }
 

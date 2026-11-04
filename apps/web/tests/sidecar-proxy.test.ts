@@ -32,6 +32,17 @@ describe('resolveDaemonProxyTarget', () => {
     expect(target?.href).toBe('http://127.0.0.1:7456/api/latest/meta-data?token=1');
   });
 
+  it('proxies the offline vendor route', () => {
+    const target = resolveDaemonProxyTarget(
+      'http://127.0.0.1:7456',
+      '/vendor/react@18.3.1/umd/react.development.js',
+    );
+
+    expect(target?.href).toBe(
+      'http://127.0.0.1:7456/vendor/react@18.3.1/umd/react.development.js',
+    );
+  });
+
   it('rejects non-daemon paths', () => {
     expect(resolveDaemonProxyTarget('http://127.0.0.1:7456', '/settings')).toBeNull();
   });
