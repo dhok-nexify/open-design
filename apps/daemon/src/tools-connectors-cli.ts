@@ -4,6 +4,10 @@ import { mkdtemp, mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/
 import os from 'node:os';
 import path from 'node:path';
 
+import { applyOfflineVendorUrls } from '@open-design/contracts';
+
+import { resolveEdition } from './edition/index.js';
+
 type JsonObject = Record<string, unknown>;
 
 interface CliError {
@@ -71,6 +75,8 @@ const MAX_CONNECTOR_DIRECTORY_SCAN_DIRS = 48;
 const GITHUB_CLONE_TIMEOUT_MS = 120_000;
 const GH_AUTH_TIMEOUT_MS = 10_000;
 const MAX_PROCESS_OUTPUT_CHARS = 8_000;
+// NexTore edition: the UI-kit skeleton points at the daemon /vendor route (DESIGN §13.3).
+const TOOLS_EDITION = resolveEdition(process.env.OD_EDITION);
 const UI_KIT_ENTRY_GUIDANCE = [
   '- Claude-style UI-kit entry skeleton for direct JSX kits:',
   '  - `<script src="https://unpkg.com/react@18.3.1/umd/react.development.js"></script>`',
@@ -80,7 +86,7 @@ const UI_KIT_ENTRY_GUIDANCE = [
   '  - `<div id="root"></div>`',
   '  - Load role components from `components/*.jsx` with `<script type="text/babel" src="components/ComponentName.jsx"></script>`.',
   '  - Mount with `const { App } = window; const root = ReactDOM.createRoot(document.getElementById("root")); root.render(<App />);`.',
-];
+].map((line) => applyOfflineVendorUrls(line, TOOLS_EDITION));
 
 interface ParsedGitHubRepo {
   owner: string;

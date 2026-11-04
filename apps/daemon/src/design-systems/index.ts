@@ -20,6 +20,7 @@ import {
   extractComponentsManifest,
   summarizeComponentsManifestForPrompt,
 } from '@open-design/contracts';
+import { resolveEdition } from '../edition/index.js';
 
 import { parseFrontmatter } from './frontmatter.js';
 import type { FrontmatterObject, FrontmatterValue } from './frontmatter.js';
@@ -3905,6 +3906,8 @@ function renderComponentPreviewHtml(
   summary: string,
   palette: GeneratedPalette,
 ): string {
+  // NexTore edition serves the runtimes from /vendor instead of unpkg (DESIGN §13.3).
+  const vendor = resolveEdition(process.env.OD_EDITION) === 'nextore';
   const componentScripts = [
     ...defaultUiKitComponentSpecs().filter((spec) => spec.componentName !== 'App'),
     ...defaultUiKitComponentSpecs().filter((spec) => spec.componentName === 'App'),
@@ -3915,9 +3918,9 @@ function renderComponentPreviewHtml(
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>${escapeHtml(title)} Interface</title>
-  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js"></script>
-  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js"></script>
-  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js"></script>
+  <script src="${vendor ? '/vendor/react@18.3.1/umd/react.development.js' : 'https://unpkg.com/react@18.3.1/umd/react.development.js'}"></script>
+  <script src="${vendor ? '/vendor/react-dom@18.3.1/umd/react-dom.development.js' : 'https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js'}"></script>
+  <script src="${vendor ? '/vendor/@babel/standalone@7.29.0/babel.min.js' : 'https://unpkg.com/@babel/standalone@7.29.0/babel.min.js'}"></script>
   <link rel="stylesheet" href="../../colors_and_type.css" />
   <style>
     :root {

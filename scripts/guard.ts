@@ -98,6 +98,8 @@ const residualAllowedExactPaths = new Set([
   // their LICENSE files, not project-owned source.
   "apps/daemon/vendor/react@18.3.1/umd/react.development.js",
   "apps/daemon/vendor/react-dom@18.3.1/umd/react-dom.development.js",
+  "apps/daemon/vendor/@babel/standalone@7.29.0/babel.min.js",
+  "apps/daemon/vendor/framer-motion@11.11.13/dist/framer-motion.js",
   // PostCSS loads Tailwind through a web-local .mjs compatibility config entry.
   "apps/web/postcss.config.mjs",
   "scripts/bake-html-ppt-examples.mjs",

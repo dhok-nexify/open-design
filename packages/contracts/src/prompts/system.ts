@@ -31,6 +31,8 @@
  */
 import type { ChatSessionMode } from '../api/chat.js';
 import type { ProjectMetadata, ProjectTemplate } from '../api/projects.js';
+import type { Edition } from '../nextore/edition.js';
+import { applyOfflineVendorUrls } from './offline-vendor.js';
 import { OFFICIAL_DESIGNER_PROMPT, renderOfficialDesignerPrompt } from './official-system.js';
 import { DISCOVERY_AND_PHILOSOPHY } from './discovery.js';
 import {
@@ -179,6 +181,11 @@ Active design system exception: the active design system is the visual direction
 `;
 
 export interface ComposeInput {
+  /**
+   * Product edition. The NexTore edition rewrites the pinned CDN asset URLs to the daemon
+   * /vendor route (DESIGN §13.3); omitted or 'upstream' keeps the prompt byte-identical.
+   */
+  edition?: Edition | undefined;
   // Mirrored internal request-recipe slot. Generic/BYOK callers do not infer
   // this from plugin ids; the daemon must supply a verified recipe payload.
   odNextStrategyRecipe?: OdNextStrategyRequestRecipeV2 | undefined;
@@ -283,6 +290,7 @@ export interface ComposeInput {
 }
 
 export function composeSystemPrompt({
+  edition,
   odNextStrategyRecipe,
   agentId,
   planToolNote,
@@ -586,7 +594,7 @@ export function composeSystemPrompt({
     parts.push(ACTIVE_DESIGN_SYSTEM_VISUAL_DIRECTION_OVERRIDE);
   }
 
-  return parts.join('');
+  return applyOfflineVendorUrls(parts.join(''), edition ?? 'upstream');
 }
 
 /**

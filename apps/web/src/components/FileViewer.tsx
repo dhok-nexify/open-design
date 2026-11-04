@@ -6795,7 +6795,10 @@ function ReactComponentViewer({
 
     let cancelled = false;
     const buildSrcDoc = () => {
-      const nextSrcDoc = buildReactComponentSrcdoc(source, { title: exportTitle });
+      const nextSrcDoc = buildReactComponentSrcdoc(source, {
+        title: exportTitle,
+        vendorBaseUrl: window.location.origin,
+      });
       if (!cancelled) setSrcDoc(nextSrcDoc);
     };
 

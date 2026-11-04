@@ -52,6 +52,7 @@ import {
 import { deriveFileOps } from '../runtime/file-ops';
 import { latestTodosFromEvents } from '../runtime/todos';
 import { brandFaviconUrl } from '../runtime/brand-references';
+import { NEXTORE_WEB_EDITION } from '../nextore/features';
 import { useBrandExtract } from '../runtime/useBrandExtract';
 import {
   createFileSystemReadError,
@@ -260,6 +261,20 @@ const MAX_FIGMA_CONTEXT_FILES = 10;
 const MAX_ASSET_UPLOAD_FILES = 80;
 const MAX_ASSET_FILE_BYTES = 12 * 1024 * 1024;
 
+// NexTore edition loads the runtimes from the daemon /vendor route, not unpkg
+// (DESIGN §13.3); upstream keeps the original snippets.
+const UI_KIT_RUNTIME_SCRIPTS = NEXTORE_WEB_EDITION === 'nextore'
+  ? [
+      '<script src="/vendor/react@18.3.1/umd/react.development.js"></script>',
+      '<script src="/vendor/react-dom@18.3.1/umd/react-dom.development.js"></script>',
+      '<script src="/vendor/@babel/standalone@7.29.0/babel.min.js"></script>',
+    ]
+  : [
+      '<script src="https://unpkg.com/react@18.3.1/umd/react.development.js"></script>',
+      '<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js"></script>',
+      '<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js"></script>',
+    ];
+
 const UI_KIT_ENTRY_CONTRACT = [
   'Claude-style UI-kit entry contract:',
   '- When `ui_kits/app/components/*.jsx` or `*.tsx` files exist, `ui_kits/app/index.html` must behave like a runnable browser entry, not a static mock.',
@@ -267,9 +282,7 @@ const UI_KIT_ENTRY_CONTRACT = [
   '- `App.jsx` must assign `window.App = App` (or `globalThis.App = App`), and every directly loaded component file must expose the same browser global for its component name.',
   '- Use this skeleton for direct JSX component kits, replacing the component list only when evidence supports different names:',
   '```html',
-  '<script src="https://unpkg.com/react@18.3.1/umd/react.development.js"></script>',
-  '<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js"></script>',
-  '<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js"></script>',
+  ...UI_KIT_RUNTIME_SCRIPTS,
   '<link rel="stylesheet" href="../../colors_and_type.css">',
   '<div id="root"></div>',
   '<script type="text/babel" src="components/Sidebar.jsx"></script>',

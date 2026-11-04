@@ -31,6 +31,7 @@ import {
   renderChatTurnHostProtocolInstructions,
   resolveOdNextDeckFrameworkMode,
 } from '@open-design/contracts';
+import { applyOfflineVendorUrls } from '@open-design/contracts';
 import {
   advanceAuthenticatedDoneCapture,
   isTodoWriteToolName,
@@ -10565,9 +10566,15 @@ export async function startServer({
         user_and_project_instructions: { userInstructions, projectInstructions },
       });
     }
-    const prompt = odNextStrategyRecipe
-      ? composeOdNextStrategyCorePromptV2(odNextStrategyRecipe)
-      : composeSystemPrompt(systemPromptInputs);
+    // NEXTORE: the NexTore edition may not reference an external CDN, so the
+    // pinned asset URLs are rewritten to the daemon /vendor route (DESIGN §13.3).
+    // Upstream (OD_EDITION unset) keeps the composed prompt byte-identical.
+    const prompt = applyOfflineVendorUrls(
+      odNextStrategyRecipe
+        ? composeOdNextStrategyCorePromptV2(odNextStrategyRecipe)
+        : composeSystemPrompt(systemPromptInputs),
+      resolveEdition(process.env.OD_EDITION),
+    );
     // OD Next sends a canonical XML tree, not this Markdown string. The tree's
     // cache-stable head, its per-task identity, and the runtime-owned planning
     // facts are three separate products of the same verified recipe, so they are

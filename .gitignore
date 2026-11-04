@@ -45,6 +45,10 @@ tsconfig.tsbuildinfo
 
 # Generated from the checked-in compressed vendor source during postinstall.
 apps/desktop/vendor/dom-to-pptx/dom-to-pptx.bundle.js
+# The daemon serves framer-motion from apps/daemon/vendor at /vendor/* (DESIGN §13.3);
+# the blanket dist/ rule above would otherwise hide it from git.
+!apps/daemon/vendor/framer-motion@11.11.13/dist/
+!apps/daemon/vendor/framer-motion@11.11.13/dist/framer-motion.js
 
 **/.claude-sessions/*
 

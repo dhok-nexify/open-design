@@ -1,5 +1,13 @@
+import { NEXTORE_WEB_EDITION } from '../nextore/features';
+
 interface ReactComponentSrcdocOptions {
   title: string;
+  /**
+   * Origin that serves /vendor/*. The NexTore edition resolves the runtimes there
+   * instead of unpkg (DESIGN §13.3). Omit it for downloadable exports, which cannot
+   * assume the Designer origin.
+   */
+  vendorBaseUrl?: string;
 }
 
 const REACT_DEV_URL = 'https://unpkg.com/react@18/umd/react.development.js';
@@ -8,8 +16,18 @@ const BABEL_STANDALONE_URL = 'https://unpkg.com/@babel/standalone/babel.min.js';
 
 export function buildReactComponentSrcdoc(
   source: string,
-  { title }: ReactComponentSrcdocOptions,
+  { title, vendorBaseUrl }: ReactComponentSrcdocOptions,
 ): string {
+  const useVendor = NEXTORE_WEB_EDITION === 'nextore' && Boolean(vendorBaseUrl);
+  const reactUrl = useVendor
+    ? `${vendorBaseUrl}/vendor/react@18.3.1/umd/react.development.js`
+    : REACT_DEV_URL;
+  const reactDomUrl = useVendor
+    ? `${vendorBaseUrl}/vendor/react-dom@18.3.1/umd/react-dom.development.js`
+    : REACT_DOM_DEV_URL;
+  const babelUrl = useVendor
+    ? `${vendorBaseUrl}/vendor/@babel/standalone@7.29.0/babel.min.js`
+    : BABEL_STANDALONE_URL;
   const prepared = prepareReactComponentSource(source);
   const safeTitle = escapeHtml(title || 'React component');
   const sourceJson = JSON.stringify(prepared);
@@ -43,9 +61,9 @@ export function buildReactComponentSrcdoc(
   </head>
   <body>
     <div id="root"></div>
-    <script src="${REACT_DEV_URL}"></script>
-    <script src="${REACT_DOM_DEV_URL}"></script>
-    <script src="${BABEL_STANDALONE_URL}"></script>
+    <script src="${reactUrl}"></script>
+    <script src="${reactDomUrl}"></script>
+    <script src="${babelUrl}"></script>
     <script>
       (function(){
         var root = document.getElementById('root');

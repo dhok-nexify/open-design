@@ -42,6 +42,20 @@ export const VENDOR_ASSETS: readonly VendorAsset[] = [
     sha256: 'f9044a5e9c39db8bb1a204dff924e526ec0a621e695bb69de1035811be8709e4',
     bytes: 1080227,
   },
+  {
+    package: '@babel/standalone@7.29.0',
+    file: 'babel.min.js',
+    contentType: 'text/javascript; charset=utf-8',
+    sha256: '2623a9e22809915ce789b4461154e277ddce520d5a4320c14d44332a5d0dcea0',
+    bytes: 3137752,
+  },
+  {
+    package: 'framer-motion@11.11.13',
+    file: 'dist/framer-motion.js',
+    contentType: 'text/javascript; charset=utf-8',
+    sha256: '2282c76027bbb429223a0d3c3b9bcc40b7f2f47ca9980059881aa56fc8bf41bc',
+    bytes: 141825,
+  },
 ];
 
 /** Public URL for an asset: /vendor/<package>/<file>. */
