@@ -32,7 +32,7 @@
 import type { ChatSessionMode } from '../api/chat.js';
 import type { ProjectMetadata, ProjectTemplate } from '../api/projects.js';
 import type { Edition } from '../nextore/edition.js';
-import { applyOfflineVendorUrls } from './offline-vendor.js';
+import { applyOfflinePromptConstraints } from './offline-vendor.js';
 import { OFFICIAL_DESIGNER_PROMPT, renderOfficialDesignerPrompt } from './official-system.js';
 import { DISCOVERY_AND_PHILOSOPHY } from './discovery.js';
 import {
@@ -594,7 +594,7 @@ export function composeSystemPrompt({
     parts.push(ACTIVE_DESIGN_SYSTEM_VISUAL_DIRECTION_OVERRIDE);
   }
 
-  return applyOfflineVendorUrls(parts.join(''), edition ?? 'upstream');
+  return applyOfflinePromptConstraints(parts.join(''), edition ?? 'upstream');
 }
 
 /**

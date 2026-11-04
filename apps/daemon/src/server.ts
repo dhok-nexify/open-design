@@ -31,7 +31,7 @@ import {
   renderChatTurnHostProtocolInstructions,
   resolveOdNextDeckFrameworkMode,
 } from '@open-design/contracts';
-import { applyOfflineVendorUrls } from '@open-design/contracts';
+import { applyOfflinePromptConstraints } from '@open-design/contracts';
 import {
   advanceAuthenticatedDoneCapture,
   isTodoWriteToolName,
@@ -10569,7 +10569,7 @@ export async function startServer({
     // NEXTORE: the NexTore edition may not reference an external CDN, so the
     // pinned asset URLs are rewritten to the daemon /vendor route (DESIGN §13.3).
     // Upstream (OD_EDITION unset) keeps the composed prompt byte-identical.
-    const prompt = applyOfflineVendorUrls(
+    const prompt = applyOfflinePromptConstraints(
       odNextStrategyRecipe
         ? composeOdNextStrategyCorePromptV2(odNextStrategyRecipe)
         : composeSystemPrompt(systemPromptInputs),

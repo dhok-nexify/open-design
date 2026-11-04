@@ -183,6 +183,9 @@ export function useBrandFonts(
   workspaceReadGeneration?: string,
 ): void {
   const googleUrls = useMemo(() => {
+    // NexTore edition: never append an external font stylesheet (DESIGN §13.3).
+    // Self-hosted faces from fonts/manifest.json still load below.
+    if (NEXTORE_WEB_EDITION === 'nextore') return [];
     const urls = fonts
       .map((f) => f.googleFontsUrl)
       .filter((u): u is string => Boolean(u && /^https:\/\/fonts\.googleapis\.com\//i.test(u)));

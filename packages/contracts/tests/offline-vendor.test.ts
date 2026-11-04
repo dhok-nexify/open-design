@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { OFFLINE_VENDOR_URLS, applyOfflineVendorUrls } from '../src/prompts/offline-vendor.js';
+import {
+  OFFLINE_FONT_DIRECTIVE,
+  OFFLINE_VENDOR_URLS,
+  applyOfflinePromptConstraints,
+  applyOfflineVendorUrls,
+} from '../src/prompts/offline-vendor.js';
 
 describe('applyOfflineVendorUrls', () => {
   it('leaves upstream text byte-identical', () => {
@@ -35,10 +40,35 @@ describe('composeSystemPrompt edition gating', () => {
     const upstream = composeSystemPrompt({});
     expect(upstream).toContain('https://unpkg.com/react@18.3.1/umd/react.development.js');
 
+    expect(upstream).not.toContain('## Offline fonts');
+
     const nextore = composeSystemPrompt({ edition: 'nextore' });
     expect(nextore).toContain('/vendor/react@18.3.1/umd/react.development.js');
+    expect(nextore).toContain('## Offline fonts');
     expect(nextore).toContain('/vendor/@babel/standalone@7.29.0/babel.min.js');
     expect(nextore).not.toContain('https://unpkg.com/react@18.3.1');
     expect(nextore).not.toContain('https://unpkg.com/@babel/standalone@7.29.0');
+  });
+});
+
+describe('applyOfflinePromptConstraints', () => {
+  it('is a byte-identical no-op upstream', () => {
+    const text = 'https://unpkg.com/react@18.3.1/umd/react.development.js';
+    expect(applyOfflinePromptConstraints(text, 'upstream')).toBe(text);
+  });
+
+  it('rewrites URLs and appends the font whitelist last in the NexTore edition', () => {
+    const text = 'https://unpkg.com/react@18.3.1/umd/react.development.js';
+    const out = applyOfflinePromptConstraints(text, 'nextore');
+
+    expect(out).toContain('/vendor/react@18.3.1/umd/react.development.js');
+    expect(out).toContain('## Offline fonts');
+    expect(out).toContain('Noto Serif SC');
+    expect(out).toContain('Do not add @import or <link> tags that fetch fonts from a network.');
+    expect(out.endsWith(OFFLINE_FONT_DIRECTIVE)).toBe(true);
+  });
+
+  it('appends the directive to an empty prompt', () => {
+    expect(applyOfflinePromptConstraints('', 'nextore')).toBe(OFFLINE_FONT_DIRECTIVE);
   });
 });

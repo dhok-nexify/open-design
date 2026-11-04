@@ -37,3 +37,41 @@ export function applyOfflineVendorUrls(text: string, edition: Edition): string {
   }
   return result;
 }
+
+/**
+ * Core offline font whitelist (DESIGN §13.3). The NexTore edition renders without Google Fonts,
+ * so a request for any other family is mapped onto the closest one here at generation time.
+ */
+export const OFFLINE_FONT_WHITELIST = [
+  'Inter',
+  'Inter Tight',
+  'Source Serif 4',
+  'Playfair Display',
+  'Space Grotesk',
+  'JetBrains Mono',
+  'Noto Sans HK',
+  'Noto Serif HK',
+  'Noto Sans SC',
+  'Noto Serif SC',
+] as const;
+
+export const OFFLINE_FONT_DIRECTIVE = [
+  '## Offline fonts',
+  '',
+  'This deployment renders without Google Fonts or any other external font service. Use only these families: ' +
+    OFFLINE_FONT_WHITELIST.join(', ') +
+    '.',
+  'When a design system, template, or reference names another family, substitute the closest one from this list and keep the intended weight and character.',
+  'Do not add @import or <link> tags that fetch fonts from a network.',
+].join('\n');
+
+/**
+ * The edition's prompt constraints: pinned CDN URLs become /vendor paths, and the font whitelist
+ * directive is appended last so it outranks design-system typography instructions. Upstream text
+ * is returned byte-identical.
+ */
+export function applyOfflinePromptConstraints(text: string, edition: Edition): string {
+  if (edition !== 'nextore') return text;
+  const rewritten = applyOfflineVendorUrls(text, edition);
+  return rewritten.length === 0 ? OFFLINE_FONT_DIRECTIVE : rewritten + '\n\n' + OFFLINE_FONT_DIRECTIVE;
+}
