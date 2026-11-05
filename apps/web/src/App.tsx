@@ -62,6 +62,7 @@ import { AmrArtifactUpgradeGate } from './components/AmrArtifactUpgradeGate';
 import { AmrArtifactUpgradeHomeCard } from './components/AmrArtifactUpgradeHomeCard';
 import { ExperienceSurvey } from './components/ExperienceSurvey';
 import { isFeatureEnabled } from './nextore/features';
+import { bootstrapBranding } from './nextore/branding';
 import { TooltipLayer } from './components/TooltipLayer';
 import { UpdateDialog } from './components/UpdateDialog';
 import { UpdaterPopup } from './components/UpdaterPopup';
@@ -1879,6 +1880,11 @@ function AppInner() {
   // is running. Settings is irrelevant to visibility; the banner sits above
   // the modal-backdrop layer in index.css so opening Settings does not hide
   // it.
+  // NEXTORE: pull the module's brand payload once per boot (DESIGN §12.1).
+  useEffect(() => {
+    void bootstrapBranding();
+  }, []);
+
   const showPrivacyConsent =
     isFeatureEnabled('privacy-consent') &&
     daemonConfigLoaded &&

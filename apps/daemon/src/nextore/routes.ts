@@ -1,9 +1,11 @@
 import type { Express, RequestHandler, Response } from 'express';
 import type { NextoreSelfTestCheck, NextoreSelfTestResponse } from '@open-design/contracts';
 import { NextoreClientError, type NextoreClient } from './client.js';
+import { createBrandingCache, type BrandingCache } from './branding-cache.js';
 
 export interface RegisterNextoreRoutesDeps {
   client: NextoreClient;
+  brandingCache?: BrandingCache;
 }
 
 function failedCheck(error: unknown): NextoreSelfTestCheck {
@@ -71,4 +73,28 @@ export function registerNextoreRoutes(
   deps: RegisterNextoreRoutesDeps,
 ): void {
   app.get('/api/nextore/self-test', createNextoreSelfTestHandler(deps.client));
+
+  // Public, cached brand payload for the Designer shell (DESIGN §12.1). The module endpoint is
+  // already anonymous; the daemon caches it so every boot does not round-trip to NexTore.
+  const brandingCache = deps.brandingCache ?? createBrandingCache(deps.client);
+  app.get('/api/branding', async (req, res: Response) => {
+    const snapshot = await brandingCache.get();
+    if (!snapshot) {
+      res.status(503).json({ error: 'branding_unavailable' });
+      return;
+    }
+
+    const etag = 'W/"' + snapshot.value.version + '"';
+    res.setHeader('Cache-Control', 'public, max-age=300');
+    res.setHeader('ETag', etag);
+    if (snapshot.stale) res.setHeader('X-Branding-Stale', '1');
+
+    const ifNoneMatch = req.headers['if-none-match'];
+    if (typeof ifNoneMatch === 'string' && ifNoneMatch.split(',').some((value) => value.trim() === etag)) {
+      res.status(304).end();
+      return;
+    }
+
+    res.json(snapshot.value);
+  });
 }
