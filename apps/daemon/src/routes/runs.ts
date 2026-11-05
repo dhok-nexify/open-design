@@ -17,6 +17,7 @@ import {
   type StrategyTaskProjectionV2,
   type ProjectMetadata as ContractProjectMetadata,
   type RunResultPackageResponse,
+  resolveEdition,
 } from '@open-design/contracts';
 import {
   buildRunCreatedV4Aliases,
@@ -184,6 +185,7 @@ import {
   BYOK_OPENCODE_PROVIDER_REQUIRED_MESSAGE,
 } from '../runtimes/byok-opencode.js';
 import { resolveChatRunInactivityTimeoutMs } from '../runtimes/chat-run-lifecycle.js';
+import { editionAgentGate } from '../edition/agent-selection.js';
 import {
   runtimeAcceptsMidTurnInput,
   type RunSteeringRefusal,
@@ -1738,6 +1740,20 @@ export function registerRunRoutes(app: Express, ctx: RegisterRunRoutesDeps) {
         : typeof requestBody.agentId === 'string' && requestBody.agentId
         ? requestBody.agentId
         : null;
+    // NEXTORE: this edition ships exactly one execution path. A request that
+    // names another agent is rejected instead of silently downgraded, so the
+    // caller learns the capability is absent rather than believing it ran a
+    // different runtime. Upstream keeps the full detection fallback below.
+    const agentGate = editionAgentGate(resolveEdition(process.env.OD_EDITION), effectiveAgentId);
+    if (agentGate && 'reject' in agentGate) {
+      return sendApiError(
+        res,
+        400,
+        'AGENT_NOT_AVAILABLE',
+        `Agent "${agentGate.reject}" is not available in this edition.`,
+      );
+    }
+    if (agentGate) effectiveAgentId = agentGate.agentId;
     if (!effectiveAgentId) {
       try {
         const appCfg = await readAppConfig(RUNTIME_DATA_DIR);

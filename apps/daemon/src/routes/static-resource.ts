@@ -14,6 +14,7 @@ import {
   type TeamResourceStateProvider,
 } from '../collab/team-resource-state.js';
 import { detectAgents, detectAgentsStream } from '../agents.js';
+import { agentDefsForEdition } from '../runtimes/registry.js';
 import {
   SkillImportError,
   deleteUserSkill,
@@ -454,10 +455,16 @@ export function registerStaticResourceRoutes(app: Express, ctx: RegisterStaticRe
       return;
     }
     const agentCliEnv = config.agentCliEnv ?? {};
+    // NEXTORE: the edition exposes one execution path. `/api/agents` is 404 in
+    // the edition kill switch, but the listing still filters here so a future
+    // mount mistake cannot advertise runtimes the daemon refuses to start.
+    const allowedAgentIds = new Set(
+      agentDefsForEdition(resolveEdition(process.env.OD_EDITION)).map((def) => def.id),
+    );
 
     if (!wantsStream) {
       try {
-        const list = await detectAgents(agentCliEnv);
+        const list = (await detectAgents(agentCliEnv)).filter((agent) => allowedAgentIds.has(agent.id));
         res.json({ agents: list });
       } catch (err: any) {
         res.status(500).json({ error: String(err) });
@@ -482,6 +489,7 @@ export function registerStaticResourceRoutes(app: Express, ctx: RegisterStaticRe
     try {
       for await (const agent of detectAgentsStream(agentCliEnv)) {
         if (aborted) break;
+        if (!allowedAgentIds.has(agent.id)) continue;
         res.write(`event: agent\ndata: ${JSON.stringify(agent)}\n\n`);
       }
       if (!aborted) {

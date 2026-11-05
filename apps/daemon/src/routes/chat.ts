@@ -34,6 +34,7 @@ import {
 import { isSafeId as isSafeProjectId } from '../projects.js';
 import { projectKindToTracking } from '@open-design/contracts/analytics';
 import { proxyDispatcherRequestInit, validateUserProviderBaseUrl } from '../connectionTest.js';
+import { providerAttributionHeaders } from '../edition/provider-attribution.js';
 import { isKnownReasoningEffort, resolveModelForServiceTier } from '../runtimes/models.js';
 import { googleStreamGenerateContentUrl } from '../integrations/google-models.js';
 import { createRoleMarkerGuard } from '../role-marker-guard.js';
@@ -1103,10 +1104,7 @@ export function registerChatRoutes(app: Express, ctx: RegisterChatRoutesDeps) {
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${apiKey}`,
-          ...(validated.parsed!.hostname === 'openrouter.ai' ? {
-            'HTTP-Referer': 'https://opendesign.dev',
-            'X-Title': 'OpenDesign',
-          } : {}),
+          ...(validated.parsed!.hostname === 'openrouter.ai' ? providerAttributionHeaders() : {}),
         },
         redirect: 'error' as const,
       };

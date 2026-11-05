@@ -26,7 +26,9 @@ import { reasonixAgentDef } from './defs/reasonix.js';
 import { mimoAgentDef } from './defs/mimo.js';
 import { atomcodeAgentDef } from './defs/atomcode.js';
 import { readLocalAgentProfileDefs as readLocalAgentProfileDefsFromFile } from './local-profiles.js';
+import { BYOK_OPENCODE_AGENT_ID } from './byok-opencode.js';
 import type { RuntimeAgentDef } from './types.js';
+import type { Edition } from '@open-design/contracts';
 
 /**
  * The agents this build ships, before anything a particular machine adds.
@@ -88,4 +90,23 @@ for (const def of AGENT_DEFS) {
 
 export function getAgentDef(id: string): RuntimeAgentDef | null {
   return AGENT_DEFS.find((a) => a.id === id) || null;
+}
+
+/**
+ * The agent definitions this edition is allowed to expose or run.
+ *
+ * The NexTore edition ships one execution path: the daemon-owned BYOK
+ * OpenCode runtime that talks to the NexTore LLM proxy. Every other local CLI
+ * would either spawn a process the platform does not govern or reach a
+ * provider directly, so the registry collapses to that single definition.
+ * Upstream keeps the full list unchanged.
+ */
+export function agentDefsForEdition(edition: Edition): RuntimeAgentDef[] {
+  if (edition !== 'nextore') return AGENT_DEFS;
+  return AGENT_DEFS.filter((def) => def.id === BYOK_OPENCODE_AGENT_ID);
+}
+
+export function getAgentDefForEdition(edition: Edition, id: string): RuntimeAgentDef | null {
+  if (edition !== 'nextore') return getAgentDef(id);
+  return id === BYOK_OPENCODE_AGENT_ID ? getAgentDef(BYOK_OPENCODE_AGENT_ID) : null;
 }

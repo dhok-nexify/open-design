@@ -22,6 +22,8 @@ import { promises as fsp } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { Agent, EnvHttpProxyAgent, Socks5ProxyAgent } from 'undici';
+
+import { providerAttributionHeaders } from './edition/provider-attribution.js';
 import type { Dispatcher, Pool } from 'undici';
 import {
   applyAgentLaunchEnv,
@@ -1350,10 +1352,7 @@ function openAIChatCompletionsProviderCall(
     headers: {
       'content-type': 'application/json',
       authorization: `Bearer ${apiKey}`,
-      ...(new URL(baseUrl).hostname === 'openrouter.ai' ? {
-        'HTTP-Referer': 'https://opendesign.dev',
-        'X-Title': 'OpenDesign',
-      } : {}),
+      ...(new URL(baseUrl).hostname === 'openrouter.ai' ? providerAttributionHeaders() : {}),
     },
     body: {
       model,
