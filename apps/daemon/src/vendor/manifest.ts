@@ -126,6 +126,20 @@ export const VENDOR_ASSETS: readonly VendorAsset[] = [
     sha256: '26dac98cc1ef89b939e3f032a0d1de710c1a1bf6d04df0129ff6ae76ee5ca240',
     bytes: 478389,
   },
+  {
+    package: 'repo-assets@2026-11-05',
+    file: 'skills/8-bit-orbit-video-template/default-showcase.mp4',
+    contentType: 'video/mp4',
+    sha256: '4b2d3479fffe15bde8bfa97967bba4ca9a3606e1254ca4d4e513d1450e384827',
+    bytes: 1745845,
+  },
+  {
+    package: 'repo-assets@2026-11-05',
+    file: 'skills/weread-year-in-review-video-template/default-showcase.mp4',
+    contentType: 'video/mp4',
+    sha256: '6ae794992f30ce052f3afd7889f8e974d329049b9813e02d9992bf3cf64ba62a',
+    bytes: 6075887,
+  },
 ];
 
 /** Public URL for an asset: /vendor/<package>/<file>. */

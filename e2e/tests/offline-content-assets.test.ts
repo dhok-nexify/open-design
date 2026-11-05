@@ -9,10 +9,10 @@ import { describe, expect, it } from 'vitest';
  * CDN, and every /vendor reference they carry must exist in apps/daemon/vendor. Together with
  * vendor-routes.test.ts (manifest <-> bytes) this closes the chain HTML -> disk -> manifest.
  *
- * Known debt, tracked in docs/nextore/D32-ASSET-RUNBOOK.md: the two showcase videos on
- * repo-assets.open-design.ai are still external, so that host is deliberately not scanned here.
- * The GitHub avatars used to be external too; `design-templates/github-dashboard` now inlines
- * deterministic SVG placeholders, so their host is forbidden.
+ * Every remote resource host the catalogue used is now forbidden: the runtime CDNs, the GitHub
+ * avatars (replaced with inlined SVG placeholders) and `repo-assets.open-design.ai` (the two
+ * showcase videos are vendored under `repo-assets@2026-11-05`). See
+ * docs/nextore/D32-ASSET-RUNBOOK.md for the asset inventory.
  */
 const repoRoot = fileURLToPath(new URL('../../', import.meta.url));
 const CONTENT_DIRS = ['design-templates', 'skills'] as const;
@@ -23,6 +23,7 @@ const FORBIDDEN_HOSTS = [
   'cdn.jsdelivr.net',
   'unpkg.com',
   'avatars.githubusercontent.com',
+  'repo-assets.open-design.ai',
 ] as const;
 const VENDOR_DIR = path.join(repoRoot, 'apps', 'daemon', 'vendor');
 const VENDOR_REF = /\/vendor\/([A-Za-z0-9@._/-]+)/g;
