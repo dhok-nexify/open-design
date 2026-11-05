@@ -1,0 +1,37 @@
+[Unit]
+Description=NexTore Designer
+Documentation=https://github.com/nexu-io/open-design
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=@USER@
+Group=@USER@
+WorkingDirectory=@PREFIX@
+EnvironmentFile=/etc/nextore-designer/designer.env
+ExecStart=/usr/bin/env node @PREFIX@/apps/daemon/dist/cli.js --no-open
+Restart=always
+RestartSec=3s
+
+# Hardening. Deliberately no SystemCallFilter, RestrictNamespaces or
+# NoNewPrivileges removal workaround: bubblewrap must be able to call
+# unshare(CLONE_NEWUSER) and mount inside that namespace, which syscall
+# filtering and namespace restrictions break. Isolation of the agent itself
+# comes from bwrap, not from the unit's seccomp.
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=no
+ReadWritePaths=@DATA_DIR@
+
+[Install]
+WantedBy=multi-user.target

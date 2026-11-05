@@ -12,6 +12,7 @@ backup, reverse proxy) see NXD-D38.
 | `compose.yml` | One Designer service with the seccomp profile bwrap needs, a data volume and a secret file. |
 | `seccomp-bwrap.json` | Denied-syscall example profile. See "Sandbox requirements" below. |
 | `.env.example` | The deployment values the compose file requires. |
+| `linux/` | NXD-D36 tarball build, `install.sh`, systemd unit and the service env example. |
 
 ## Build and run
 
@@ -58,6 +59,21 @@ Treat it as a starting point for the platform team's own profile.
 If the probe fails the daemon refuses to start agent runs (`SANDBOX_UNAVAILABLE`)
 in production. `OD_SANDBOX=noop` disables isolation and is meant for development
 hosts only; the daemon logs a warning at boot.
+
+## Linux host install
+
+```bash
+bash deploy/nextore/linux/build-tarball.sh      # dist/nextore-designer-<version>-linux-<arch>.tar.gz
+tar -xzf dist/nextore-designer-*.tar.gz -C /tmp/designer-payload
+sudo /tmp/designer-payload/install/install.sh --start
+```
+
+The installer checks `kernel.unprivileged_userns_clone`, runs a bubblewrap probe as
+the service user, creates the data directory and secret, installs
+`nextore-designer.service` and enables it. It is idempotent: an existing
+`/etc/nextore-designer/designer.env` and secret are kept. The systemd unit
+deliberately omits `SystemCallFilter` and `RestrictNamespaces` because they would
+stop bubblewrap from creating its namespace.
 
 ## Data and secrets
 
