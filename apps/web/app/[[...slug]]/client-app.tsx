@@ -7,6 +7,7 @@ import { MatrixLoader } from '../../src/components/MatrixLoader';
 import { installWebObservability } from '../../src/observability/install';
 import { installChatScrollExperiments } from '../../src/runtime/chat-scroll-experiments';
 import { installChatScrollTakeover } from '../../src/runtime/chat-scroll-takeover';
+import { installNextoreSessionRedirect } from '../../src/nextore/session';
 
 // Install browser exception handlers at module-load time, before any other
 // client code can throw. The hooks buffer events until AnalyticsProvider
@@ -34,6 +35,11 @@ installChatScrollTakeover();
 // 必须在 React 挂载**之前**跑:H3 是入场动画,类名晚一帧到就会先闪一次动画。
 // 操作说明(怎么开、怎么关、开了会失去什么)写在模块顶部的 docblock 里。
 installChatScrollExperiments();
+
+// The NexTore edition signs in through the site's OAuthServerModule. A
+// `SESSION_REQUIRED` answer from the daemon means that session is gone, so send
+// the browser to /auth/start before the individual callers report errors.
+installNextoreSessionRedirect();
 
 // The product is a fully client-driven SPA — every component reads
 // localStorage, window.location, etc. — so we opt out of static-time

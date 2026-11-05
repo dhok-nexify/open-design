@@ -415,6 +415,9 @@ import { resolveSandboxProvider, SandboxUnavailableError } from './sandbox/index
 import { createNextoreClient } from './nextore/client.js';
 import { resolveProductBrandName } from './nextore/branding-state.js';
 import { readNextoreConfig } from './nextore/config.js';
+import { createNextoreAuth } from './nextore/auth/routes.js';
+import { lazyNextoreSecrets } from './nextore/auth/secrets.js';
+import { createNextoreSessionStore } from './nextore/auth/session-store.js';
 import { migrateNextoreDatabase } from './nextore/db.js';
 import {
   nextoreHealthMetadata,
@@ -3150,12 +3153,15 @@ export async function startServer({
   // purely additive: when present, every /api/* request must carry a
   // matching Bearer token or browser Basic credentials (loopback origins
   // are exempted so the desktop UI keeps working).
+  // The edition is resolved before the bound-host guard because the NexTore
+  // edition replaces the shared API token with per-member OAuth sessions.
+  const edition = resolveEdition(process.env.OD_EDITION);
   const apiToken = apiTokenFromEnv();
   const apiAuthDisabled = isApiAuthDisabled();
   const apiTokenAuthEnabled = apiToken.length > 0 && !apiAuthDisabled;
   const isApiTokenAuthorization = (authorization: string | undefined): boolean =>
     apiTokenAuthEnabled && apiTokenAuthorizationMatches(authorization, apiToken);
-  if (!isLoopbackHostname(host) && apiToken.length === 0 && !apiAuthDisabled) {
+  if (edition !== 'nextore' && !isLoopbackHostname(host) && apiToken.length === 0 && !apiAuthDisabled) {
     throw new Error(
       `OD_BIND_HOST=${host} requires OD_API_TOKEN to be set. ` +
       `Generate one with \`openssl rand -hex 32\` and re-launch. ` +
@@ -3164,7 +3170,6 @@ export async function startServer({
     );
   }
 
-  const edition = resolveEdition(process.env.OD_EDITION);
   // NEXTORE: agent subprocesses run inside bubblewrap. A host that cannot
   // provide it fails the run closed instead of degrading silently; upstream
   // keeps the direct spawn. OD_SANDBOX=noop is the documented dev escape.
@@ -3175,10 +3180,51 @@ export async function startServer({
   const nextoreConfig = readNextoreConfig(process.env, edition);
   const nextoreClient = nextoreConfig ? createNextoreClient({ config: nextoreConfig }) : null;
   const app = express();
+  if (nextoreConfig?.trustProxy) {
+    const trustProxy = /^\d+$/.test(nextoreConfig.trustProxy)
+      ? Number(nextoreConfig.trustProxy)
+      : nextoreConfig.trustProxy;
+    app.set('trust proxy', trustProxy);
+  }
   installRouteRegistrationGuard(app);
+  // NEXTORE: the edition signs the browser in through the site's
+  // OAuthServerModule (code + PKCE) and keeps the resulting NexTore API key in
+  // an encrypted session row. Upstream keeps its API-token gate untouched.
+  const nextoreAuth = nextoreConfig && nextoreClient
+    ? (() => {
+        const secrets = lazyNextoreSecrets(nextoreConfig.secretFile);
+        return createNextoreAuth({
+          config: nextoreConfig,
+          client: nextoreClient,
+          secrets,
+          store: createNextoreSessionStore(() => db, secrets),
+          allowRequest: (req) => {
+            // A run-scoped export tool authenticates with its own signed token.
+            // That request is not a browser session and must not be forced
+            // through an OAuth redirect.
+            return req.baseUrl === '/api'
+              && req.method === 'POST'
+              && PROJECT_RUN_SCOPED_EXPORT_PATH_RE.test(req.path)
+              && toolTokenRegistry.validate(bearerTokenFromRequest(req), {
+                endpoint: PROJECT_EXPORT_TOOL_ENDPOINT,
+                operation: 'project:export',
+              }).ok;
+          },
+        });
+      })()
+    : null;
   // NEXTORE: disabled product surfaces fail closed before body parsers and
   // route registrars, while an unset OD_EDITION leaves upstream behavior intact.
   app.use(createEditionRouteKillSwitch(edition));
+  if (nextoreAuth) {
+    // Authenticate before the large body parsers below: an anonymous caller
+    // must not be able to make the daemon buffer a 128 MB clipper capture.
+    // The gate also verifies the browser Origin before it resolves a session,
+    // so a cross-site request cannot trigger a token refresh or touch a row.
+    app.use('/api', nextoreAuth.gate);
+    app.use('/artifacts', nextoreAuth.gate);
+    app.use('/frames', nextoreAuth.gate);
+  }
   // Clipper page captures are self-contained HTML with inlined images plus a
   // Figma IR, which for an image-heavy site (The Economist, news front pages)
   // runs to tens of MB — far past a normal JSON body. Give the ingest route a
@@ -3202,6 +3248,10 @@ export async function startServer({
   // `res.ok` and the export continues without the evidence.
   app.use(CHAT_SCROLL_FORENSICS_PATH, chatScrollForensicsBodyParser);
   app.use(express.json({ limit: '4mb' }));
+  if (nextoreAuth) {
+    // '/auth/*' must be matched before the SPA fallback.
+    nextoreAuth.registerRoutes(app);
+  }
   const projectPreviewScopes = createProjectPreviewScopeRegistry();
 
   // Plan §3.K1 — API-token middleware.
@@ -3217,7 +3267,7 @@ export async function startServer({
   // browser iframes can load HTML/CSS/JS without privileged headers.
   // Rich daemon status stays authenticated because it includes local
   // runtime paths.
-  if (apiTokenAuthEnabled) {
+  if (apiTokenAuthEnabled && !nextoreAuth) {
     const openProbePaths = new Set([
       '/health',
       '/api/health',

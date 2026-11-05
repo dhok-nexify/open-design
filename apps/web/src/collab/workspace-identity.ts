@@ -1,4 +1,5 @@
 import type { WorkspaceCollabContext } from '@open-design/contracts';
+import { NEXTORE_WEB_EDITION } from '../nextore/features';
 
 /**
  * The complete workspace identity carried by workspace-aware web requests.
@@ -7,6 +8,11 @@ import type { WorkspaceCollabContext } from '@open-design/contracts';
  * catalog modules can use it without creating an import cycle.
  */
 export function workspaceProjectHeaders(context: WorkspaceCollabContext): HeadersInit {
+  // The NexTore edition has one authoritative identity: the OAuth session.
+  // Sending upstream workspace claims would be both meaningless there and a
+  // spoofable second source of authority, so the daemon strips them too.
+  if (NEXTORE_WEB_EDITION === 'nextore') return {};
+
   return {
     'x-od-workspace-id': context.workspaceId,
     'x-od-workspace-type': context.workspaceType,
@@ -28,7 +34,7 @@ export function workspaceResourceUrl(
   path: string,
   context: WorkspaceCollabContext | null | undefined,
 ): string {
-  if (!context) return path;
+  if (!context || NEXTORE_WEB_EDITION === 'nextore') return path;
   const separator = path.includes('?') ? '&' : '?';
   return `${path}${separator}workspaceId=${encodeURIComponent(context.workspaceId)}`
     + `&workspaceMemberId=${encodeURIComponent(context.workspaceMemberId)}`;
