@@ -160,6 +160,8 @@ export function parseRoute(pathname: string): Route {
   // Aliases to /plugins remain reserved for the public site (spec §13);
   // in-app we keep /marketplace canonical.
   if (parts[0] === 'marketplace' || parts[0] === 'plugins') {
+    // NexTore edition: the remote marketplace is not part of the first release (DESIGN §13.2).
+    if (!isFeatureEnabled('marketplace-remote')) return { kind: 'home', view: 'plugins' };
     if (parts[1]) {
       return { kind: 'marketplace-detail', pluginId: decodeURIComponent(parts[1]) };
     }

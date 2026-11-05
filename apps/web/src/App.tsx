@@ -5496,7 +5496,7 @@ function AppInner() {
           {appMain}
         </div>
       </div>
-      {clientType === 'desktop' ? null : (
+      {clientType === 'desktop' || !isFeatureEnabled('pets') ? null : (
         <PetOverlay
           pet={config.pet?.enabled ? config.pet : undefined}
           taskCenter={petTaskCenter}

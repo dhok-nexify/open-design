@@ -1890,7 +1890,7 @@ export function EntryShell({
                 </div>
               )}
             </div>
-            {LIBRARY_UI_VISIBLE ? (
+            {LIBRARY_UI_VISIBLE && isFeatureEnabled('library-clipper') ? (
               <div data-testid="entry-view-library" data-active={view === 'library' ? 'true' : 'false'} {...inactiveViewProps(view === 'library')}>
                 <LibrarySection
                   active={view === 'library'}
