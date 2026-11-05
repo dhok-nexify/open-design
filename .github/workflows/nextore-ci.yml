@@ -1,0 +1,114 @@
+# NexTore Designer CI (NXD-D37).
+#
+# Self-contained gate for the NexTore fork: it does not depend on the upstream
+# runner plan, scope planner or release workflows. Upstream-only workflows are
+# disabled in the fork's repository settings; see
+# .github/scripts/nextore/disable-upstream-workflows.sh.
+name: nextore-ci
+
+on:
+  push:
+    branches:
+      - 'nextore/**'
+  pull_request:
+    branches:
+      - 'nextore/**'
+  workflow_dispatch:
+
+concurrency:
+  group: nextore-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: '24'
+  PNPM_VERSION: '10.33.2'
+
+jobs:
+  verify:
+    name: guard, typecheck and tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Guard
+        run: pnpm guard
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Contracts tests
+        run: pnpm --filter @open-design/contracts test
+
+      - name: Daemon tests
+        run: pnpm --filter @open-design/daemon test
+
+      - name: Web tests
+        run: pnpm --filter @open-design/web test
+
+      - name: Edition e2e
+        run: |
+          pnpm --filter @open-design/e2e exec vitest run tests/offline-content-assets.test.ts
+          pnpm --filter @open-design/e2e exec vitest run tests/offline-render.test.ts
+
+      - name: Deployment artifact contracts
+        run: |
+          node --experimental-strip-types --test deploy/tests/nextore-image.test.ts
+          node --experimental-strip-types --test deploy/tests/nextore-linux.test.ts
+
+      - name: Shell syntax
+        run: |
+          bash -n deploy/nextore/linux/install.sh
+          bash -n deploy/nextore/linux/build-tarball.sh
+          bash -n .github/scripts/nextore/disable-upstream-workflows.sh
+
+  image:
+    name: image build and sandbox smoke
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    needs: verify
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build image
+        run: docker build --file deploy/nextore/Dockerfile --tag nextore-designer:ci .
+
+      - name: Vendored assets are present
+        run: |
+          docker run --rm --entrypoint test nextore-designer:ci             -f apps/daemon/vendor/fonts@1.0.0/fonts.css
+          docker run --rm --entrypoint test nextore-designer:ci             -f "apps/daemon/vendor/repo-assets@2026-11-05/skills/8-bit-orbit-video-template/default-showcase.mp4"
+
+      - name: Sandbox can create a namespace under the shipped seccomp profile
+        run: |
+          docker run --rm             --security-opt seccomp=deploy/nextore/seccomp-bwrap.json             --security-opt apparmor=unconfined             --entrypoint /usr/bin/bwrap             nextore-designer:ci             --die-with-parent --unshare-pid --ro-bind / / --dev /dev --proc /proc --tmpfs /tmp /bin/true
+
+      - name: Daemon starts with the edition configuration
+        run: |
+          docker run --rm --entrypoint node nextore-designer:ci -e "
+            const fs = require('node:fs');
+            const required = ['apps/daemon/dist/cli.js', 'apps/web/out/index.html'];
+            for (const path of required) {
+              if (!fs.existsSync(path)) { console.error('missing ' + path); process.exit(1); }
+            }
+            if (process.env.OD_EDITION !== 'nextore') { console.error('OD_EDITION not baked'); process.exit(1); }
+            if (process.env.OD_SANDBOX !== 'bwrap') { console.error('OD_SANDBOX not baked'); process.exit(1); }
+            console.log('image layout ok');
+          "
+
+      - name: Image size report
+        run: docker image inspect nextore-designer:ci --format 'size_bytes={{.Size}}'
