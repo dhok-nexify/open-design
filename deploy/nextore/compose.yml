@@ -1,0 +1,71 @@
+# NexTore Designer — single-host compose example (NXD-D35).
+#
+# bwrap creates a user namespace and mounts proc/dev/tmpfs inside it. Docker's
+# default seccomp profile blocks the syscalls that requires, so this service
+# loads seccomp-bwrap.json and disables the AppArmor profile. Both are
+# host-level requirements, not application settings: verify them with
+#   docker compose -f deploy/nextore/compose.yml run --rm designer \
+#     bwrap --ro-bind / / --dev /dev --proc /proc --tmpfs /tmp /bin/true
+#
+# Required environment (see .env.example):
+#   NEXTORE_BASE_URL           NexTore origin, no path
+#   NEXTORE_OAUTH_CLIENT_ID    client pre-registered for this installation
+#   DESIGNER_BASE_URL          origin users reach this Designer at
+#   DESIGNER_SECRET_FILE_HOST  host path to the session secret file
+name: nextore-designer
+
+services:
+  designer:
+    container_name: nextore-designer
+    image: ${DESIGNER_IMAGE:-nextore/designer:dev}
+    build:
+      context: ../..
+      dockerfile: deploy/nextore/Dockerfile
+    restart: always
+    environment:
+      NODE_ENV: production
+      OD_EDITION: nextore
+      OD_BIND_HOST: 0.0.0.0
+      OD_PORT: 7456
+      # Deployment-owned data root; must be the volume below.
+      OD_DATA_DIR: /var/lib/designer
+      OD_SANDBOX: ${DESIGNER_SANDBOX:-bwrap}
+      OD_BWRAP_BIN: /usr/bin/bwrap
+      NEXTORE_BASE_URL: ${NEXTORE_BASE_URL:?set NEXTORE_BASE_URL}
+      NEXTORE_OAUTH_CLIENT_ID: ${NEXTORE_OAUTH_CLIENT_ID:?set NEXTORE_OAUTH_CLIENT_ID}
+      DESIGNER_BASE_URL: ${DESIGNER_BASE_URL:?set DESIGNER_BASE_URL}
+      DESIGNER_SECRET_FILE: /run/secrets/designer_secret
+      TRUST_PROXY: ${TRUST_PROXY:-}
+    secrets:
+      - designer_secret
+    ports:
+      - "127.0.0.1:${DESIGNER_PORT:-7456}:7456"
+    volumes:
+      - designer_data:/var/lib/designer
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - seccomp=./seccomp-bwrap.json
+      - apparmor=unconfined
+    mem_limit: ${DESIGNER_MEM_LIMIT:-1g}
+    pids_limit: 512
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:7456/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+volumes:
+  designer_data:
+
+secrets:
+  designer_secret:
+    file: ${DESIGNER_SECRET_FILE_HOST:?set DESIGNER_SECRET_FILE_HOST}

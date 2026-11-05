@@ -13,6 +13,8 @@ coverage
 tsconfig.tsbuildinfo
 deploy/*.env
 deploy/.env
+deploy/**/.env
+deploy/**/designer_secret
 deploy/**/*.tar
 deploy/**/*.tgz
 deploy/**/*.zip

@@ -1,0 +1,2 @@
+# Linux build artifacts: keep LF so Dockerfile line continuations stay intact.
+* text eol=lf
