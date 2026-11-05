@@ -42,6 +42,8 @@ export function migrateNextoreDatabase(db: SqliteDb): void {
         ON nextore_sessions(member_id);
       CREATE INDEX IF NOT EXISTS idx_nextore_sessions_validation
         ON nextore_sessions(last_validated_at);
+      CREATE INDEX IF NOT EXISTS idx_nextore_sessions_seen
+        ON nextore_sessions(last_seen_at);
 
       CREATE TABLE IF NOT EXISTS nextore_share_links (
         token_hash TEXT PRIMARY KEY,
