@@ -27,6 +27,7 @@ import type { AppConfig } from '../types';
 import { formatDiscordPresenceCount, useDiscordPresence } from './useDiscordPresence';
 import { Icon } from './Icon';
 import { SocialShareGrid } from './SocialShareGrid';
+import { NEXTORE_WEB_EDITION } from '../nextore/features';
 import { enterpriseUrl } from './enterpriseUrl';
 
 const DISCORD_URL = 'https://discord.gg/mHAjSMV6gz';
@@ -275,6 +276,7 @@ export function EntrySettingsMenu({
             </div>
           </section>
 
+          {NEXTORE_WEB_EDITION !== 'nextore' ? (
           <section className="entry-settings-menu__section">
             <div className="entry-settings-menu__section-title">
               <Icon name="external-link" size={14} />
@@ -294,9 +296,12 @@ export function EntrySettingsMenu({
               onAfterShare={() => setOpen(false)}
             />
           </section>
+          ) : null}
 
           <div className="entry-settings-menu__divider" aria-hidden />
 
+          {NEXTORE_WEB_EDITION !== 'nextore' ? (
+            <>
           <a
             className="entry-settings-menu__item"
             href={enterpriseUrl(locale)}
@@ -488,6 +493,8 @@ export function EntrySettingsMenu({
             <span>{t('entry.followXiaohongshuLabel')}</span>
             <Icon name="external-link" size={12} className="entry-settings-menu__item-end" />
           </a>
+            </>
+          ) : null}
 
           <div className="entry-settings-menu__divider" aria-hidden />
 
