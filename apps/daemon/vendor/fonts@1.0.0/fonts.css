@@ -1,0 +1,513 @@
+/*
+ * Offline font map for the NexTore edition (DESIGN 13.3, Q16).
+ *
+ * The edition never contacts Google Fonts. Every family the bundled skills and design templates ask
+ * for is declared here and resolved from the host with local() sources only, so loading this file
+ * cannot start a network request even when the family is absent.
+ *
+ * Family choice is the same rule set as mapToOfflineFontFamily() in
+ * apps/daemon/src/brands/offline-fonts.ts, so the prompt directive, the daemon mapper and the
+ * pre-authored examples cannot disagree.
+ *
+ * To upgrade from host fallback to pinned webfonts, add a url('/vendor/fonts@1.0.0/<file>.woff2')
+ * source ahead of the local() list for that family and list the file in the vendor manifest. A
+ * vendored face then wins on hosts that do not ship the family.
+ */
+
+/* Whitelist families. */
+@font-face {
+  font-family: 'Inter';
+  src: local('Inter'), local('Inter Variable'), local('Segoe UI'), local('Helvetica Neue');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Inter Tight';
+  src: local('Inter Tight'), local('Inter Tight Variable'), local('Inter'), local('Segoe UI');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Source Serif 4';
+  src: local('Source Serif 4'), local('Source Serif Pro'), local('Georgia');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Playfair Display';
+  src: local('Playfair Display'), local('Georgia');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Space Grotesk';
+  src: local('Space Grotesk'), local('Segoe UI');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'JetBrains Mono';
+  src: local('JetBrains Mono'), local('Cascadia Mono'), local('Consolas'), local('Menlo');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Noto Sans HK';
+  src: local('Noto Sans HK'), local('Noto Sans CJK HK'), local('PingFang HK'), local('Microsoft JhengHei');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Noto Serif HK';
+  src: local('Noto Serif HK'), local('Noto Serif CJK HK'), local('Songti TC'), local('PMingLiU');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Noto Sans SC';
+  src: local('Noto Sans SC'), local('Noto Sans CJK SC'), local('PingFang SC'), local('Microsoft YaHei');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Noto Serif SC';
+  src: local('Noto Serif SC'), local('Noto Serif CJK SC'), local('Songti SC'), local('SimSun');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Families requested by the bundled examples and templates, mapped onto the whitelist. */
+@font-face {
+  font-family: 'Albert Sans';
+  src: local('Inter'), local('Inter Variable'), local('Segoe UI'), local('Helvetica Neue');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Alfa Slab One';
+  src: local('Inter'), local('Inter Variable'), local('Segoe UI'), local('Helvetica Neue');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Archivo';
+  src: local('Space Grotesk'), local('Segoe UI');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Archivo Black';
+  src: local('Space Grotesk'), local('Segoe UI');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Archivo Narrow';
+  src: local('Space Grotesk'), local('Segoe UI');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Barlow';
+  src: local('Inter'), local('Inter Variable'), local('Segoe UI'), local('Helvetica Neue');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Barlow Condensed';
+  src: local('Space Grotesk'), local('Segoe UI');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Bebas Neue';
+  src: local('Space Grotesk'), local('Segoe UI');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Big Shoulders Display';
+  src: local('Space Grotesk'), local('Segoe UI');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Bodoni Moda';
+  src: local('Inter'), local('Inter Variable'), local('Segoe UI'), local('Helvetica Neue');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Bowlby One';
+  src: local('Inter'), local('Inter Variable'), local('Segoe UI'), local('Helvetica Neue');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Bricolage Grotesque';
+  src: local('Inter'), local('Inter Variable'), local('Segoe UI'), local('Helvetica Neue');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Caveat';
+  src: local('Playfair Display'), local('Georgia');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Caveat Brush';
+  src: local('Playfair Display'), local('Georgia');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Chakra Petch';
+  src: local('Inter'), local('Inter Variable'), local('Segoe UI'), local('Helvetica Neue');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Cormorant';
+  src: local('Inter'), local('Inter Variable'), local('Segoe UI'), local('Helvetica Neue');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Cormorant Garamond';
+  src: local('Source Serif 4'), local('Source Serif Pro'), local('Georgia');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Courier Prime';
+  src: local('JetBrains Mono'), local('Cascadia Mono'), local('Consolas'), local('Menlo');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'DM Mono';
+  src: local('JetBrains Mono'), local('Cascadia Mono'), local('Consolas'), local('Menlo');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'DM Sans';
+  src: local('Inter'), local('Inter Variable'), local('Segoe UI'), local('Helvetica Neue');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'DM Serif Display';
+  src: local('Source Serif 4'), local('Source Serif Pro'), local('Georgia');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'DM Serif Text';
+  src: local('Source Serif 4'), local('Source Serif Pro'), local('Georgia');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'EB Garamond';
+  src: local('Source Serif 4'), local('Source Serif Pro'), local('Georgia');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Fraunces';
+  src: local('Inter'), local('Inter Variable'), local('Segoe UI'), local('Helvetica Neue');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Fredoka One';
+  src: local('Inter'), local('Inter Variable'), local('Segoe UI'), local('Helvetica Neue');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Geist';
+  src: local('Inter'), local('Inter Variable'), local('Segoe UI'), local('Helvetica Neue');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Geist Mono';
+  src: local('JetBrains Mono'), local('Cascadia Mono'), local('Consolas'), local('Menlo');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Hanken Grotesk';
+  src: local('Inter'), local('Inter Variable'), local('Segoe UI'), local('Helvetica Neue');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'IBM Plex Mono';
+  src: local('JetBrains Mono'), local('Cascadia Mono'), local('Consolas'), local('Menlo');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'IBM Plex Sans';
+  src: local('Inter'), local('Inter Variable'), local('Segoe UI'), local('Helvetica Neue');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Instrument Serif';
+  src: local('Source Serif 4'), local('Source Serif Pro'), local('Georgia');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Jost';
+  src: local('Inter'), local('Inter Variable'), local('Segoe UI'), local('Helvetica Neue');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Libre Baskerville';
+  src: local('Source Serif 4'), local('Source Serif Pro'), local('Georgia');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Lora';
+  src: local('Source Serif 4'), local('Source Serif Pro'), local('Georgia');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Newsreader';
+  src: local('Inter'), local('Inter Variable'), local('Segoe UI'), local('Helvetica Neue');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Noto Sans JP';
+  src: local('Inter'), local('Inter Variable'), local('Segoe UI'), local('Helvetica Neue');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Noto Serif JP';
+  src: local('Source Serif 4'), local('Source Serif Pro'), local('Georgia');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Patrick Hand';
+  src: local('Playfair Display'), local('Georgia');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Permanent Marker';
+  src: local('Inter'), local('Inter Variable'), local('Segoe UI'), local('Helvetica Neue');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Plus Jakarta Sans';
+  src: local('Inter'), local('Inter Variable'), local('Segoe UI'), local('Helvetica Neue');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Press Start 2P';
+  src: local('Inter'), local('Inter Variable'), local('Segoe UI'), local('Helvetica Neue');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Quicksand';
+  src: local('Inter'), local('Inter Variable'), local('Segoe UI'), local('Helvetica Neue');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Shrikhand';
+  src: local('Playfair Display'), local('Georgia');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Source Sans 3';
+  src: local('Inter'), local('Inter Variable'), local('Segoe UI'), local('Helvetica Neue');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Source Serif Pro';
+  src: local('Source Serif 4'), local('Source Serif Pro'), local('Georgia');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Space Mono';
+  src: local('JetBrains Mono'), local('Cascadia Mono'), local('Consolas'), local('Menlo');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Stardos Stencil';
+  src: local('Inter'), local('Inter Variable'), local('Segoe UI'), local('Helvetica Neue');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Syne';
+  src: local('Inter'), local('Inter Variable'), local('Segoe UI'), local('Helvetica Neue');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Tektur';
+  src: local('Inter'), local('Inter Variable'), local('Segoe UI'), local('Helvetica Neue');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'VT323';
+  src: local('Inter'), local('Inter Variable'), local('Segoe UI'), local('Helvetica Neue');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Work Sans';
+  src: local('Inter'), local('Inter Variable'), local('Segoe UI'), local('Helvetica Neue');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Zilla Slab';
+  src: local('Inter'), local('Inter Variable'), local('Segoe UI'), local('Helvetica Neue');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}

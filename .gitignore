@@ -4,6 +4,11 @@ out/
 .next/
 .next-*/
 .tmp/
+
+# Vendored browser bundles keep their upstream package layout, which includes dist/.
+# Without these negations the asset files are silently excluded from commits.
+!apps/daemon/vendor/**/dist/
+!apps/daemon/vendor/**/dist/**
 .DS_Store
 *.log
 /Open Design.exe
