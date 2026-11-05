@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   OFFLINE_FONT_DIRECTIVE,
+  OFFLINE_VENDOR_DIRECTIVE,
   OFFLINE_VENDOR_URLS,
   applyOfflinePromptConstraints,
   applyOfflineVendorUrls,
@@ -68,7 +69,9 @@ describe('applyOfflinePromptConstraints', () => {
     expect(out.endsWith(OFFLINE_FONT_DIRECTIVE)).toBe(true);
   });
 
-  it('appends the directive to an empty prompt', () => {
-    expect(applyOfflinePromptConstraints('', 'nextore')).toBe(OFFLINE_FONT_DIRECTIVE);
+  it('appends the directives to an empty prompt', () => {
+    expect(applyOfflinePromptConstraints('', 'nextore')).toBe(
+      OFFLINE_VENDOR_DIRECTIVE + '\n\n' + OFFLINE_FONT_DIRECTIVE,
+    );
   });
 });

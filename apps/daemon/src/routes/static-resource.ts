@@ -7,6 +7,8 @@ import type {
   WorkspaceCollabContext,
 } from '@open-design/contracts';
 import { TeamResourceCopyForbiddenError } from '@open-design/contracts';
+import { applyOfflineVendorUrls } from '@open-design/contracts';
+import { resolveEdition } from '../edition/index.js';
 import {
   enforceTeamResourceCopyAllowed,
   type TeamResourceStateProvider,
@@ -1518,7 +1520,7 @@ export function rewriteSkillAssetUrls(
   workspaceQuery = '',
 ) {
   if (typeof html !== 'string' || html.length === 0) return html;
-  return html.replace(
+  const rewritten = html.replace(
     /(\s(?:src|href)\s*=\s*)(['"])((?:\.\.\/([^/'"#?]+)\/)?(?:\.\/)?assets\/([^'"#?]+))(\2)/gi,
     (_match, attr, openQuote, _fullPath, siblingSkillId, relPath, closeQuote) => {
       const resolvedSkillId = siblingSkillId || skillId;
@@ -1526,4 +1528,6 @@ export function rewriteSkillAssetUrls(
       return `${attr}${openQuote}${prefix}${relPath}${workspaceQuery}${closeQuote}`;
     },
   );
+  // NexTore edition: examples load runtimes from /vendor, never a public CDN.
+  return applyOfflineVendorUrls(rewritten, resolveEdition(process.env.OD_EDITION));
 }

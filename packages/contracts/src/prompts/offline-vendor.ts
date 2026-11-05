@@ -25,6 +25,10 @@ export const OFFLINE_VENDOR_URLS: ReadonlyArray<{ upstream: string; vendored: st
     upstream: 'https://unpkg.com/framer-motion@11.11.13/dist/framer-motion.js',
     vendored: '/vendor/framer-motion@11.11.13/dist/framer-motion.js',
   },
+  {
+    upstream: 'https://cdn.tailwindcss.com',
+    vendored: '/vendor/tailwindcss@3.4.17/play-cdn.js',
+  },
 ];
 
 /** Rewrites the pinned asset URLs to /vendor in the NexTore edition; upstream is untouched. */
@@ -55,6 +59,12 @@ export const OFFLINE_FONT_WHITELIST = [
   'Noto Serif SC',
 ] as const;
 
+export const OFFLINE_VENDOR_DIRECTIVE = [
+  '## Offline runtime assets',
+  '',
+  'Load the pinned runtimes from /vendor/ (the snippet above already points there in this deployment). For Tailwind, use /vendor/tailwindcss@3.4.17/play-cdn.js instead of https://cdn.tailwindcss.com. Never fetch these runtimes from a CDN.',
+].join('\n');
+
 export const OFFLINE_FONT_DIRECTIVE = [
   '## Offline fonts',
   '',
@@ -62,6 +72,7 @@ export const OFFLINE_FONT_DIRECTIVE = [
     OFFLINE_FONT_WHITELIST.join(', ') +
     '.',
   'When a design system, template, or reference names another family, substitute the closest one from this list and keep the intended weight and character.',
+  'Load <link rel="stylesheet" href="/vendor/fonts@1.0.0/fonts.css"> once in the document head; it resolves every family from host-installed faces without a network request.',
   'Do not add @import or <link> tags that fetch fonts from a network.',
 ].join('\n');
 
@@ -73,5 +84,6 @@ export const OFFLINE_FONT_DIRECTIVE = [
 export function applyOfflinePromptConstraints(text: string, edition: Edition): string {
   if (edition !== 'nextore') return text;
   const rewritten = applyOfflineVendorUrls(text, edition);
-  return rewritten.length === 0 ? OFFLINE_FONT_DIRECTIVE : rewritten + '\n\n' + OFFLINE_FONT_DIRECTIVE;
+  const directives = OFFLINE_VENDOR_DIRECTIVE + '\n\n' + OFFLINE_FONT_DIRECTIVE;
+  return rewritten.length === 0 ? directives : rewritten + '\n\n' + directives;
 }

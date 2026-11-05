@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { rewriteSkillAssetUrls } from '../../src/server.js';
 
 describe('rewriteSkillAssetUrls', () => {
@@ -37,5 +37,30 @@ describe('rewriteSkillAssetUrls', () => {
 
   it('returns non-string input unchanged', () => {
     expect(rewriteSkillAssetUrls('', 'foo')).toBe('');
+  });
+});
+
+describe('rewriteSkillAssetUrls — NexTore edition vendor rewrite', () => {
+  it('keeps the public CDN upstream', () => {
+    const html = '<script src="https://cdn.tailwindcss.com"></script>';
+    expect(rewriteSkillAssetUrls(html, 'foo')).toBe(html);
+  });
+
+  it('points Tailwind and the pinned runtimes at /vendor in the edition', () => {
+    vi.stubEnv('OD_EDITION', 'nextore');
+    try {
+      expect(
+        rewriteSkillAssetUrls('<script src="https://cdn.tailwindcss.com"></script>', 'foo'),
+      ).toBe('<script src="/vendor/tailwindcss@3.4.17/play-cdn.js"></script>');
+
+      expect(
+        rewriteSkillAssetUrls(
+          '<script src="https://unpkg.com/react@18.3.1/umd/react.development.js"></script>',
+          'foo',
+        ),
+      ).toBe('<script src="/vendor/react@18.3.1/umd/react.development.js"></script>');
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 });
