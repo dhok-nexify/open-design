@@ -45,7 +45,9 @@
 // — produces a record in `memory-extractions.ts` so the settings panel
 // can show running / skipped / success / failed states in real time.
 
-import { MEMORY_TYPES } from '@open-design/contracts';
+import { MEMORY_TYPES, resolveEdition } from '@open-design/contracts';
+
+import { allowsLocalAgentSpawn } from './edition/spawn-gates.js';
 import {
   composeMemoryBody,
   listMemoryEntries,
@@ -949,6 +951,13 @@ function extractJsonEventText(kind, raw, agentName) {
 }
 
 async function callLocalCli(provider, system, user, options) {
+  // NEXTORE: memory extraction must not start a host agent CLI. The edition has
+  // exactly one spawn surface (the sandboxed run), so suggestions from this
+  // path are refused rather than executed through claude/codex/opencode
+  // (NXD-D18). The caller records a failed extraction and moves on.
+  if (!allowsLocalAgentSpawn(resolveEdition(process.env.OD_EDITION))) {
+    throw new Error('Local CLI memory extraction is not available in the NexTore edition.');
+  }
   if (typeof options?.localCliRunner === 'function') {
     return options.localCliRunner({
       agentId: provider.agentId,

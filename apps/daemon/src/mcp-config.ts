@@ -20,6 +20,10 @@ import { realpathSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import path from 'node:path';
 
+import { resolveEdition } from '@open-design/contracts';
+
+import { filterMcpServersForEdition } from './edition/spawn-gates.js';
+
 // Wire-level MCP types. Mirrors `packages/contracts/src/api/mcp.ts` — the
 // daemon and web import-from-contracts side both round-trip the same JSON
 // shape, but NodeNext + the contracts package's mixed bundler-emit setup
@@ -313,6 +317,9 @@ export function buildClaudeMcpJson(
   servers: McpServerConfig[],
   tokens: Record<string, string> = {},
 ): unknown | null {
+  // NEXTORE: stdio servers are host commands the agent's CLI would spawn, so
+  // the edition only hands the agent remote transports (NXD-D18).
+  servers = filterMcpServersForEdition(servers, resolveEdition(process.env.OD_EDITION));
   const enabled = servers.filter((s) => s.enabled);
   if (enabled.length === 0) return null;
   const out: Record<string, Record<string, unknown>> = {};
@@ -384,6 +391,7 @@ export interface AcpMcpServer {
 }
 
 export function buildAcpMcpServers(servers: McpServerConfig[]): AcpMcpServer[] {
+  servers = filterMcpServersForEdition(servers, resolveEdition(process.env.OD_EDITION));
   const enabled = servers.filter((s) => s.enabled && s.transport === 'stdio');
   const out: AcpMcpServer[] = [];
   for (const s of enabled) {
@@ -458,6 +466,8 @@ export function buildOpenCodeMcpConfigContent(
   tokens: Record<string, string> = {},
   options: OpenCodeConfigBuildOptions = {},
 ): string | null {
+  // NEXTORE: same rule as the other builders — no stdio spawn surface.
+  servers = filterMcpServersForEdition(servers, resolveEdition(process.env.OD_EDITION));
   const enabled = servers.filter((s) => s.enabled);
   const mcp: Record<string, Record<string, unknown>> = {};
   for (const s of enabled) {
