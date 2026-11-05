@@ -70,6 +70,7 @@ jobs:
         run: |
           node --experimental-strip-types --test deploy/tests/nextore-image.test.ts
           node --experimental-strip-types --test deploy/tests/nextore-linux.test.ts
+          node --experimental-strip-types --test deploy/tests/nextore-docs.test.ts
 
       - name: Shell syntax
         run: |

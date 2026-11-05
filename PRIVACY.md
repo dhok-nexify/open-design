@@ -1,5 +1,36 @@
 # Privacy
 
+## NexTore Designer edition
+
+This distribution ships as the **NexTore edition** (`OD_EDITION=nextore`). The
+section below describes that edition. The upstream policy that follows it applies
+only when `OD_EDITION` is unset.
+
+- **No product telemetry of any class.** The web client is forced to
+  `{metrics:false, content:false, artifactManifest:false}`, and the daemon refuses to
+  emit analytics or quality traces even when destination keys are present in the
+  environment.
+- **No third-party asset requests.** Fonts, scripts and styles that generated
+  artifacts reference are served from the daemon's `/vendor` route; the shipped
+  catalogue is scanned in CI and names every former remote host.
+- **Identity belongs to NexTore.** Designer does not store passwords or user
+  profiles; it keeps a session, a session secret, and the member's local
+  preferences. Workspace, project, permission and model-routing records stay in
+  NexTore.
+- **Model calls go to NexTore.** The agent holds no NexTore credential. Prompts are
+  sent to the NexTore Prompt API by the daemon on behalf of the signed-in member,
+  under that member's permissions and quota.
+- **Your data stays in your data root.** Projects, conversations, artifacts,
+  comments and run records live under the deployment's `OD_DATA_DIR`. Retention,
+  backup and deletion are the operator's responsibility; nothing is uploaded
+  anywhere by this product.
+- **Credit for bundled components.** See [NOTICE](NOTICE) for the upstream and
+  third-party attributions.
+
+---
+
+## Upstream OpenDesign policy
+
 This page describes what data the OpenDesign desktop and web app collects,
 when it collects it, and how you stay in control. It documents the behavior
 shipped in the app — the same controls live under **Settings → Privacy**.

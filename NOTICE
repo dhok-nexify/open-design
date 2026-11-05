@@ -1,0 +1,28 @@
+NexTore Designer
+Copyright 2026 NexTore
+
+This product is a derivative work of OpenDesign (https://github.com/nexu-io/open-design),
+Copyright the OpenDesign contributors, licensed under the Apache License, Version 2.0.
+The upstream source is used under the terms of that license; see LICENSE for the full text.
+
+Modifications in this distribution include, but are not limited to: the NexTore edition
+gate (OD_EDITION=nextore), NexTore identity and workspace integration, the edition route
+kill switch, the bubblewrap execution sandbox, the offline /vendor asset set, the
+single-runtime (BYOK OpenCode) registry, and the NexTore branding, design system and
+deployment artifacts.
+
+Bundled third-party components remain under their own licenses, reproduced here as
+required by those licenses:
+
+  React, ReactDOM            MIT
+  Tailwind CSS               MIT
+  @babel/standalone          MIT
+  framer-motion              MIT
+  GSAP                       GreenSock standard license — free to embed in a product;
+                             the library itself may not be resold as a standalone product
+  Chart.js                   MIT
+  highlight.js               BSD-3-Clause
+  Lucide                     ISC
+  opencode                   MIT
+
+Full license texts for the dependencies are available in each package's distribution.
