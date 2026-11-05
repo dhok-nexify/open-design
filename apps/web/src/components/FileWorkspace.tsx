@@ -66,6 +66,7 @@ import {
 import { latestTodosFromEvents, type TodoItem } from '../runtime/todos';
 import { deliverableSlideNavForActiveFile, isSlideNavDeliverableNow } from '../runtime/slide-nav';
 import { buildSrcdoc } from '../runtime/srcdoc';
+import { isFeatureEnabled } from '../nextore/features';
 import { removeSpeakerNotesFromHtml } from '../runtime/speaker-notes';
 import { useDesignKit, hostnameOf, type KitColor } from '../runtime/design-kit';
 import { useKitModuleUpload } from '../runtime/kit-upload';
@@ -1067,10 +1068,25 @@ const COMMUNITY_PAGE_PRESETS: ProjectPagePreset[] = [
   },
 ];
 
+// NexTore edition: media generation and HyperFrames are not part of the first release
+// (DESIGN §13.2), so their blank canvases never appear in the new-page menu.
+function editionAllowsPreset(preset: ProjectPagePreset): boolean {
+  if (
+    !isFeatureEnabled('media-generation') &&
+    (preset.category === 'image' || preset.category === 'video' || preset.category === 'audio')
+  ) {
+    return false;
+  }
+  if (!isFeatureEnabled('hyperframes') && preset.category === 'hyperframes') {
+    return false;
+  }
+  return true;
+}
+
 const PROJECT_PAGE_PRESETS: ProjectPagePreset[] = [
   ...BLANK_PAGE_PRESETS,
   ...COMMUNITY_PAGE_PRESETS,
-];
+].filter(editionAllowsPreset);
 const PROJECT_PAGE_CATEGORY_ORDER: ProjectPageCategoryId[] = [
   'prototype',
   'liveArtifact',
@@ -1661,7 +1677,7 @@ export function FileWorkspace({
     () => [
       ...BLANK_PAGE_PRESETS,
       ...(communityPluginPresets.length > 0 ? communityPluginPresets : COMMUNITY_PAGE_PRESETS),
-    ],
+    ].filter(editionAllowsPreset),
     [communityPluginPresets],
   );
   const sketchFiles = useMemo(
@@ -1922,6 +1938,8 @@ export function FileWorkspace({
   }
 
   function openBrowserTab() {
+    // NexTore edition: the Design browser is not part of the first release (DESIGN §13.2).
+    if (!isFeatureEnabled('design-browser')) return;
     afterActiveManualEditSettles(() => {
       setUploadError(null);
       const nextIndex = browserTabSequenceRef.current + 1;
@@ -4419,16 +4437,20 @@ export function FileWorkspace({
               });
               void startNewSketch();
             }}
-            onOpenBrowser={() => {
-              trackFileManagerClick(analytics.track, {
-                page_name: 'file_manager',
-                area: 'file_manager',
-                element: 'new_browser',
-                project_id: projectId,
-                project_kind: projectKind,
-              });
-              openBrowserTab();
-            }}
+            onOpenBrowser={
+              isFeatureEnabled('design-browser')
+                ? () => {
+                    trackFileManagerClick(analytics.track, {
+                      page_name: 'file_manager',
+                      area: 'file_manager',
+                      element: 'new_browser',
+                      project_id: projectId,
+                      project_kind: projectKind,
+                    });
+                    openBrowserTab();
+                  }
+                : undefined
+            }
             onCreateDesignSystem={() => {
               trackFileManagerClick(analytics.track, {
                 page_name: 'file_manager',

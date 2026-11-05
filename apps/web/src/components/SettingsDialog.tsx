@@ -68,6 +68,7 @@ import {
 import { ExportDiagnosticsRow } from './ExportDiagnosticsButton';
 import { Icon } from './Icon';
 import { LabsSection } from './LabsSection';
+import { isFeatureEnabled } from '../nextore/features';
 import { defaultAgentModelId, effectiveAgentModelChoice } from './agentModelSelection';
 import {
   CUSTOM_MODEL_SENTINEL,
@@ -1635,6 +1636,10 @@ export function SettingsDialog({
       : {},
   );
   const [activeSection, setActiveSection] = useState<SettingsSection>(() => normalizeSettingsSection(initialSection));
+  // NexTore edition: Labs (OD Next) is not part of the first release (DESIGN §13.2).
+  useEffect(() => {
+    if (!isFeatureEnabled('od-next') && activeSection === 'labs') setActiveSection('general');
+  }, [activeSection]);
   // Workspace region gating (E-frontend, D4.3). One shared read of the workspace
   // context; the Workspace section only renders for a team workspace whose
   // viewer may see workspace settings. Gate on the folded permission bits,
@@ -4381,17 +4386,19 @@ export function SettingsDialog({
                 <small>{t('settings.generalHint')}</small>
               </span>
             </button>
-            <button
-              type="button"
-              className={`settings-nav-item${activeSection === 'labs' ? ' active' : ''}`}
-              onClick={() => setActiveSection('labs')}
-            >
-              <Icon name="sparkles" size={18} />
-              <span>
-                <strong>{t('labs.title')}</strong>
-                <small>{t('labs.navHint')}</small>
-              </span>
-            </button>
+            {isFeatureEnabled('od-next') ? (
+              <button
+                type="button"
+                className={`settings-nav-item${activeSection === 'labs' ? ' active' : ''}`}
+                onClick={() => setActiveSection('labs')}
+              >
+                <Icon name="sparkles" size={18} />
+                <span>
+                  <strong>{t('labs.title')}</strong>
+                  <small>{t('labs.navHint')}</small>
+                </span>
+              </button>
+            ) : null}
             <button
               type="button"
               className={`settings-nav-item${activeSection === 'instructions' ? ' active' : ''}`}
@@ -6006,7 +6013,7 @@ export function SettingsDialog({
             </section>
           ) : null}
 
-          {activeSection === 'labs' ? (
+          {activeSection === 'labs' && isFeatureEnabled('od-next') ? (
             <LabsSection autosave={labsAutosave} />
           ) : null}
 

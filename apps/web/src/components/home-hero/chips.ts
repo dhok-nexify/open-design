@@ -22,6 +22,8 @@
 import type { ProjectKind, ProjectMetadata } from '@open-design/contracts';
 import type { DefaultScenarioPluginId } from '@open-design/contracts';
 import type { IconName } from '../Icon';
+import type { NextoreFeature } from '@open-design/contracts';
+import { isFeatureEnabled } from '../../nextore/features';
 
 // Plugin ids the chip rail can dispatch to. Most chips route to a
 // `DefaultScenarioPluginId` so the same fallback table the daemon uses for
@@ -272,8 +274,20 @@ export const HOME_HERO_CHIPS: ReadonlyArray<HomeHeroChip> = [
   },
 ];
 
+// Edition-gated entries (DESIGN §13.2): the first NexTore release has no image/media
+// generation and no Figma import, so neither chip may appear on Home.
+const CHIP_FEATURE: Partial<Record<string, NextoreFeature>> = {
+  image: 'media-generation',
+  figma: 'figma',
+};
+
+function chipAvailable(chip: HomeHeroChip): boolean {
+  const feature = CHIP_FEATURE[chip.id];
+  return feature == null || isFeatureEnabled(feature);
+}
+
 export function chipsForGroup(group: ChipGroup): HomeHeroChip[] {
-  return HOME_HERO_CHIPS.filter((c) => c.group === group);
+  return HOME_HERO_CHIPS.filter((c) => c.group === group && chipAvailable(c));
 }
 
 // Fixed Home information architecture. Only these five output types are

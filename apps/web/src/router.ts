@@ -5,6 +5,7 @@
 
 import { useSyncExternalStore } from 'react';
 import { LIBRARY_UI_VISIBLE } from './features/libraryUi';
+import { isFeatureEnabled } from './nextore/features';
 
 // Entry-shell sub-views. The home/project landing renders one of three
 // columns and each sub-view now owns a top-level path so the browser
@@ -119,6 +120,8 @@ export function parseRoute(pathname: string): Route {
     return { kind: 'home', view: 'design-systems' };
   }
   if (parts[0] === 'automations' || parts[0] === 'tasks') {
+    // NexTore edition: Automations is not part of the first release (DESIGN §13.2).
+    if (!isFeatureEnabled('automations')) return { kind: 'home', view: 'home' };
     return { kind: 'home', view: 'tasks' };
   }
   if (parts[0] === 'plugins' && !parts[1]) {
