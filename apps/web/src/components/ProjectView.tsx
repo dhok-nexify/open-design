@@ -15,6 +15,7 @@ import {
 } from 'react';
 import { AnimatePresence } from 'motion/react';
 import { createHtmlArtifactManifest, inferLegacyManifest } from '../artifacts/manifest';
+import { isFeatureEnabled } from '../nextore/features';
 import { resolveHtmlPointerArtifactTarget } from '../artifacts/pointer';
 import { validateHtmlArtifact } from '../artifacts/validate';
 import { recoverHtmlDocumentFromMarkdownFence, recoverStandaloneHtmlDocument, resolvePersistedArtifactHtml } from '../artifacts/recover';
@@ -13944,7 +13945,7 @@ export function ProjectView({
           ) : null}
           chatConfig={config}
           chatAgentsById={agentsById}
-          handoffAgents={agents}
+          handoffAgents={isFeatureEnabled('handoff-cli') ? agents : []}
           handoffArtifactId={headerArtifact.artifact_id}
           handoffArtifactKind={headerArtifact.artifact_kind}
           metricsConsent={config.telemetry?.metrics === true}

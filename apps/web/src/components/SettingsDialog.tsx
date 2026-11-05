@@ -1641,7 +1641,7 @@ export function SettingsDialog({
     if (!isFeatureEnabled('od-next') && activeSection === 'labs') setActiveSection('general');
     if (
       NEXTORE_WEB_EDITION === 'nextore' &&
-      (activeSection === 'execution' || activeSection === 'media' || activeSection === 'privacy')
+      (activeSection === 'execution' || activeSection === 'media' || activeSection === 'privacy' || activeSection === 'composio')
     ) {
       setActiveSection('general');
     }
@@ -5912,7 +5912,7 @@ export function SettingsDialog({
 
           {activeSection === 'mcpClient' ? <McpClientSection surface="settings" /> : null}
 
-          {activeSection === 'composio' ? (
+          {activeSection === 'composio' && isFeatureEnabled('connectors') ? (
             <ConnectorSection
               cfg={cfg}
               setCfg={setCfg}
