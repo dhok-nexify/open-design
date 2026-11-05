@@ -10,9 +10,9 @@ import { describe, expect, it } from 'vitest';
  * vendor-routes.test.ts (manifest <-> bytes) this closes the chain HTML -> disk -> manifest.
  *
  * Known debt, tracked in docs/nextore/D32-ASSET-RUNBOOK.md: the two showcase videos on
- * repo-assets.open-design.ai and the GitHub avatar images are still external. They are deliberately
- * not scanned here because vendoring them is a separate step; add their hosts to FORBIDDEN_HOSTS
- * once they are local.
+ * repo-assets.open-design.ai are still external, so that host is deliberately not scanned here.
+ * The GitHub avatars used to be external too; `design-templates/github-dashboard` now inlines
+ * deterministic SVG placeholders, so their host is forbidden.
  */
 const repoRoot = fileURLToPath(new URL('../../', import.meta.url));
 const CONTENT_DIRS = ['design-templates', 'skills'] as const;
@@ -22,6 +22,7 @@ const FORBIDDEN_HOSTS = [
   'fonts.gstatic.com',
   'cdn.jsdelivr.net',
   'unpkg.com',
+  'avatars.githubusercontent.com',
 ] as const;
 const VENDOR_DIR = path.join(repoRoot, 'apps', 'daemon', 'vendor');
 const VENDOR_REF = /\/vendor\/([A-Za-z0-9@._/-]+)/g;
