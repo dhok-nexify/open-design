@@ -62,7 +62,7 @@ export const OFFLINE_FONT_WHITELIST = [
 export const OFFLINE_VENDOR_DIRECTIVE = [
   '## Offline runtime assets',
   '',
-  'Load the pinned runtimes from /vendor/ (the snippet above already points there in this deployment). For Tailwind, use /vendor/tailwindcss@3.4.17/play-cdn.js instead of https://cdn.tailwindcss.com. Never fetch these runtimes from a CDN.',
+  'Load the pinned runtimes from /vendor/ (the snippet above already points there in this deployment). For Tailwind, use /vendor/tailwindcss@3.4.17/play-cdn.js instead of the public Tailwind CDN script. Never fetch these runtimes from a CDN.',
 ].join('\n');
 
 export const OFFLINE_FONT_DIRECTIVE = [
