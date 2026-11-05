@@ -1,5 +1,6 @@
 import type { AppConfigPrefs } from '@open-design/contracts';
 import { MEDIA_PROVIDERS } from '../media/models';
+import { NEXTORE_WEB_EDITION } from '../nextore/features';
 import { isOpenAICompatible } from '../providers/openai-compatible';
 import type {
   ApiProtocol,
@@ -1128,6 +1129,11 @@ export function mergeDaemonConfig(
   }
   if (daemonConfig.telemetry !== undefined) {
     next.telemetry = { ...daemonConfig.telemetry };
+  }
+  if (NEXTORE_WEB_EDITION === 'nextore') {
+    // NexTore edition: telemetry stays off regardless of what was saved locally or on the
+    // daemon (DESIGN §13.2, NXD-D27). metrics === false also stops the default-on block below.
+    next.telemetry = { metrics: false, content: false, artifactManifest: false };
   }
   if (daemonConfig.privacyDecisionAt !== undefined) {
     next.privacyDecisionAt = daemonConfig.privacyDecisionAt;

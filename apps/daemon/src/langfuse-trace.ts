@@ -18,6 +18,8 @@
 
 import { createHash, randomUUID } from 'node:crypto';
 
+import { telemetryAllowed } from './edition/telemetry.js';
+
 import {
   SAFE_RUN_QUALITY_V1_SCHEMA,
   SafeRunQualityV1Schema,
@@ -429,6 +431,8 @@ export interface FeedbackReportContext {
 export function readLangfuseConfig(
   env: NodeJS.ProcessEnv = process.env,
 ): LangfuseConfig | null {
+  // NexTore edition: no Langfuse traces even if keys are present.
+  if (!telemetryAllowed(env)) return null;
   const publicKey = env.LANGFUSE_PUBLIC_KEY?.trim();
   const secretKey = env.LANGFUSE_SECRET_KEY?.trim();
   if (!publicKey || !secretKey) return null;

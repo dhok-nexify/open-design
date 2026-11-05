@@ -10,6 +10,7 @@ import type {
 } from './langfuse-trace.js';
 import { INPUT_MAX_BYTES } from './langfuse-trace.js';
 import { normalizeOpenDesignTelemetryRelayUrl } from './integrations/telemetry-relay.js';
+import { telemetryAllowed } from './edition/telemetry.js';
 import { mimeFor, readProjectFile, resolveProjectFilePath } from './projects.js';
 
 const OBJECT_RELAY_MARKER_HEADER = 'X-Open-Design-Telemetry';
@@ -136,6 +137,8 @@ function storageRef(projectId: string, runId: string, objectClass: ObjectClass, 
 }
 
 function inferRelayUrl(env: NodeJS.ProcessEnv): string | null {
+  // NexTore edition: no object relay even if the env names one.
+  if (!telemetryAllowed(env)) return null;
   const explicit = env.OPEN_DESIGN_OBJECT_RELAY_URL?.trim();
   if (explicit) return normalizeOpenDesignTelemetryRelayUrl(explicit);
   const rawTelemetryRelayUrl = env.OPEN_DESIGN_TELEMETRY_RELAY_URL?.trim();
