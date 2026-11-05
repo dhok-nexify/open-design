@@ -1,6 +1,7 @@
 import type { NextoreBrandingResponse } from '@open-design/contracts';
 
 import { NEXTORE_WEB_EDITION } from './features';
+import { setBrandName } from '../i18n';
 
 let cached: NextoreBrandingResponse | null = null;
 
@@ -20,6 +21,7 @@ function faviconHref(value: string): string | null {
  * branding is identity, not a theme override.
  */
 export function applyBranding(branding: NextoreBrandingResponse): void {
+  if (branding.brandName?.trim()) setBrandName(branding.brandName);
   if (typeof document === 'undefined') return;
 
   if (branding.siteTitle?.trim()) {

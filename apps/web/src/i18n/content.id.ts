@@ -21,7 +21,7 @@ export const ID_SKILL_COPY: Record<string, { description?: string; examplePrompt
   },
   'agent-browser': {
     description:
-      'CLI otomasi browser untuk AI agent. Gunakan saat pengguna perlu memeriksa,\nmenguji, atau mengotomatiskan perilaku browser: menavigasi halaman, mengisi formulir,\nmengeklik tombol, mengambil tangkapan layar, mengekstrak data halaman, membaca konteks tab browser\nNexTore Designer yang dipilih, menguji aplikasi web, dogfooding pratinjau\nNexTore Designer, QA, perburuan bug, atau meninjau kualitas aplikasi. Utamakan URL pratinjau\nNexTore Designer lokal kecuali pengguna secara eksplisit meminta penjelajahan eksternal.',
+      'CLI otomasi browser untuk AI agent. Gunakan saat pengguna perlu memeriksa,\nmenguji, atau mengotomatiskan perilaku browser: menavigasi halaman, mengisi formulir,\nmengeklik tombol, mengambil tangkapan layar, mengekstrak data halaman, membaca konteks tab browser\n{brandName} yang dipilih, menguji aplikasi web, dogfooding pratinjau\n{brandName}, QA, perburuan bug, atau meninjau kualitas aplikasi. Utamakan URL pratinjau\n{brandName} lokal kecuali pengguna secara eksplisit meminta penjelajahan eksternal.',
     examplePrompt:
       'CLI otomasi browser untuk AI agent.',
   },
@@ -849,7 +849,7 @@ export const ID_SKILL_COPY: Record<string, { description?: string; examplePrompt
   },
   'ui-ux-pro-max': {
     description:
-      'Entri UI/UX Pro Max khusus katalog. Template, data, dan alur kerja pencarian upstream lengkap tidak disertakan dalam NexTore Designer.',
+      'Entri UI/UX Pro Max khusus katalog. Template, data, dan alur kerja pencarian upstream lengkap tidak disertakan dalam {brandName}.',
     examplePrompt:
       'Entri UI/UX Pro Max khusus katalog.',
   },

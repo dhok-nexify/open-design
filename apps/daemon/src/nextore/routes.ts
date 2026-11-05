@@ -2,6 +2,7 @@ import type { Express, RequestHandler, Response } from 'express';
 import type { NextoreSelfTestCheck, NextoreSelfTestResponse } from '@open-design/contracts';
 import { NextoreClientError, type NextoreClient } from './client.js';
 import { createBrandingCache, type BrandingCache } from './branding-cache.js';
+import { registerBrandingSource } from './branding-state.js';
 
 export interface RegisterNextoreRoutesDeps {
   client: NextoreClient;
@@ -77,6 +78,9 @@ export function registerNextoreRoutes(
   // Public, cached brand payload for the Designer shell (DESIGN §12.1). The module endpoint is
   // already anonymous; the daemon caches it so every boot does not round-trip to NexTore.
   const brandingCache = deps.brandingCache ?? createBrandingCache(deps.client);
+  // Prompt composition reads the same cache, so a renamed installation reaches
+  // agent-facing text on the same five-minute refresh as the shell (DESIGN §12.1).
+  registerBrandingSource(brandingCache);
   app.get('/api/branding', async (req, res: Response) => {
     const snapshot = await brandingCache.get();
     if (!snapshot) {

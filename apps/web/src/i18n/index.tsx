@@ -9,8 +9,33 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import { DEFAULT_PRODUCT_BRAND_NAME } from '@open-design/contracts';
 import { de } from './locales/de';
 import { en } from './locales/en';
+
+const DEFAULT_BRAND_NAME = DEFAULT_PRODUCT_BRAND_NAME;
+let brandName = DEFAULT_BRAND_NAME;
+
+/**
+ * The product name interpolated into every `{brandName}` placeholder (DESIGN §12.1).
+ * The branding payload replaces the default after boot; a blank or missing name keeps the
+ * bundled default so the UI never shows an empty product name.
+ */
+export function setBrandName(next: string | null | undefined): void {
+  const trimmed = next?.trim();
+  brandName = trimmed && trimmed.length > 0 ? trimmed : DEFAULT_BRAND_NAME;
+}
+
+export function getBrandName(): string {
+  return brandName;
+}
+
+export function interpolateMessage(raw: string, vars?: Record<string, string | number>): string {
+  return raw.replace(/\{(\w+)\}/g, (_, name: string) => {
+    const value = vars?.[name] ?? (name === 'brandName' ? brandName : undefined);
+    return value == null ? '{' + name + '}' : String(value);
+  });
+}
 import { id } from './locales/id';
 import { esES } from './locales/es-ES';
 import { fa } from './locales/fa';
@@ -107,11 +132,7 @@ export function tForLanguageTag(
   const dict = DICTS[locale] ?? en;
   return (key, vars) => {
     const raw = dict[key] ?? en[key] ?? key;
-    if (!vars) return raw;
-    return raw.replace(/\{(\w+)\}/g, (_, name: string) => {
-      const v = vars[name];
-      return v == null ? `{${name}}` : String(v);
-    });
+    return interpolateMessage(raw, vars);
   };
 }
 
@@ -184,11 +205,7 @@ const FALLBACK_I18N: I18nContextValue = {
   setLocale: () => { },
   t: (key, vars) => {
     const raw = en[key] ?? key;
-    if (!vars) return raw;
-    return raw.replace(/\{(\w+)\}/g, (_, n: string) => {
-      const v = vars[n];
-      return v == null ? `{${n}}` : String(v);
-    });
+    return interpolateMessage(raw, vars);
   },
 };
 
@@ -239,11 +256,7 @@ export function I18nProvider({ initial, children }: ProviderProps) {
     (key: DictKey, vars?: Record<string, string | number>): string => {
       const dict = DICTS[locale] ?? en;
       const raw = dict[key] ?? en[key] ?? key;
-      if (!vars) return raw;
-      return raw.replace(/\{(\w+)\}/g, (_, name: string) => {
-        const v = vars[name];
-        return v == null ? `{${name}}` : String(v);
-      });
+      return interpolateMessage(raw, vars);
     },
     [locale],
   );

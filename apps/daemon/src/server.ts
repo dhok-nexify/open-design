@@ -31,7 +31,7 @@ import {
   renderChatTurnHostProtocolInstructions,
   resolveOdNextDeckFrameworkMode,
 } from '@open-design/contracts';
-import { applyOfflinePromptConstraints } from '@open-design/contracts';
+import { applyOfflinePromptConstraints, applyProductBrandName } from '@open-design/contracts';
 import {
   advanceAuthenticatedDoneCapture,
   isTodoWriteToolName,
@@ -412,6 +412,7 @@ import {
   resolveEdition,
 } from './edition/index.js';
 import { createNextoreClient } from './nextore/client.js';
+import { resolveProductBrandName } from './nextore/branding-state.js';
 import { readNextoreConfig } from './nextore/config.js';
 import { migrateNextoreDatabase } from './nextore/db.js';
 import {
@@ -10568,25 +10569,36 @@ export async function startServer({
     }
     // NEXTORE: the NexTore edition may not reference an external CDN, so the
     // pinned asset URLs are rewritten to the daemon /vendor route (DESIGN §13.3).
+    // A renamed installation also replaces the pinned product name in prompt
+    // text here, once, for both composition implementations (DESIGN §12.2).
     // Upstream (OD_EDITION unset) keeps the composed prompt byte-identical.
-    const prompt = applyOfflinePromptConstraints(
-      odNextStrategyRecipe
-        ? composeOdNextStrategyCorePromptV2(odNextStrategyRecipe)
-        : composeSystemPrompt(systemPromptInputs),
-      resolveEdition(process.env.OD_EDITION),
+    const productBrandName = resolveEdition(process.env.OD_EDITION) === 'nextore'
+      ? await resolveProductBrandName()
+      : undefined;
+    const prompt = applyProductBrandName(
+      applyOfflinePromptConstraints(
+        odNextStrategyRecipe
+          ? composeOdNextStrategyCorePromptV2(odNextStrategyRecipe)
+          : composeSystemPrompt(systemPromptInputs),
+        resolveEdition(process.env.OD_EDITION),
+      ),
+      productBrandName,
     );
     // OD Next sends a canonical XML tree, not this Markdown string. The tree's
     // cache-stable head, its per-task identity, and the runtime-owned planning
     // facts are three separate products of the same verified recipe, so they are
     // composed here together and placed in different bundle slots downstream.
     const odNextBundleHead = odNextStrategyRecipe
-      ? composeOdNextStrategyBundleHeadV2(odNextStrategyRecipe)
+      ? applyProductBrandName(composeOdNextStrategyBundleHeadV2(odNextStrategyRecipe), productBrandName)
       : null;
     const odNextRecipeIdentity = odNextStrategyRecipe
       ? odNextStrategyRecipeIdentityV2(odNextStrategyRecipe)
       : null;
     const odNextRuntimeFacts = odNextStrategyRecipe
-      ? renderOdNextRuntimeFactsV2(odNextStrategyRecipe, odNextStableRequestContext ?? {})
+      ? applyProductBrandName(
+          renderOdNextRuntimeFactsV2(odNextStrategyRecipe, odNextStableRequestContext ?? {}),
+          productBrandName,
+        )
       : '';
     // The chat handler also needs to know where the active skill lives
     // on disk so it can stage a per-project copy of its side files

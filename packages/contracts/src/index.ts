@@ -80,6 +80,7 @@ export * from './prompts/system.js';
 export * from './prompts/offline-vendor.js';
 export * from './prompts/ui-locale.js';
 export * from './prompts/chat-turn-host-protocol.js';
+export * from './prompts/brand-name.js';
 export * from './prompts/deck-framework.js';
 export * from './prompts/od-next-device-frame.js';
 export * from './prompts/od-next-strategy.js';

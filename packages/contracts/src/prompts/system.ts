@@ -32,6 +32,7 @@
 import type { ChatSessionMode } from '../api/chat.js';
 import type { ProjectMetadata, ProjectTemplate } from '../api/projects.js';
 import type { Edition } from '../nextore/edition.js';
+import { applyProductBrandName } from './brand-name.js';
 import { applyOfflinePromptConstraints } from './offline-vendor.js';
 import { OFFICIAL_DESIGNER_PROMPT, renderOfficialDesignerPrompt } from './official-system.js';
 import { DISCOVERY_AND_PHILOSOPHY } from './discovery.js';
@@ -287,6 +288,10 @@ export interface ComposeInput {
   // Free-form instructions the user set on this specific project.
   // Injected after user-level instructions and before the design system.
   projectInstructions?: string | undefined;
+  // Deployment product name. Substituted once over the composed prompt so a
+  // renamed installation does not keep the default name in agent-facing text.
+  // Omitted or equal to the default keeps the prompt byte-identical.
+  brandName?: string | undefined;
 }
 
 export function composeSystemPrompt({
@@ -322,6 +327,7 @@ export function composeSystemPrompt({
   deckFrameworkMode,
   userInstructions,
   projectInstructions,
+  brandName,
 }: ComposeInput): string {
   // ── FORK POINT (API/BYOK side) ──────────────────────────────────────────
   // Mirrors the daemon fork in `apps/daemon/src/prompts/system.ts`. Everything
@@ -329,7 +335,7 @@ export function composeSystemPrompt({
   // Read `docs/prompt-composition.md` before changing prompt text on either
   // side of this fork.
   if (odNextStrategyRecipe) {
-    return composeOdNextStrategyRequestPromptV2(odNextStrategyRecipe, {
+    return applyProductBrandName(composeOdNextStrategyRequestPromptV2(odNextStrategyRecipe, {
       agentId,
       // The plan-tool fact has to cross the fork with everything else. Without
       // it an OD Next run keeps the pre-fix behaviour the legacy stack no
@@ -355,7 +361,7 @@ export function composeSystemPrompt({
       memoryBody,
       userInstructions,
       projectInstructions,
-    });
+    }), brandName);
   }
   // Discovery + philosophy goes FIRST so its hard rules ("emit a form on
   // requirements decision, brand resolution, and TodoWrite workflow, run
@@ -594,7 +600,10 @@ export function composeSystemPrompt({
     parts.push(ACTIVE_DESIGN_SYSTEM_VISUAL_DIRECTION_OVERRIDE);
   }
 
-  return applyOfflinePromptConstraints(parts.join(''), edition ?? 'upstream');
+  return applyProductBrandName(
+    applyOfflinePromptConstraints(parts.join(''), edition ?? 'upstream'),
+    brandName,
+  );
 }
 
 /**

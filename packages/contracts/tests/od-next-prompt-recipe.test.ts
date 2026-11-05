@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { DEFAULT_PRODUCT_BRAND_NAME } from '../src/prompts/brand-name.js';
 import {
   composeOdNextStrategyBundleHeadV2,
   composeOdNextStrategyCorePromptV2,
@@ -280,7 +281,7 @@ describe('OD Next V2 prompt recipe', () => {
 
     expect(headings).toMatchInlineSnapshot(`
       [
-        "# Open Design execution and security boundary",
+        "${'# ' + DEFAULT_PRODUCT_BRAND_NAME + ' execution and security boundary'}",
         "## Native filesystem execution",
         "## Versioned recipe identity",
         "## Discovery, planning, and Build surface",

@@ -44,6 +44,8 @@ import { tmpdir } from 'node:os';
 import { delimiter, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
+import { DEFAULT_PRODUCT_BRAND_NAME } from '@open-design/contracts';
+
 import { startServer } from '../src/server.js';
 
 /** provider 回一张真 1x1 PNG —— 成功那条对照组要真的写出字节来。 */
@@ -58,7 +60,7 @@ const ONE_BY_ONE_PNG_B64 =
  * 判据换成任何别的句子,结论都必须一模一样。
  */
 const S22_APOLOGY =
-  '图片没生成出来,不是你的操作有误 —— 这次是 Open Design 自己的问题,我们已经记下了。重试一般能恢复;反复出现的话联系我们。';
+  `图片没生成出来,不是你的操作有误 —— 这次是 ${DEFAULT_PRODUCT_BRAND_NAME} 自己的问题,我们已经记下了。重试一般能恢复;反复出现的话联系我们。`;
 
 let baseUrl: string;
 let server: http.Server;

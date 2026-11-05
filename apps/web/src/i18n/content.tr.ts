@@ -21,7 +21,7 @@ export const TR_SKILL_COPY: Record<string, { description?: string; examplePrompt
   },
   'agent-browser': {
     description:
-      'AI ajanları için tarayıcı otomasyonu CLI\'ı. Kullanıcının tarayıcı davranışını\nincelemesi, test etmesi veya otomatikleştirmesi gerektiğinde kullanın: sayfalarda\ngezinme, form doldurma, düğmelere tıklama, ekran görüntüsü alma, sayfa verisi\nçıkarma, seçili NexTore Designer tarayıcı sekmesi bağlamını okuma, web uygulamalarını\ntest etme, NexTore Designer önizlemelerini dogfooding yapma, QA, hata avı veya uygulama\nkalitesini gözden geçirme. Kullanıcı açıkça harici tarama istemediği sürece yerel\nNexTore Designer önizleme URL\'lerini tercih edin.',
+      'AI ajanları için tarayıcı otomasyonu CLI\'ı. Kullanıcının tarayıcı davranışını\nincelemesi, test etmesi veya otomatikleştirmesi gerektiğinde kullanın: sayfalarda\ngezinme, form doldurma, düğmelere tıklama, ekran görüntüsü alma, sayfa verisi\nçıkarma, seçili {brandName} tarayıcı sekmesi bağlamını okuma, web uygulamalarını\ntest etme, {brandName} önizlemelerini dogfooding yapma, QA, hata avı veya uygulama\nkalitesini gözden geçirme. Kullanıcı açıkça harici tarama istemediği sürece yerel\n{brandName} önizleme URL\'lerini tercih edin.',
     examplePrompt:
       'AI ajanları için tarayıcı otomasyonu CLI\'ı.',
   },
@@ -849,7 +849,7 @@ export const TR_SKILL_COPY: Record<string, { description?: string; examplePrompt
   },
   'ui-ux-pro-max': {
     description:
-      'Yalnızca katalog UI/UX Pro Max girişi. Tam kaynak şablonlar, veriler ve arama iş akışı NexTore Designer\'a dahil değildir.',
+      'Yalnızca katalog UI/UX Pro Max girişi. Tam kaynak şablonlar, veriler ve arama iş akışı {brandName}\'a dahil değildir.',
     examplePrompt:
       'Yalnızca katalog UI/UX Pro Max girişi.',
   },
