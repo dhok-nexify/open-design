@@ -12,6 +12,8 @@ import {
   KIT_CSS,
 } from "../kit.js";
 import type { Brand } from "../../schema.js";
+import { resolveEdition } from "../../../edition/index.js";
+import { offlineFontStack } from "../../offline-fonts.js";
 import { type DesignTokens, varRef, flattenTokens, isRenderableFontFamily } from "../types.js";
 
 // ─────────────────────────── small html helpers ─────────────────────────────
@@ -47,8 +49,10 @@ export function brandFontAssets(brand: Brand): { links: string; displayFamily: s
     brand.typography?.mono?.googleFontsUrl,
   ].filter((u): u is string => Boolean(u && /^https:\/\//.test(u)));
   const unique = [...new Set(urls)];
+  // NexTore edition: no external font stylesheets (DESIGN §13.3).
+  const offline = resolveEdition(process.env.OD_EDITION) === 'nextore';
 
-  const links = unique.length
+  const links = !offline && unique.length
     ? [
         `<link rel="preconnect" href="https://fonts.googleapis.com" />`,
         `<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />`,
@@ -61,9 +65,11 @@ export function brandFontAssets(brand: Brand): { links: string; displayFamily: s
     brand.typography?.display?.family,
     ...(brand.typography?.display?.fallbacks ?? []),
   ].filter((f): f is string => Boolean(f && f.trim()) && isRenderableFontFamily(f!));
-  const displayFamily = families.length
-    ? [...new Set(families)].map(quote).join(", ") + ", " + varRef("fontFamily")
-    : varRef("fontFamily");
+  const displayFamily = offline
+    ? offlineFontStack(families[0])
+    : families.length
+      ? [...new Set(families)].map(quote).join(", ") + ", " + varRef("fontFamily")
+      : varRef("fontFamily");
 
   return { links, displayFamily };
 }
