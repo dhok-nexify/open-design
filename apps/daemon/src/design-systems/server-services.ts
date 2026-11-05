@@ -12,6 +12,7 @@ import {
 } from '../db.js';
 import { workspaceTeamSkillBindingAllowsRead } from '../skills/workspace-team-binding.js';
 import { workspaceTeamDesignSystemBindingAllowsRead } from './workspace-team-binding.js';
+import { resolveEdition } from '../edition/index.js';
 
 type JsonRecord = Record<string, unknown>;
 type SkillEntry = { id: string; dir?: string } & JsonRecord;
@@ -368,6 +369,9 @@ export function createDesignSystemServerServices({
       isEditable: false,
       status: 'published',
     }));
+    // NexTore edition: only the bundled catalogue is offered. Brand-derived, imported and
+    // community systems stay hidden (DESIGN §13.2, NXD-D31).
+    if (resolveEdition(process.env.OD_EDITION) === 'nextore') return builtIn;
     let installed: DesignSystemSummary[] = [];
     try {
       installed = await designSystems.listDesignSystems(paths.USER_DESIGN_SYSTEMS_DIR, {

@@ -90,7 +90,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   apiProviderBaseUrl: 'https://api.anthropic.com',
   agentId: null,
   skillId: null,
-  designSystemId: null,
+  designSystemId: NEXTORE_WEB_EDITION === 'nextore' ? 'nextore' : null,
   onboardingCompleted: false,
   theme: FORCED_APP_THEME,
   accentColor: DEFAULT_ACCENT_COLOR,
@@ -1134,6 +1134,9 @@ export function mergeDaemonConfig(
     // NexTore edition: telemetry stays off regardless of what was saved locally or on the
     // daemon (DESIGN §13.2, NXD-D27). metrics === false also stops the default-on block below.
     next.telemetry = { metrics: false, content: false, artifactManifest: false };
+    // NexTore edition: the bundled NexTore design system is the default until the user
+    // explicitly chooses another bundled system (NXD-D31).
+    if (next.designSystemId == null) next.designSystemId = 'nextore';
   }
   if (daemonConfig.privacyDecisionAt !== undefined) {
     next.privacyDecisionAt = daemonConfig.privacyDecisionAt;

@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import { readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -79,6 +80,9 @@ async function discoverBrandSources(): Promise<BrandSources[]> {
     const brandRoot = path.join(designSystemsRoot, entry.name);
     const tokensPath = path.join(brandRoot, 'tokens.css');
     const fixturePath = path.join(brandRoot, 'components.html');
+    // DESIGN.md-only packages are the documented compatibility path (e.g. the
+    // bundled NexTore system); they have no token/fixture pair to extract.
+    if (!existsSync(tokensPath) || !existsSync(fixturePath)) continue;
     const [tokensCss, fixtureHtml] = await Promise.all([
       readFile(tokensPath, 'utf8'),
       readFile(fixturePath, 'utf8'),
