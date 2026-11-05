@@ -1,6 +1,7 @@
 import { memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ClipboardEvent as ReactClipboardEvent, type CSSProperties, type DragEvent as ReactDragEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
 import type { ArtifactExportFormat } from '../runtime/chat/artifact-export';
 import { AnchoredMenuShell } from './chat/AnchoredMenuShell';
+import { isFeatureEnabled } from '../nextore/features';
 import { createPortal, flushSync } from 'react-dom';
 import { Button, Input, Select } from '@open-design/components';
 import {
@@ -14249,6 +14250,8 @@ function HtmlViewer({
     nextProviderId: WebDeployProviderId = deployProviderId,
     intent: 'deploy' | 'social-share' = 'deploy',
   ) {
+    // NexTore edition: deploy is not part of the first release (DESIGN §13.2).
+    if (!isFeatureEnabled('deploy')) return;
     setDeployMenuOpen(false);
     setDeployModalOpen(true);
     setDeployModalIntent(intent);
@@ -18224,7 +18227,7 @@ function HtmlViewer({
         </div>,
         document.body,
       ) : null}
-      {workspaceActive && deployModalOpen && typeof document !== 'undefined' ? createPortal(
+      {isFeatureEnabled('deploy') && workspaceActive && deployModalOpen && typeof document !== 'undefined' ? createPortal(
         <div
           className="modal-backdrop viewer-modal-backdrop deploy-flow-backdrop"
           role="presentation"
