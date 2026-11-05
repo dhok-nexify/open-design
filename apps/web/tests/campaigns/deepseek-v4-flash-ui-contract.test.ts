@@ -60,13 +60,13 @@ describe('DeepSeek V4 Flash workbench campaign entry', () => {
 
   it('keeps the top-right campaign entry visible across entry tabs and project detail', () => {
     expect(entryShellSource).toMatch(
-      /topRightSlot=\{\s*topRightCampaignAudience \? \(/,
+      /topRightSlot=\{\s*(?:isFeatureEnabled\('campaigns'\)\s*&&\s*)?topRightCampaignAudience \? \(/,
     );
     expect(entryShellSource).not.toMatch(
       /topRightSlot=\{\s*view === 'home'/,
     );
     expect(entryNavRailSource).toMatch(
-      /export function WorkspaceTopRightAccountCluster[\s\S]*?leadingSlot=\{campaignAudience \? \([\s\S]*?<WorkbenchCampaignBadge[\s\S]*?audience=\{campaignAudience\}[\s\S]*?page="project"/,
+      /export function WorkspaceTopRightAccountCluster[\s\S]*?leadingSlot=\{isFeatureEnabled\('campaigns'\) && campaignAudience \? \([\s\S]*?<WorkbenchCampaignBadge[\s\S]*?audience=\{campaignAudience\}[\s\S]*?page="project"/,
     );
     expect(appSource).toMatch(
       /<WorkspaceTopRightAccountCluster[\s\S]*?amrLoggedIn=\{amrLoginStatus\?\.loggedIn \?\? null\}[\s\S]*?metricsConsent=\{config\.telemetry\?\.metrics === true\}/,

@@ -57,6 +57,7 @@ import {
   resolvePluginQueryFallback,
 } from '../state/projects';
 import { FigmaImportModal } from './FigmaImportModal';
+import { isFeatureEnabled } from '../nextore/features';
 import { fetchMcpServers } from '../state/mcp';
 import { takeHomeComposerAssetSeed } from '../state/libraryHandoff';
 import { useI18n, useT } from '../i18n';
@@ -3091,13 +3092,15 @@ export function HomeView({
       {/* `active` gates the portal-escaping campaign dialog to the ACTIVE home
           view: EntryShell only hides inactive views with display:none, which a
           document.body portal ignores. */}
-      <DeepSeekV4FlashCampaign
-        audience={deepSeekV4FlashCampaignAudience}
-        active={isActive}
-        onUseCampaignModel={onDeepSeekV4FlashCampaignUseNow}
-        metricsConsent={deepSeekV4FlashCampaignMetricsConsent}
-        installationId={deepSeekV4FlashCampaignInstallationId}
-      />
+      {isFeatureEnabled('campaigns') ? (
+        <DeepSeekV4FlashCampaign
+          audience={deepSeekV4FlashCampaignAudience}
+          active={isActive}
+          onUseCampaignModel={onDeepSeekV4FlashCampaignUseNow}
+          metricsConsent={deepSeekV4FlashCampaignMetricsConsent}
+          installationId={deepSeekV4FlashCampaignInstallationId}
+        />
+      ) : null}
       {isActive ? <AppWashKineticGrid clipBottomTo=".home-hero" /> : null}
       <HomeHero
         workspaceContext={workspaceContext}

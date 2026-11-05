@@ -96,6 +96,7 @@ import { DesignsTab } from './DesignsTab';
 import { DesignSystemsTab } from './DesignSystemsTab';
 import { BrandsTab } from './BrandsTab';
 import { EntryNavRail, type EntryView as EntryViewKind } from './EntryNavRail';
+import { isFeatureEnabled } from '../nextore/features';
 import {
   buildProjectSearchCatalog,
   ProjectSearchModal,
@@ -1696,7 +1697,7 @@ export function EntryShell({
           onOpenSearch={() => setProjectSearchOpen(true)}
           open={railOpen}
           topRightSlot={
-            topRightCampaignAudience ? (
+            isFeatureEnabled('campaigns') && topRightCampaignAudience ? (
               <WorkbenchCampaignBadge
                 audience={topRightCampaignAudience}
                 page="home"
@@ -1744,7 +1745,9 @@ export function EntryShell({
               the workspace tabs bar (entryRailBridge), the updater popup host
               lives in the rail footer, and everything below is fixed-position
               or portalled so it occupies no layout space here. */}
-          <WhatsNewPopup active={view === 'home' && !goPlanSunsetMessagePending} />
+          {isFeatureEnabled('whats-new') ? (
+            <WhatsNewPopup active={view === 'home' && !goPlanSunsetMessagePending} />
+          ) : null}
           {/* The campaign badge lives in EntryNavRail's top-right cluster so it
               stays beside the account module across every entry tab. */}
           {amrBalanceGateBlock?.dialog === 'ask_owner' ? (

@@ -61,6 +61,7 @@ import { ProjectCreationPendingView } from './components/ProjectCreationPendingV
 import { AmrArtifactUpgradeGate } from './components/AmrArtifactUpgradeGate';
 import { AmrArtifactUpgradeHomeCard } from './components/AmrArtifactUpgradeHomeCard';
 import { ExperienceSurvey } from './components/ExperienceSurvey';
+import { isFeatureEnabled } from './nextore/features';
 import { TooltipLayer } from './components/TooltipLayer';
 import { UpdateDialog } from './components/UpdateDialog';
 import { UpdaterPopup } from './components/UpdaterPopup';
@@ -1879,6 +1880,7 @@ function AppInner() {
   // the modal-backdrop layer in index.css so opening Settings does not hide
   // it.
   const showPrivacyConsent =
+    isFeatureEnabled('privacy-consent') &&
     daemonConfigLoaded &&
     config.privacyDecisionAt == null &&
     config.onboardingCompleted === true;
@@ -2256,7 +2258,7 @@ function AppInner() {
         // banner keys off `privacyDecisionAt`. They may coexist on the
         // first launch; the banner sits above the modal layer so it
         // stays actionable regardless of the active view.
-        if (shouldRouteToFirstRunOnboarding(next, window.location.pathname)) {
+        if (isFeatureEnabled('onboarding') && shouldRouteToFirstRunOnboarding(next, window.location.pathname)) {
           navigate({ kind: 'home', view: 'onboarding' }, { replace: true });
         }
         setDaemonConfigLoaded(true);
@@ -5457,11 +5459,13 @@ function AppInner() {
             onOpenSettings={openSettings}
             onSignedOut={handleActiveCloudSignOut}
             updaterSlot={
-              <UpdaterPopup
-                allowSilentUpdates={config.allowSilentUpdates}
-                silentUpdatePreferenceReady={daemonAppConfigReady}
-                onAllowSilentUpdatesChange={handleSilentUpdatePreferenceChange}
-              />
+              isFeatureEnabled('updater') ? (
+                <UpdaterPopup
+                  allowSilentUpdates={config.allowSilentUpdates}
+                  silentUpdatePreferenceReady={daemonAppConfigReady}
+                  onAllowSilentUpdatesChange={handleSilentUpdatePreferenceChange}
+                />
+              ) : undefined
             }
             workspaceContextOverride={
               activeProject?.workspaceId
@@ -5501,38 +5505,42 @@ function AppInner() {
         />
       )}
       <TooltipLayer />
-      <UpdateDialog />
+      {isFeatureEnabled('updater') ? <UpdateDialog /> : null}
       {/* Mounted at shell level, outside the route views, so a survey armed by
           an export inside a project stays on screen when the user navigates
           back to home. */}
-      <ExperienceSurvey
-        metricsConsent={config.telemetry?.metrics === true}
-        onExposure={() => trackExperienceSurveyShown(analytics.track)}
-        onDismiss={() => trackExperienceSurveyDismissed(analytics.track)}
-        onSubmit={(answers) => trackExperienceSurveySent(analytics.track, answers)}
-      />
-      <AmrArtifactUpgradeGate
-        cloudModelSelected={config.mode === 'daemon' && config.agentId === 'amr'}
-        homeVisible={route.kind === 'home' && route.view === 'home'}
-        activeProjectId={route.kind === 'project' ? route.projectId : null}
-        activeConversationId={
-          route.kind === 'project' ? route.conversationId ?? null : null
-        }
-        activeFileName={route.kind === 'project' ? route.fileName : null}
-        plan={resolvedAmrPlan}
-        planResolved={
-          amrLoginStatus !== null
-          && (!isAmrSessionAuthenticated(amrLoginStatus) || resolvedAmrPlan !== null)
-        }
-        profile={amrLoginStatus?.profile ?? null}
-        metricsConsent={config.telemetry?.metrics === true}
-        installationId={config.installationId}
-        onHomeOfferChange={
-          amrArtifactUpgradeHomeMock
-            ? undefined
-            : setAmrArtifactUpgradeHomeOffer
-        }
-      />
+      {isFeatureEnabled('survey') ? (
+        <ExperienceSurvey
+          metricsConsent={config.telemetry?.metrics === true}
+          onExposure={() => trackExperienceSurveyShown(analytics.track)}
+          onDismiss={() => trackExperienceSurveyDismissed(analytics.track)}
+          onSubmit={(answers) => trackExperienceSurveySent(analytics.track, answers)}
+        />
+      ) : null}
+      {isFeatureEnabled('cloud-amr') ? (
+        <AmrArtifactUpgradeGate
+          cloudModelSelected={config.mode === 'daemon' && config.agentId === 'amr'}
+          homeVisible={route.kind === 'home' && route.view === 'home'}
+          activeProjectId={route.kind === 'project' ? route.projectId : null}
+          activeConversationId={
+            route.kind === 'project' ? route.conversationId ?? null : null
+          }
+          activeFileName={route.kind === 'project' ? route.fileName : null}
+          plan={resolvedAmrPlan}
+          planResolved={
+            amrLoginStatus !== null
+            && (!isAmrSessionAuthenticated(amrLoginStatus) || resolvedAmrPlan !== null)
+          }
+          profile={amrLoginStatus?.profile ?? null}
+          metricsConsent={config.telemetry?.metrics === true}
+          installationId={config.installationId}
+          onHomeOfferChange={
+            amrArtifactUpgradeHomeMock
+              ? undefined
+              : setAmrArtifactUpgradeHomeOffer
+          }
+        />
+      ) : null}
       <AnimatePresence>
       {settingsOpen ? (
         renderSettingsSurface('modal')
