@@ -195,6 +195,10 @@ const nextConfig: NextConfig = {
           // because Next.js's dev server streams responses unbuffered.
           return [
             { source: '/api/:path*', destination: `${DAEMON_ORIGIN}/api/:path*` },
+            // NEXTORE: the daemon owns the OAuth entry points (/auth/start,
+            // /auth/callback, /auth/logout). Without this rewrite the Next
+            // catch-all renders the SPA shell and the sign-in never starts.
+            { source: '/auth/:path*', destination: `${DAEMON_ORIGIN}/auth/:path*` },
             { source: '/artifacts/:path*', destination: `${DAEMON_ORIGIN}/artifacts/:path*` },
             { source: '/frames/:path*', destination: `${DAEMON_ORIGIN}/frames/:path*` },
             // Offline vendor assets for generated artifacts (DESIGN §13.3).

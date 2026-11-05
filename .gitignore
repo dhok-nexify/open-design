@@ -85,6 +85,8 @@ docs/superpowers/
 .direnv/
 .envrc
 # Local secrets (PostHog keys, BYOK creds for local testing, etc.)
+# NexTore edition deployment secret (DESIGNER_SECRET_FILE) and similar files.
+.secrets/
 .env.local
 .env.*.local
 # Local design assistant context

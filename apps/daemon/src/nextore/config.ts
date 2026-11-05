@@ -50,7 +50,7 @@ export function readNextoreConfig(
   if (edition !== 'nextore') return null;
 
   return {
-    baseUrl: normalizeHttpUrl('NEXTORE_BASE_URL', required(env, 'NEXTORE_BASE_URL')),
+    baseUrl: normalizeHttpUrl('NEXTORE_BASE_URL', required(env, 'NEXTORE_BASE_URL'), true),
     oauthClientId: required(env, 'NEXTORE_OAUTH_CLIENT_ID'),
     designerBaseUrl: normalizeHttpUrl(
       'DESIGNER_BASE_URL',

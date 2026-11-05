@@ -33,6 +33,8 @@ describe('readNextoreConfig', () => {
       .toThrow('NEXTORE_BASE_URL must use http or https.');
     expect(() => readNextoreConfig({ ...baseEnv, NEXTORE_BASE_URL: 'http://user:pass@nextore' }, 'nextore'))
       .toThrow('NEXTORE_BASE_URL must not contain embedded credentials.');
+    expect(() => readNextoreConfig({ ...baseEnv, NEXTORE_BASE_URL: 'http://nextore/subpath' }, 'nextore'))
+      .toThrow('NEXTORE_BASE_URL must point to an origin without a path.');
     expect(() => readNextoreConfig({ ...baseEnv, DESIGNER_BASE_URL: 'https://example.com/path' }, 'nextore'))
       .toThrow('DESIGNER_BASE_URL must point to an origin without a path.');
   });
