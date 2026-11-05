@@ -68,7 +68,7 @@ import {
 import { ExportDiagnosticsRow } from './ExportDiagnosticsButton';
 import { Icon } from './Icon';
 import { LabsSection } from './LabsSection';
-import { isFeatureEnabled } from '../nextore/features';
+import { NEXTORE_WEB_EDITION, isFeatureEnabled } from '../nextore/features';
 import { defaultAgentModelId, effectiveAgentModelChoice } from './agentModelSelection';
 import {
   CUSTOM_MODEL_SENTINEL,
@@ -1639,6 +1639,12 @@ export function SettingsDialog({
   // NexTore edition: Labs (OD Next) is not part of the first release (DESIGN §13.2).
   useEffect(() => {
     if (!isFeatureEnabled('od-next') && activeSection === 'labs') setActiveSection('general');
+    if (
+      NEXTORE_WEB_EDITION === 'nextore' &&
+      (activeSection === 'execution' || activeSection === 'media' || activeSection === 'privacy')
+    ) {
+      setActiveSection('general');
+    }
   }, [activeSection]);
   // Workspace region gating (E-frontend, D4.3). One shared read of the workspace
   // context; the Workspace section only renders for a team workspace whose
@@ -4363,18 +4369,20 @@ export function SettingsDialog({
                 </button>
               </div>
             ) : null}
-            <button
-              type="button"
-              className={`settings-nav-item${activeSection === 'execution' ? ' active' : ''}`}
-              onClick={() => setActiveSection('execution')}
-              data-testid="settings-nav-execution"
-            >
-              <Icon name="sliders" size={18} />
-              <span>
-                <strong>{t('settings.envConfigure')}</strong>
-                <small>{`${t('settings.localCli')} / ${t('settings.modeApiMeta')}`}</small>
-              </span>
-            </button>
+            {NEXTORE_WEB_EDITION !== 'nextore' ? (
+              <button
+                type="button"
+                className={`settings-nav-item${activeSection === 'execution' ? ' active' : ''}`}
+                onClick={() => setActiveSection('execution')}
+                data-testid="settings-nav-execution"
+              >
+                <Icon name="sliders" size={18} />
+                <span>
+                  <strong>{t('settings.envConfigure')}</strong>
+                  <small>{`${t('settings.localCli')} / ${t('settings.modeApiMeta')}`}</small>
+                </span>
+              </button>
+            ) : null}
             <button
               type="button"
               className={`settings-nav-item${activeSection === 'general' ? ' active' : ''}`}
@@ -4421,17 +4429,19 @@ export function SettingsDialog({
                 <small>{t('settings.memoryHint')}</small>
               </span>
             </button>
-            <button
-              type="button"
-              className={`settings-nav-item${activeSection === 'media' ? ' active' : ''}`}
-              onClick={() => setActiveSection('media')}
-            >
-              <Icon name="image" size={18} />
-              <span>
-                <strong>{t('settings.mediaProviders')}</strong>
-                <small>Image / video / audio</small>
-              </span>
-            </button>
+            {NEXTORE_WEB_EDITION !== 'nextore' ? (
+              <button
+                type="button"
+                className={`settings-nav-item${activeSection === 'media' ? ' active' : ''}`}
+                onClick={() => setActiveSection('media')}
+              >
+                <Icon name="image" size={18} />
+                <span>
+                  <strong>{t('settings.mediaProviders')}</strong>
+                  <small>Image / video / audio</small>
+                </span>
+              </button>
+            ) : null}
             <button
               type="button"
               className={`settings-nav-item${activeSection === 'integrations' ? ' active' : ''}`}
@@ -4443,17 +4453,19 @@ export function SettingsDialog({
                 <small>{t('settings.mcpServerHint')}</small>
               </span>
             </button>
-            <button
-              type="button"
-              className={`settings-nav-item${activeSection === 'privacy' ? ' active' : ''}`}
-              onClick={() => setActiveSection('privacy')}
-            >
-              <Icon name="eye" size={18} />
-              <span>
-                <strong>{t('settings.privacy')}</strong>
-                <small>{t('settings.privacyHint')}</small>
-              </span>
-            </button>
+            {NEXTORE_WEB_EDITION !== 'nextore' ? (
+              <button
+                type="button"
+                className={`settings-nav-item${activeSection === 'privacy' ? ' active' : ''}`}
+                onClick={() => setActiveSection('privacy')}
+              >
+                <Icon name="eye" size={18} />
+                <span>
+                  <strong>{t('settings.privacy')}</strong>
+                  <small>{t('settings.privacyHint')}</small>
+                </span>
+              </button>
+            ) : null}
             <button
               type="button"
               className={`settings-nav-item${activeSection === 'about' ? ' active' : ''}`}
@@ -4467,7 +4479,7 @@ export function SettingsDialog({
             </button>
           </aside>
           <div className="settings-content" ref={settingsContentRef}>
-          {activeSection === 'execution' ? (
+          {activeSection === 'execution' && NEXTORE_WEB_EDITION !== 'nextore' ? (
             <>
               {/* Sticky shell: the 本机 CLI / API 提供商 switch stays pinned
                   while the agent list scrolls. The wrapper (not .seg-control
@@ -5878,7 +5890,7 @@ export function SettingsDialog({
             </>
           ) : null}
 
-          {activeSection === 'media' ? (
+          {activeSection === 'media' && NEXTORE_WEB_EDITION !== 'nextore' ? (
             <MediaProvidersSection
               cfg={cfg}
               setCfg={setCfg}
@@ -6062,7 +6074,7 @@ export function SettingsDialog({
             />
           ) : null}
 
-          {activeSection === 'privacy' ? (
+          {activeSection === 'privacy' && NEXTORE_WEB_EDITION !== 'nextore' ? (
             <PrivacySection cfg={cfg} setCfg={setCfg} />
           ) : null}
 
