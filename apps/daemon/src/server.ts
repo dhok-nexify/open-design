@@ -411,6 +411,7 @@ import {
   createEditionRouteKillSwitch,
   resolveEdition,
 } from './edition/index.js';
+import { resolveSandboxProvider, SandboxUnavailableError } from './sandbox/index.js';
 import { createNextoreClient } from './nextore/client.js';
 import { resolveProductBrandName } from './nextore/branding-state.js';
 import { readNextoreConfig } from './nextore/config.js';
@@ -3164,6 +3165,13 @@ export async function startServer({
   }
 
   const edition = resolveEdition(process.env.OD_EDITION);
+  // NEXTORE: agent subprocesses run inside bubblewrap. A host that cannot
+  // provide it fails the run closed instead of degrading silently; upstream
+  // keeps the direct spawn. OD_SANDBOX=noop is the documented dev escape.
+  const sandboxProvider = resolveSandboxProvider({ edition });
+  if (edition === 'nextore' && sandboxProvider.id === 'noop') {
+    console.warn('[sandbox] OD_SANDBOX=noop — agent runs are NOT isolated on this host');
+  }
   const nextoreConfig = readNextoreConfig(process.env, edition);
   const nextoreClient = nextoreConfig ? createNextoreClient({ config: nextoreConfig }) : null;
   const app = express();
@@ -14334,8 +14342,17 @@ export async function startServer({
       }
       lifecycle.mark('launch_preflight_end');
       lifecycle.mark('process_spawn_start');
-      child = spawn(invocation.command, invocation.args, {
+      if (edition === 'nextore' && !sandboxProvider.check.ok) {
+        throw new SandboxUnavailableError(sandboxProvider.check);
+      }
+      const sandboxed = sandboxProvider.wrap({
+        command: invocation.command,
+        args: invocation.args,
+        cwd: effectiveCwd,
         env,
+      });
+      child = spawn(sandboxed.command, sandboxed.args, {
+        env: sandboxed.env,
         stdio: [stdinMode, 'pipe', 'pipe'],
         cwd: effectiveCwd,
         shell: false,
