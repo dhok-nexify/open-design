@@ -187,6 +187,7 @@ import {
 } from '../runtimes/byok-opencode.js';
 import { resolveChatRunInactivityTimeoutMs } from '../runtimes/chat-run-lifecycle.js';
 import { editionAgentGate } from '../edition/agent-selection.js';
+import { createProjectRunLock } from '../project-run-lock.js';
 import { resolveNextoreRunProvider } from '../nextore/models/resolve-run-provider.js';
 import { readNextoreConfig } from '../nextore/config.js';
 import type { NextoreSession } from '../nextore/auth/session-store.js';
@@ -963,6 +964,48 @@ export function registerRunRoutes(app: Express, ctx: RegisterRunRoutesDeps) {
    * NEXTORE: the edition builds the run provider from the signed-in session
    * (NXD-D13). Upstream returns null and keeps whatever the client sent.
    */
+  // NEXTORE: one active run per project (NXD-D11). See
+  // startChatRunWithProjectLock for the acquire rule.
+  const nextoreProjectRunLock = createProjectRunLock();
+
+  /**
+   * Serializes edition runs per project. The lock self-heals: a holder whose
+   * run is missing or terminal no longer blocks, so a crashed run cannot wedge
+   * a project. A rejected start fails the run with PROJECT_RUN_LOCKED instead
+   * of letting two agents write the same directory.
+   */
+  const startChatRunWithProjectLock = async (
+    res: ApiResponse,
+    executionMeta: RunCreateMeta,
+    run: ChatRun,
+  ) => {
+    if (resolveEdition(process.env.OD_EDITION) !== 'nextore' || !run.projectId) {
+      return startChatRun(executionMeta, run);
+    }
+    const session = (res.locals as { nextoreSession?: { memberId?: number } }).nextoreSession;
+    const acquired = nextoreProjectRunLock.tryAcquire(
+      run.projectId,
+      {
+        runId: run.id,
+        memberId: typeof session?.memberId === 'number' ? session.memberId : null,
+      },
+      (runId) => {
+        const active = design.runs.get(runId);
+        if (!active) return false;
+        return !TERMINAL_RUN_STATUSES.has(active.status);
+      },
+    );
+    if (!acquired.ok) {
+      design.runs.fail(
+        run,
+        'PROJECT_RUN_LOCKED',
+        'Another run is already active in this project. Wait for it to finish or cancel it, then retry.',
+      );
+      return undefined;
+    }
+    return startChatRun(executionMeta, run);
+  };
+
   const nextoreProviderForRun = (res: ApiResponse, tier: unknown) => {
     if (resolveEdition(process.env.OD_EDITION) !== 'nextore') return null;
     const config = readNextoreConfig(process.env, 'nextore');
@@ -3258,7 +3301,7 @@ export function registerRunRoutes(app: Express, ctx: RegisterRunRoutesDeps) {
         resumed,
         attributionMismatch: analyticsAttributionMismatch,
       },
-      () => startChatRun(executionMeta, run),
+      () => startChatRunWithProjectLock(res, executionMeta, run),
     );
   };
 
@@ -4099,7 +4142,7 @@ export function registerRunRoutes(app: Express, ctx: RegisterRunRoutesDeps) {
     internalRuns.start(
       run,
       { body: requestBody, requestAnalyticsContext: readAnalyticsContext(req) },
-      () => startChatRun(executionMeta, run),
+      () => startChatRunWithProjectLock(res, executionMeta, run),
     );
   });
 }
