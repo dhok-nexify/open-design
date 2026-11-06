@@ -257,7 +257,7 @@ const PROJECT_RESOURCE_STRING_FLAGS = new Set([
   'workspace',
   'workspace-member',
 ]);
-const PROJECT_BOOLEAN_FLAGS = new Set(['help', 'h', 'json', 'follow', 'thumbnail']);
+const PROJECT_BOOLEAN_FLAGS = new Set(['help', 'h', 'json', 'follow', 'thumbnail', 'confirm']);
 const WORKSPACE_STRING_FLAGS = new Set([
   'daemon-url', 'workspace', 'view', 'visibility', 'owner', 'project',
   'member', 'role', 'email', 'app-user', 'lifecycle-state',
@@ -7005,6 +7005,10 @@ async function runProject(args) {
   od project list                         List projects.
   od project nextore-list [--json]        List the member's NexTore projects,
                                           marking which have local content.
+  od project gc [<projectId> --confirm]   List quarantined projects (local rows
+                                          NexTore no longer knows). Purging needs
+                                          the id plus --confirm and an expired
+                                          grace period.
   od project info <id>                    Print one project.
   od project restore-automatic-scenario <id> [--json]
                                           Restore the daemon-selected default
@@ -7106,6 +7110,42 @@ Common options:
         return;
       }
       for (const p of projects) console.log(`${p.id}\t${p.name}\t${p.skillId ?? '-'}`);
+      return;
+    }
+    case 'gc': {
+      const purgeId = positionalArgs(rest, PROJECT_RESOURCE_STRING_FLAGS)[0] ?? '';
+      if (!purgeId) {
+        const listResp = await fetch(`${base}/api/nextore/projects/gc`, { headers: workspaceHeaders });
+        if (!listResp.ok) return structuredHttpFailure(listResp);
+        const data = await listResp.json();
+        if (flags.json) return process.stdout.write(JSON.stringify(data, null, 2) + '\n');
+        const candidates = Array.isArray(data?.candidates) ? data.candidates : [];
+        if (candidates.length === 0) {
+          console.log('No GC candidates.');
+          return;
+        }
+        for (const candidate of candidates) {
+          const state = candidate?.eligible ? 'eligible' : 'grace';
+          const since = typeof candidate?.firstSeenAt === 'number'
+            ? new Date(candidate.firstSeenAt).toISOString()
+            : '-';
+          console.log(`${candidate?.projectId}\t${state}\tfirst seen ${since}`);
+        }
+        return;
+      }
+      if (flags.confirm !== true) {
+        console.error('Refusing to purge without --confirm.');
+        process.exit(2);
+      }
+      const purgeResp = await fetch(`${base}/api/nextore/projects/gc/purge`, {
+        method: 'POST',
+        headers: { ...workspaceHeaders, 'content-type': 'application/json' },
+        body: JSON.stringify({ projectId: purgeId, confirm: true }),
+      });
+      if (!purgeResp.ok) return structuredHttpFailure(purgeResp);
+      const purged = await purgeResp.json();
+      if (flags.json) return process.stdout.write(JSON.stringify(purged, null, 2) + '\n');
+      console.log(`Purged ${purgeId}.`);
       return;
     }
     case 'nextore-list': {

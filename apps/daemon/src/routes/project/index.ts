@@ -14,6 +14,11 @@ import { readNextoreConfig } from '../../nextore/config.js';
 import { registerNextoreProject } from '../../nextore/projects/register-project.js';
 import { listNextoreProjects } from '../../nextore/projects/list-projects.js';
 import {
+  listGcCandidates,
+  isGcCandidateEligible,
+  recordGcCandidates,
+} from '../../nextore-gc.js';
+import {
   PREVIEW_OBSERVABILITY_BRIDGE_MARKER,
   buildPreviewBaseHrefBridge,
   buildPreviewObservabilityBridge,
@@ -5396,6 +5401,9 @@ export function registerProjectRoutes(app: Express, ctx: RegisterProjectRoutesDe
         accessToken,
         localProjectIds: listProjects(db).map((item: { id: string }) => item.id),
       });
+      // A local project NexTore no longer knows about starts its grace window
+      // here. Nothing is deleted: the project is only quarantined (NXD-D08).
+      recordGcCandidates(db, listing.localWithoutRemote);
       return res.json(listing);
     } catch (error) {
       return sendApiError(
@@ -5405,6 +5413,50 @@ export function registerProjectRoutes(app: Express, ctx: RegisterProjectRoutesDe
         error instanceof Error ? error.message : String(error),
       );
     }
+  });
+
+  // NEXTORE: quarantine candidates and their explicit purge (NXD-D08).
+  // Listing is read-only; purge requires an eligible candidate and an explicit
+  // `confirm: true`. Designer holds the only copy of the content, so nothing
+  // here is automatic.
+  app.get('/api/nextore/projects/gc', async (_req, res) => {
+    if (resolveEdition(process.env.OD_EDITION) !== 'nextore') {
+      return sendApiError(res, 404, 'FEATURE_DISABLED', 'not available in this edition');
+    }
+    return res.json({ candidates: listGcCandidates(db) });
+  });
+
+  app.post('/api/nextore/projects/gc/purge', async (req, res) => {
+    if (resolveEdition(process.env.OD_EDITION) !== 'nextore') {
+      return sendApiError(res, 404, 'FEATURE_DISABLED', 'not available in this edition');
+    }
+    const projectId = typeof req.body?.projectId === 'string' ? req.body.projectId.trim() : '';
+    if (!projectId) {
+      return sendApiError(res, 400, 'BAD_REQUEST', 'projectId is required');
+    }
+    if (req.body?.confirm !== true) {
+      return sendApiError(res, 400, 'CONFIRMATION_REQUIRED', 'purge requires confirm: true');
+    }
+    if (!await authorizeProjectRequest(req, res, projectId, { mode: 'write', capability: 'delete' })) {
+      return;
+    }
+    const candidate = listGcCandidates(db).find((item) => item.projectId === projectId);
+    if (!candidate) {
+      return sendApiError(res, 404, 'GC_CANDIDATE_NOT_FOUND', 'project is not a GC candidate');
+    }
+    if (!isGcCandidateEligible(candidate)) {
+      return sendApiError(
+        res,
+        409,
+        'GC_GRACE_PERIOD',
+        'This project is still inside its grace period.',
+      );
+    }
+    await cancelRunsOwnedBy(design.runs, { projectId }).catch(() => {});
+    dbDeleteProject(db, projectId);
+    await removeProjectDir(PROJECTS_DIR, projectId).catch(() => {});
+    db.prepare('DELETE FROM nextore_gc_candidates WHERE project_id = ?').run(projectId);
+    return res.json({ ok: true, projectId });
   });
 
   // NEXTORE: the site's permission editor for this project (NXD-D12). The
