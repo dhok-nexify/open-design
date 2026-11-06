@@ -27,6 +27,7 @@ import {
   DECK_PROTOCOL_VERSION,
   DECK_READY_MESSAGE_TYPE,
 } from '@open-design/contracts/runtime/deck-protocol';
+import { NEXTORE_WEB_EDITION } from '../nextore/features';
 import {
   buildPreviewBaseHrefBridge,
   buildPreviewObservabilityBridge,
@@ -355,7 +356,9 @@ export function buildSrcdoc(
   // user prints the preview iframe (Cmd+P → Save as PDF), Chromium uses the
   // sanitized title as the default filename — one that Microsoft Teams will
   // accept. Only the title text changes; visible page content is untouched.
-  const withSafeTitle = sanitizeTitleInDoc(wrapped);
+  // NEXTORE: previews may not reach the daemon API from inside the artifact.
+  const withCsp = NEXTORE_WEB_EDITION === 'nextore' ? injectPreviewConnectCsp(wrapped) : wrapped;
+  const withSafeTitle = sanitizeTitleInDoc(withCsp);
   const withOdIds = annotateMissingOdIds(withSafeTitle);
   const withSourcePaths = options.editBridge ? annotateManualEditSourcePaths(withOdIds) : withOdIds;
   const withBase = options.baseHref ? injectBaseHref(withSourcePaths, options.baseHref) : withSourcePaths;
@@ -1412,6 +1415,23 @@ function injectAtDocumentStart(doc: string, payload: string): string {
   const bodyEnd = findRealTagEnd(doc, HTML_TAG_PATTERNS.bodyOpen);
   if (bodyEnd >= 0) return doc.slice(0, bodyEnd) + payload + doc.slice(bodyEnd);
   return payload + doc;
+}
+
+/**
+ * NexTore edition: an artifact must not call the daemon's API (NXD-D25, T-D96).
+ *
+ * `connect-src 'none'` blocks fetch/XHR/WebSocket from the preview document while
+ * leaving every other directive untouched, so the artifact keeps rendering with
+ * its own inline data. The meta is injected at document start because a CSP meta
+ * only governs requests made after it is parsed. Idempotent: a second pass keeps
+ * one meta.
+ */
+export function injectPreviewConnectCsp(doc: string): string {
+  if (doc.includes('content="connect-src \'none\'"')) return doc;
+  return injectAtDocumentStart(
+    doc,
+    '<meta http-equiv="Content-Security-Policy" content="connect-src \'none\'">',
+  );
 }
 
 function injectAfterHeadOpen(doc: string, payload: string): string {
