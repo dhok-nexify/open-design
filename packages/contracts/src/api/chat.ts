@@ -10,6 +10,7 @@ import type {
 } from './comments';
 import type { ResearchOptions } from './research';
 import type { RunContextSelection } from './context.js';
+import type { NextoreTier } from '../nextore/api.js';
 import type { MediaExecutionPolicy, RunMediaTaskFailure } from './media.js';
 import type { AppliedPluginSnapshot } from '../plugins/apply.js';
 import type { McpAuthMode, McpServerConfig, McpTransport } from './mcp';
@@ -183,6 +184,12 @@ export interface ChatRequest {
    * child env + OPENCODE_CONFIG_CONTENT for the current run only.
    */
   byokProvider?: ByokChatProviderConfig;
+  /**
+   * NexTore edition: which model tier this run should use. The daemon resolves
+   * it against the signed-in session, so the client never supplies a model id,
+   * base URL or credential for the edition. Ignored upstream.
+   */
+  tier?: NextoreTier;
   /**
    * Run-scoped BYOK media defaults selected in the chat UI. The daemon uses
    * these to guide OpenCode-backed `od media generate` calls for this run only.

@@ -18,6 +18,7 @@ import {
   type ProjectMetadata as ContractProjectMetadata,
   type RunResultPackageResponse,
   resolveEdition,
+  isNextoreTier,
 } from '@open-design/contracts';
 import {
   buildRunCreatedV4Aliases,
@@ -186,6 +187,9 @@ import {
 } from '../runtimes/byok-opencode.js';
 import { resolveChatRunInactivityTimeoutMs } from '../runtimes/chat-run-lifecycle.js';
 import { editionAgentGate } from '../edition/agent-selection.js';
+import { resolveNextoreRunProvider } from '../nextore/models/resolve-run-provider.js';
+import { readNextoreConfig } from '../nextore/config.js';
+import type { NextoreSession } from '../nextore/auth/session-store.js';
 import {
   runtimeAcceptsMidTurnInput,
   type RunSteeringRefusal,
@@ -955,6 +959,17 @@ export function registerRunRoutes(app: Express, ctx: RegisterRunRoutesDeps) {
     ?? (async () => {
       throw new Error('OD Next Prompt Bundle preparation service is unavailable.');
     });
+  /**
+   * NEXTORE: the edition builds the run provider from the signed-in session
+   * (NXD-D13). Upstream returns null and keeps whatever the client sent.
+   */
+  const nextoreProviderForRun = (res: ApiResponse, tier: unknown) => {
+    if (resolveEdition(process.env.OD_EDITION) !== 'nextore') return null;
+    const config = readNextoreConfig(process.env, 'nextore');
+    if (!config) return null;
+    const session = (res.locals as { nextoreSession?: NextoreSession }).nextoreSession ?? null;
+    return resolveNextoreRunProvider({ config, session, tier });
+  };
   const {
     connectorService,
     detectSkillPluginCandidateOnRunSuccess,
@@ -2309,6 +2324,21 @@ export function registerRunRoutes(app: Express, ctx: RegisterRunRoutesDeps) {
         console.warn('[runs] agent id fallback failed', err);
       }
     }
+    // NEXTORE: ignore any client-supplied provider for the edition and derive
+    // it from the session instead. A missing session is a 401, not a 400.
+    const nextoreProvider = nextoreProviderForRun(res, requestBody.tier);
+    if (nextoreProvider && !nextoreProvider.ok) {
+      return sendApiError(
+        res,
+        nextoreProvider.status,
+        nextoreProvider.code,
+        nextoreProvider.message,
+      );
+    }
+    if (nextoreProvider?.ok) {
+      meta.byokProvider = nextoreProvider.byokProvider;
+      meta.model = nextoreProvider.model;
+    }
     if (!hasCompleteByokOpenCodeConfig({
       ...meta,
       ...(requestBody.byokProvider !== undefined
@@ -3208,6 +3238,9 @@ export function registerRunRoutes(app: Express, ctx: RegisterRunRoutesDeps) {
       ...(requestBody.byokProvider !== undefined
         ? { byokProvider: requestBody.byokProvider }
         : {}),
+      ...(nextoreProvider?.ok
+        ? { byokProvider: nextoreProvider.byokProvider, model: nextoreProvider.model }
+        : {}),
     };
     internalRuns.start(
       run,
@@ -3733,6 +3766,15 @@ export function registerRunRoutes(app: Express, ctx: RegisterRunRoutesDeps) {
         throw err;
       }
     }
+    // NEXTORE: reject an unknown tier before any run state exists. The
+    // provider itself is resolved from the session further down this handler.
+    if (
+      resolveEdition(process.env.OD_EDITION) === 'nextore'
+      && requestBody.tier != null
+      && !isNextoreTier(requestBody.tier)
+    ) {
+      return sendApiError(res, 400, 'TIER_INVALID', 'tier must be "fast" or "expert".');
+    }
     // A chat run may only attach to a conversation owned by its own project.
     // Without this guard, pairing projectId=A with a conversationId owned by
     // project B runs in A's cwd but pins messages and the native session under
@@ -4042,10 +4084,16 @@ export function registerRunRoutes(app: Express, ctx: RegisterRunRoutesDeps) {
     if (strategyTask) run.strategyTask = strategyTask;
     design.runs.stream(run, req, res);
     reconcileAssistantMessageOnRunEnd(db, design.runs, run);
+    // NEXTORE: /api/chat goes through the same session-derived provider as
+    // /api/runs, so the tier and credential rules cannot drift between them.
+    const chatNextoreProvider = nextoreProviderForRun(res, requestBody.tier);
     const executionMeta: RunCreateMeta = {
       ...meta,
       ...(requestBody.byokProvider !== undefined
         ? { byokProvider: requestBody.byokProvider }
+        : {}),
+      ...(chatNextoreProvider?.ok
+        ? { byokProvider: chatNextoreProvider.byokProvider, model: chatNextoreProvider.model }
         : {}),
     };
     internalRuns.start(

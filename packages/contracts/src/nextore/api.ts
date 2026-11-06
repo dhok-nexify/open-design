@@ -2,6 +2,18 @@ import type { Edition } from './edition.js';
 
 export const NEXTORE_MODULE_COMPATIBILITY = '>=1.0 <2';
 
+/**
+ * The two model tiers a run may ask for. The module resolves the tier to the
+ * model configured in its settings, so the daemon never names a model id.
+ */
+export type NextoreTier = 'fast' | 'expert';
+
+export const NEXTORE_TIERS: readonly NextoreTier[] = ['fast', 'expert'];
+
+export function isNextoreTier(value: unknown): value is NextoreTier {
+  return value === 'fast' || value === 'expert';
+}
+
 export interface DesignerHealthResponse {
   edition: Edition;
   version: unknown;
