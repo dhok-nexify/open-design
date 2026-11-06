@@ -52,6 +52,9 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
+      - name: Vendor integrity
+        run: pnpm --filter @open-design/daemon verify:vendor
+
       - name: Contracts tests
         run: pnpm --filter @open-design/contracts test
 

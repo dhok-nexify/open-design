@@ -147,6 +147,8 @@ hostnames without re-checking sessions.
 
 ## 7. Upgrade and rollback
 
+Before shipping a build, run the two pre-flight checks: `pnpm --filter @open-design/daemon verify:vendor` (every vendored asset matches its pinned size and sha256) and `pnpm guard`. A failed vendor check ships as a broken preview, not as a build error, so it is worth the ten seconds.
+
 1. Keep the previous tarball/image tag and a fresh backup.
 2. Stop the service, install the new version over the old one, start it.
 3. The daemon migrates its database on boot; a failed migration leaves the
@@ -163,5 +165,5 @@ hostnames without re-checking sessions.
 | `OD_EDITION` ignored / upstream UI | The variable is not exported to the daemon process, or contains a typo. |
 | 401 on every API call | Session secret changed, clock skew, or the OAuth redirect origin does not match `DESIGNER_BASE_URL`. |
 | `model_not_found` from a generation | The Fast/Expert model mapping in the module settings points at a model the caller cannot read. |
-| Preview renders unstyled | `/vendor/*` answered 503: the vendored asset tree is missing from the install. |
+| Preview renders unstyled | `/vendor/*` answered 503: the vendored asset tree is missing from the install, or its bytes no longer match `VENDOR_ASSETS`. Run `pnpm --filter @open-design/daemon verify:vendor` — it names the offending file. A size that is a few hundred bytes too large on a Windows checkout means line endings were converted; re-checkout `apps/daemon/vendor` (the committed `.gitattributes` marks it as binary) and rerun the check. |
 | Branding not updating | The five-minute cache; wait for the TTL or restart the daemon. |

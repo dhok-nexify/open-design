@@ -1,0 +1,5 @@
+# Vendored bytes are hash-pinned in VENDOR_ASSETS (apps/daemon/src/vendor/manifest.ts).
+# Treat them as binary so a Windows checkout (core.autocrlf=true) never converts
+# their line endings: one extra byte per line changes the SHA-256 and the daemon
+# then answers 503 integrity_failed for every /vendor asset.
+* -text
