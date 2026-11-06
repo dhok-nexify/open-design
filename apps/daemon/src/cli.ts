@@ -7003,6 +7003,8 @@ async function runProject(args) {
   od project import-folder <path> [--name "<title>"] [--skill <id>]
                     [--design-system <id>] [--json]
   od project list                         List projects.
+  od project nextore-list [--json]        List the member's NexTore projects,
+                                          marking which have local content.
   od project info <id>                    Print one project.
   od project restore-automatic-scenario <id> [--json]
                                           Restore the daemon-selected default
@@ -7104,6 +7106,26 @@ Common options:
         return;
       }
       for (const p of projects) console.log(`${p.id}\t${p.name}\t${p.skillId ?? '-'}`);
+      return;
+    }
+    case 'nextore-list': {
+      const resp = await fetch(`${base}/api/nextore/projects`, { headers: workspaceHeaders });
+      if (!resp.ok) return structuredHttpFailure(resp);
+      const data = await resp.json();
+      if (flags.json) return process.stdout.write(JSON.stringify(data, null, 2) + '\n');
+      const projects = Array.isArray(data?.projects) ? data.projects : [];
+      if (projects.length === 0) {
+        console.log('No NexTore projects.');
+        return;
+      }
+      for (const project of projects) {
+        const content = project?.hasLocalContent ? 'local' : 'remote-only';
+        console.log(
+          `${project?.nextoreProjectId}\t${content}\t${project?.name ?? ''}\t${project?.designerProjectId ?? ''}`,
+        );
+      }
+      const localOnly = Array.isArray(data?.localWithoutRemote) ? data.localWithoutRemote.length : 0;
+      if (localOnly > 0) console.log(`local-only (no NexTore record): ${localOnly}`);
       return;
     }
     case 'info': {
