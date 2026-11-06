@@ -33,6 +33,7 @@ import {
   type RunContextSelection,
   type ProjectScenarioTaskProfile,
   type WorkspaceProjectSummary,
+  type NextoreTier,
 } from '@open-design/contracts';
 import type { OpenDesignHostProjectImportSuccess } from '@open-design/host';
 import { useAnalytics } from '../analytics/provider';
@@ -96,7 +97,9 @@ import { DesignsTab } from './DesignsTab';
 import { DesignSystemsTab } from './DesignSystemsTab';
 import { BrandsTab } from './BrandsTab';
 import { EntryNavRail, type EntryView as EntryViewKind } from './EntryNavRail';
-import { isFeatureEnabled } from '../nextore/features';
+import { NEXTORE_WEB_EDITION, isFeatureEnabled } from '../nextore/features';
+import { TierToggle } from '../nextore/TierToggle';
+import { readStoredNextoreTier, writeStoredNextoreTier } from '../nextore/tier';
 import {
   buildProjectSearchCatalog,
   ProjectSearchModal,
@@ -653,6 +656,14 @@ export function EntryShell({
   // view from the route rather than keeping it in component state.
   const route = useRoute();
   const view: EntryViewKind = route.kind === 'home' ? route.view : 'home';
+  // NEXTORE: the edition has one runtime and two tiers (NXD-D14). The top-bar
+  // chip shows the same Fast/Expert choice the project composer uses, and both
+  // read and write the same stored preference.
+  const [entryNextoreTier, setEntryNextoreTier] = useState<NextoreTier>(() => readStoredNextoreTier());
+  const chooseEntryNextoreTier = useCallback((tier: NextoreTier) => {
+    setEntryNextoreTier(tier);
+    writeStoredNextoreTier(tier);
+  }, []);
   // The one shared workspace context. Any non-null context is a real workspace
   // (personal or team); workspace surfaces gate on B's permission bits, not on
   // workspaceType.
@@ -1658,7 +1669,9 @@ export function EntryShell({
     );
   }
 
-  const homeExecutionSwitcher = (
+  const homeExecutionSwitcher = NEXTORE_WEB_EDITION === 'nextore' ? (
+    <TierToggle value={entryNextoreTier} onChange={chooseEntryNextoreTier} />
+  ) : (
     <InlineModelSwitcher
       compact
       config={config}
