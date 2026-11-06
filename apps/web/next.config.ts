@@ -8,7 +8,12 @@ import { fileURLToPath } from 'node:url';
 // dev-all launcher overrides OD_PORT after probing for a free port; we read
 // the same env so /api, /artifacts, /frames, and /vendor always reach the right
 // daemon instance during `next dev`.
-const DAEMON_PORT = Number(process.env.OD_PORT) || 7456;
+// OD_PORT is the contract (tools-dev sets it). NEXT_PUBLIC_DAEMON_PORT is
+// accepted as a fallback because split-port deployments naturally reach for it;
+// without it the rewrites point at this server and every /api, /auth, /artifacts,
+// /frames and /vendor request becomes a 500 from the proxy loop.
+const DAEMON_PORT =
+  Number(process.env.OD_PORT) || Number(process.env.NEXT_PUBLIC_DAEMON_PORT) || 7456;
 const DAEMON_ORIGIN = `http://127.0.0.1:${DAEMON_PORT}`;
 
 // The regular CLI build still ships as a static export so the `od` daemon can
