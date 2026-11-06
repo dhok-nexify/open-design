@@ -8655,6 +8655,7 @@ export async function startServer({
     db,
     design,
     http: httpDeps,
+    nextore: nextoreClient ? { client: nextoreClient } : undefined,
     paths: pathDeps,
     projectStore: projectStoreDeps,
     projectFiles: projectFileDeps,

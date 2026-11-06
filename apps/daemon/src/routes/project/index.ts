@@ -8,6 +8,9 @@ import {
 } from '../../chat-artifacts/store.js';
 import type { Express, Request, Response } from 'express';
 import type { LintArtifactRequest, LintArtifactResponse } from '@open-design/contracts';
+import { resolveEdition } from '@open-design/contracts';
+import { NextoreClientError, type NextoreClient } from '../../nextore/client.js';
+import { registerNextoreProject } from '../../nextore/projects/register-project.js';
 import {
   PREVIEW_OBSERVABILITY_BRIDGE_MARKER,
   buildPreviewBaseHrefBridge,
@@ -285,6 +288,8 @@ export interface RegisterProjectRoutesDeps extends RouteDeps<'db' | 'design' | '
       source: string,
     ) => Promise<Parameters<typeof resolvePluginSnapshot>[0]['plugin'] | null>;
   };
+  /** NEXTORE: module client for the project lifecycle (NXD-D08). */
+  nextore?: { client: NextoreClient };
   teamProjectCatalog?: VelaTeamProjectCatalogClient;
   /** Bounded authoritative verifier for idempotent Workspace project reads. */
   verifyWorkspaceReadAuthority?: VerifyWorkspaceRequestAuthority;
@@ -3719,6 +3724,67 @@ export function registerProjectRoutes(app: Express, ctx: RegisterProjectRoutesDe
     return { ...status, value: mapped, updatedAt: status.updatedAt ?? brandMeta.updatedAt };
   }
 
+  /**
+   * NEXTORE: registers a freshly created local project with NexTore (NXD-D08).
+   * Returns null when the edition is off or no client is configured, so the
+   * upstream create path is untouched.
+   */
+  const registerProjectWithNextore = async (
+    res: Response,
+    project: { id: string; name: string; designSystemId: string | null; skillId: string | null },
+  ) => {
+    const nextore = ctx.nextore;
+    if (!nextore || resolveEdition(process.env.OD_EDITION) !== 'nextore') return null;
+    const session = (res.locals as { nextoreSession?: { accessToken?: string } }).nextoreSession;
+    const accessToken = typeof session?.accessToken === 'string' ? session.accessToken.trim() : '';
+    if (!accessToken) {
+      return { ok: false as const, message: 'A NexTore session is required to create a project.' };
+    }
+    const result = await registerNextoreProject({ client: nextore.client, accessToken, project });
+    if (!result.ok) return result;
+    const existing = getProject(db, project.id);
+    updateProject(db, project.id, {
+      metadata: {
+        ...((existing?.metadata as Record<string, unknown> | null) ?? {}),
+        nextoreProjectId: result.nextoreProjectId,
+      },
+    });
+    return result;
+  };
+
+  /**
+   * NEXTORE: removes the NexTore record for a project before the local delete.
+   * A 404 from the module means it is already gone, which is the state we want.
+   */
+  const deleteProjectFromNextore = async (
+    res: Response,
+    projectId: string,
+  ): Promise<true | { ok: false; message: string }> => {
+    const nextore = ctx.nextore;
+    if (!nextore || resolveEdition(process.env.OD_EDITION) !== 'nextore') return true;
+    const metadata = getProject(db, projectId)?.metadata as
+      | { nextoreProjectId?: string }
+      | null
+      | undefined;
+    const nextoreProjectId = metadata?.nextoreProjectId?.trim();
+    if (!nextoreProjectId) return true;
+    const session = (res.locals as { nextoreSession?: { accessToken?: string } }).nextoreSession;
+    const accessToken = typeof session?.accessToken === 'string' ? session.accessToken.trim() : '';
+    if (!accessToken) {
+      return { ok: false, message: 'A NexTore session is required to delete this project.' };
+    }
+    try {
+      await nextore.client.deleteProject(accessToken, nextoreProjectId);
+      return true;
+    } catch (error) {
+      if (error instanceof NextoreClientError && error.statusCode === 404) return true;
+      return {
+        ok: false,
+        message: error instanceof Error ? error.message : String(error),
+      };
+    }
+  };
+
   app.post('/api/projects', async (req, res) => {
     try {
       // Ordinary project creation is local. Capture any complete identity that
@@ -4263,6 +4329,21 @@ export function registerProjectRoutes(app: Express, ctx: RegisterProjectRoutesDe
             }
           }
         }
+      }
+      // NEXTORE: register before answering. A local project without a NexTore
+      // record is a content orphan, so a failed registration rolls the create
+      // back instead of leaving one behind (NXD-D08).
+      const nextoreRegistration = await registerProjectWithNextore(res, {
+        id,
+        name: name.trim(),
+        designSystemId: normalizedDesignSystemId ?? null,
+        skillId: normalizedSkillId ?? null,
+      });
+      if (nextoreRegistration && !nextoreRegistration.ok) {
+        await cancelRunsOwnedBy(design.runs, { projectId: id }).catch(() => {});
+        dbDeleteProject(db, id);
+        await removeProjectDir(PROJECTS_DIR, id).catch(() => {});
+        return sendApiError(res, 503, 'NEXTORE_UNAVAILABLE', nextoreRegistration.message);
       }
       /** @type {import('@open-design/contracts').CreateProjectResponse} */
       const createdProject = pluginResolutionState.snapshot
@@ -5298,6 +5379,12 @@ export function registerProjectRoutes(app: Express, ctx: RegisterProjectRoutesDe
       // are removed, otherwise the CLI subprocess is orphaned — it keeps
       // billing and writes into a directory that no longer exists (#5468).
       await cancelRunsOwnedBy(design.runs, { projectId: req.params.id });
+      // NEXTORE: the module record goes first; a 404 there means it is
+      // already gone, which is the state we want (NXD-D08).
+      const nextoreDelete = await deleteProjectFromNextore(res, req.params.id);
+      if (nextoreDelete !== true) {
+        return sendApiError(res, 503, 'NEXTORE_UNAVAILABLE', nextoreDelete.message);
+      }
       dbDeleteProject(db, req.params.id);
       await removeProjectDir(PROJECTS_DIR, req.params.id).catch(() => {});
       /** @type {import('@open-design/contracts').OkResponse} */
