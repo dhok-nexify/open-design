@@ -1,3 +1,5 @@
+import { isFeatureEnabled } from './nextore/features';
+
 export type MessageCenterFilter = 'all' | 'unread' | 'read';
 
 export interface MessageCenterMessage {
@@ -90,6 +92,9 @@ export function clearAnonymousState(storage: Storage): void {
  * authoritative: there is no runtime, so there is no account.
  */
 export async function isAmrLoggedIn(): Promise<boolean> {
+  // NEXTORE: no AMR account exists in this edition, so "signed in" is a local
+  // answer — asking would only hit the 404 kill switch (NXD-D26).
+  if (!isFeatureEnabled('cloud-amr')) return false;
   const response = await fetch('/api/integrations/vela/status', { cache: 'no-store' });
   if (response.status === 503) {
     const payload = (await response.clone().json().catch(() => null)) as { error?: string } | null;

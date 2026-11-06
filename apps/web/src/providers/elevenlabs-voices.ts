@@ -1,4 +1,5 @@
 import type { AudioVoiceOption } from '@open-design/contracts';
+import { isFeatureEnabled } from '../nextore/features';
 
 type JsonRecord = Record<string, unknown>;
 
@@ -69,6 +70,9 @@ function normalizeVoice(value: unknown): AudioVoiceOption | null {
 export async function fetchElevenLabsVoiceOptions(
   signal?: AbortSignal,
 ): Promise<AudioVoiceOption[]> {
+  // NEXTORE: /api/media/providers is behind the media-providers kill switch,
+  // so there is no voice catalogue to read (NXD-D26).
+  if (!isFeatureEnabled('media-providers')) return [];
   const response = await fetch('/api/media/providers/elevenlabs/voices?limit=100', {
     signal,
   });

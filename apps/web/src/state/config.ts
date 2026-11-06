@@ -1,6 +1,6 @@
 import type { AppConfigPrefs } from '@open-design/contracts';
 import { MEDIA_PROVIDERS } from '../media/models';
-import { NEXTORE_WEB_EDITION } from '../nextore/features';
+import { NEXTORE_WEB_EDITION, isFeatureEnabled } from '../nextore/features';
 import { isOpenAICompatible } from '../providers/openai-compatible';
 import type {
   ApiProtocol,
@@ -951,6 +951,8 @@ export function buildMediaProvidersForDaemonSave(
 }
 
 export async function fetchComposioConfigFromDaemon(): Promise<AppConfig['composio'] | null> {
+  // NEXTORE: connector routes are disabled in this edition (NXD-D26).
+  if (!isFeatureEnabled('connectors')) return null;
   try {
     const response = await fetch('/api/connectors/composio/config');
     if (!response.ok) return null;

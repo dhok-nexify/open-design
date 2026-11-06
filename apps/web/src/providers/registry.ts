@@ -4,6 +4,8 @@ import {
   type PublicFileManualRevokeRequiredData,
   type PublicProjectFilePublication,
 } from '@open-design/contracts';
+
+import { isFeatureEnabled } from '../nextore/features';
 import { boundedRequestErrorCode } from '../analytics/workspace';
 import type {
   ConnectorAuthConfigPrepareResponse,
@@ -158,6 +160,8 @@ function deployProviderQuery(providerId?: WebDeployProviderId): string {
 }
 
 export async function fetchAgents(options?: { throwOnError?: boolean }): Promise<AgentInfo[]> {
+  // NEXTORE: no agent picker in the edition — do not probe a disabled route.
+  if (!isFeatureEnabled('agent-picker')) return [];
   try {
     const resp = await fetch('/api/agents', { cache: 'no-store' });
     if (!resp.ok) {
@@ -185,6 +189,9 @@ export async function fetchAgentsStream(args: {
   signal?: AbortSignal;
 }): Promise<AgentInfo[]> {
   const { onAgent, signal } = args;
+  // NEXTORE: same rule as fetchAgents — an EventSource against a 404 route
+  // reconnects forever and floods the console (NXD-D26).
+  if (!isFeatureEnabled('agent-picker')) return [];
   const resp = await fetch('/api/agents?stream=1', {
     cache: 'no-store',
     headers: { Accept: 'text/event-stream' },
@@ -1298,6 +1305,10 @@ export async function daemonIsLive(): Promise<boolean> {
 }
 
 export async function fetchConnectors(): Promise<ConnectorDetail[]> {
+  // NEXTORE: /api/connectors sits behind the edition kill switch and the
+  // connector UI is absent, so answer empty instead of probing a 404
+  // (NXD-D26).
+  if (!isFeatureEnabled('connectors')) return [];
   try {
     const resp = await fetch('/api/connectors');
     if (!resp.ok) return [];
@@ -1311,6 +1322,7 @@ export async function fetchConnectors(): Promise<ConnectorDetail[]> {
 export async function fetchConnectorStatuses(options?: {
   signal?: AbortSignal;
 }): Promise<ConnectorStatusResponse['statuses']> {
+  if (!isFeatureEnabled('connectors')) return {};
   try {
     const resp = await fetch('/api/connectors/status', { signal: options?.signal });
     if (!resp.ok) return {};
@@ -1325,6 +1337,7 @@ let connectorDiscoveryCache: ConnectorDetail[] | null = null;
 let connectorDiscoveryPromise: Promise<ConnectorDetail[]> | null = null;
 
 export async function fetchConnectorDiscovery(options: { refresh?: boolean } = {}): Promise<ConnectorDetail[]> {
+  if (!isFeatureEnabled('connectors')) return [];
   if (options.refresh) {
     connectorDiscoveryCache = null;
     connectorDiscoveryPromise = null;

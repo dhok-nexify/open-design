@@ -42,7 +42,9 @@ import type {
   StrategyTaskProjectionV2,
   WorkspaceCollabContext,
 } from '@open-design/contracts';
+
 import { OD_NEXT_AGENT_DECLARED_BLOCK_REASON } from '@open-design/contracts';
+import { isFeatureEnabled } from '../nextore/features';
 import type { StreamHandlers } from './anthropic';
 
 /**
@@ -1418,6 +1420,13 @@ export interface VelaLoginStatusRead {
 export function readVelaLoginStatus(
   options: { refresh?: boolean } = {},
 ): Promise<VelaLoginStatusRead> {
+  // NEXTORE: the edition kill switch answers /api/integrations/vela* with 404,
+  // yet every AMR surface that renders a sign-in pill still asks on a cold
+  // open. Answer the transport shape locally instead of probing a route that
+  // cannot exist in this edition (NXD-D26).
+  if (!isFeatureEnabled('cloud-amr')) {
+    return Promise.resolve({ ok: false, httpStatus: 404, body: null });
+  }
   const query = options.refresh ? '?refresh=1' : '';
   const url = `/api/integrations/vela/status${query}`;
   const accountGeneration = currentWorkspaceAccountGeneration();
@@ -1451,6 +1460,7 @@ export async function fetchVelaLoginStatus(options: { refresh?: boolean } = {}):
 }
 
 export async function fetchAmrWalletSnapshot(options: { refresh?: boolean } = {}): Promise<AmrWalletSnapshot | null> {
+  if (!isFeatureEnabled('cloud-amr')) return null;
   try {
     const query = options.refresh ? '?refresh=1' : '';
     const resp = await fetch(`/api/integrations/vela/wallet${query}`, { cache: 'no-store' });
@@ -1462,6 +1472,8 @@ export async function fetchAmrWalletSnapshot(options: { refresh?: boolean } = {}
 }
 
 export async function fetchAmrModels(): Promise<AmrModelsResponse | null> {
+  // NEXTORE: /api/amr is cloud-AMR-only and 404s here (NXD-D26).
+  if (!isFeatureEnabled('cloud-amr')) return null;
   try {
     const resp = await fetch('/api/amr/models', { cache: 'no-store' });
     if (!resp.ok) return null;

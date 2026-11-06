@@ -19,6 +19,7 @@ import {
 import { pinFirstSessionForCapture } from './identity';
 import { registerChatReplaySessionSource } from '../observability/chat-context';
 import { coalescedGet } from '../lib/coalesced-get';
+import { isFeatureEnabled } from '../nextore/features';
 
 interface AnalyticsContext {
   anonymousId: string;
@@ -190,6 +191,11 @@ function flushPersonProperties(): void {
 // issuing two identical GETs (Batch A §4.3). `null` mirrors the endpoint's
 // non-ok answer; network failures propagate to each caller's own handler.
 function fetchAnalyticsConfigShared(): Promise<AnalyticsConfigResponse | null> {
+  // NEXTORE: /api/analytics is behind the telemetry kill switch. Both readers
+  // already treat `null` as "telemetry unavailable", which is exactly what this
+  // edition means, so short-circuit instead of spending a 404 at every boot
+  // (NXD-D26).
+  if (!isFeatureEnabled('telemetry')) return Promise.resolve(null);
   // ttl 0: share only genuinely concurrent readers. A later sequential call
   // (e.g. re-init right after the user grants consent) must observe the
   // just-flipped daemon answer, not a sub-second-old disabled snapshot.

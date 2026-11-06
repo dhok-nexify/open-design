@@ -17,6 +17,7 @@
 // issuing its own request.
 import { useEffect, useMemo, useState } from 'react';
 import { IMAGE_MODELS, VIDEO_MODELS, AUDIO_MODELS_BY_KIND, type MediaModel } from './models';
+import { isFeatureEnabled } from '../nextore/features';
 
 type FetchedModel = { id: string; label: string };
 
@@ -42,6 +43,9 @@ export async function fetchAIHubMixModels(
   type: AIHubMixCatalogType,
   signal?: AbortSignal,
 ): Promise<MediaModel[]> {
+  // NEXTORE: /api/media/providers is behind the media-providers kill switch;
+  // pickers fall back to the static registry seeds without a 404 (NXD-D26).
+  if (!isFeatureEnabled('media-providers')) return [];
   const res = await fetch(
     `/api/media/providers/aihubmix/models?type=${type}`,
     { signal },
