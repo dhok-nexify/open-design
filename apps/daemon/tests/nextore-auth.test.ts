@@ -78,6 +78,8 @@ function client(overrides: { bootstrap?: (token: string) => Promise<unknown> } =
       version: 1,
     }),
     bootstrap: (overrides.bootstrap ?? (async () => ({ member }))) as NextoreClient['bootstrap'],
+    projectAccess: async <T>() => ({} as T),
+    projectPermissionUrl: async <T>() => ({} as T),
   };
 }
 

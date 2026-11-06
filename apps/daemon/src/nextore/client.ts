@@ -34,6 +34,10 @@ export interface NextoreClient {
   health(signal?: AbortSignal): Promise<NextoreModuleHealthResponse>;
   branding(signal?: AbortSignal): Promise<NextoreBrandingResponse>;
   bootstrap<T>(accessToken: string, signal?: AbortSignal): Promise<T>;
+  /** Effective rights for one DesignProject, as the module computes them. */
+  projectAccess<T>(accessToken: string, projectId: string, signal?: AbortSignal): Promise<T>;
+  /** Deep link into the site's permission editor for one DesignProject. */
+  projectPermissionUrl<T>(accessToken: string, projectId: string, signal?: AbortSignal): Promise<T>;
 }
 
 function parseJson(text: string): unknown {
@@ -119,6 +123,20 @@ export function createNextoreClient(options: NextoreClientOptions): NextoreClien
       return request<NextoreBrandingResponse>(
         '/api/designer/branding',
         signal ? { signal } : {},
+      );
+    },
+
+    projectAccess<T>(accessToken: string, projectId: string, signal?: AbortSignal) {
+      return request<T>(
+        'api/designer/projects/' + encodeURIComponent(projectId) + '/access',
+        signal ? { accessToken, signal } : { accessToken },
+      );
+    },
+
+    projectPermissionUrl<T>(accessToken: string, projectId: string, signal?: AbortSignal) {
+      return request<T>(
+        'api/designer/projects/' + encodeURIComponent(projectId) + '/permission-url',
+        signal ? { accessToken, signal } : { accessToken },
       );
     },
 

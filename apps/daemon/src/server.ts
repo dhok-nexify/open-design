@@ -972,7 +972,13 @@ import {
 } from './collab/workspace-resource-mutation.js';
 import {
   createAuthorizeProjectRequest,
+  type AuthorizeProjectRequest,
 } from './collab/project-request-authority.js';
+import {
+  createProjectAccessCache,
+  type NextoreProjectAccess,
+} from './nextore/acl/access-cache.js';
+import { createNextoreProjectAuthorizer } from './nextore/acl/authorize-project.js';
 import { withLastKnownWorkspaceContext } from './collab/workspace-context.js';
 import {
   createWorkspaceTypeRegistry,
@@ -8291,7 +8297,7 @@ export async function startServer({
     stageProjectDirsForDelete,
     validateLinkedDirs,
   };
-  const authorizeProjectRequest = createAuthorizeProjectRequest({
+  const localAuthorizeProjectRequest = createAuthorizeProjectRequest({
     db,
     getWorkspaceProject,
     getWorkspaceProjectByProjectId,
@@ -8301,6 +8307,38 @@ export async function startServer({
       projectIsUnmaterializedSharedPlaceholder(projectId),
     sendApiError,
   });
+  // NEXTORE: a project that carries a NexTore mapping must also pass the
+  // module's ACL (NXD-D07). Projects without a mapping keep today's behavior,
+  // so this becomes enforcing only once D08 starts writing the mapping.
+  const nextoreProjectAccessCache = nextoreClient ? createProjectAccessCache() : null;
+  const authorizeProjectRequest: AuthorizeProjectRequest = nextoreClient && nextoreConfig && nextoreProjectAccessCache
+    ? createNextoreProjectAuthorizer(localAuthorizeProjectRequest, {
+        edition,
+        cache: nextoreProjectAccessCache,
+        load: (accessToken, projectId) =>
+          nextoreClient.projectAccess<NextoreProjectAccess>(accessToken, projectId),
+        readSession: (res) => {
+          const session = (res as {
+            locals?: { nextoreSession?: { accessToken?: string; memberId?: number } };
+          }).locals?.nextoreSession;
+          return typeof session?.accessToken === 'string' && typeof session.memberId === 'number'
+            ? { accessToken: session.accessToken, memberId: session.memberId }
+            : null;
+        },
+        readProjectMapping: (projectId) => {
+          try {
+            const metadata = getProject(db, projectId)?.metadata as
+              | { nextoreProjectId?: string }
+              | null
+              | undefined;
+            return metadata?.nextoreProjectId?.trim() || null;
+          } catch {
+            return null;
+          }
+        },
+        deny: (res, status, code, message) => sendApiError(res as never, status, code, message),
+      })
+    : localAuthorizeProjectRequest;
   // Legacy registrars still receive the historical bound mutation-gate shape,
   // but production delegates it to the same central authorizer as newer route
   // modules. This keeps placeholder stamps authoritative across Figma import,

@@ -193,6 +193,13 @@ export interface DesignSystemReviewEntry {
 
 export interface ProjectMetadata {
   kind: ProjectKind;
+  /**
+   * NexTore edition: the DesignProject TreeObject id this local project maps to.
+   * Absent on upstream projects and on edition projects created before the
+   * mapping existed; the project authorizer only consults NexTore when this is
+   * present (NXD-D07).
+   */
+  nextoreProjectId?: string;
   // `live-artifact`: the data-backed live dashboard flow (drives the
   // live-artifact skill/system-prompt path). `web-clone`: website reproduction
   // projects from the Home `Website clone` card — stored as prototypes so they
