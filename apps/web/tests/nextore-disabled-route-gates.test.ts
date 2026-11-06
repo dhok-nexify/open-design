@@ -63,10 +63,15 @@ describe('NexTore edition — disabled routes are answered locally', () => {
     expect(fetch).not.toHaveBeenCalled();
   });
 
-  it('treats the message center as signed out', async () => {
-    const { isAmrLoggedIn } = await import('../src/message-center-client');
+  it('treats the message center as signed out and stops polling', async () => {
+    const { isAmrLoggedIn, pullMessageCenter, markAccountMessageRead } = await import(
+      '../src/message-center-client'
+    );
 
     await expect(isAmrLoggedIn()).resolves.toBe(false);
+    await expect(pullMessageCenter({ locale: 'en', loggedIn: false })).resolves.toEqual([]);
+    await expect(pullMessageCenter({ locale: 'en', loggedIn: true })).resolves.toEqual([]);
+    await expect(markAccountMessageRead('message-id')).resolves.toBeUndefined();
     expect(fetch).not.toHaveBeenCalled();
   });
 

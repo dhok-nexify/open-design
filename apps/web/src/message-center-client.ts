@@ -110,6 +110,11 @@ export async function pullMessageCenter(input: {
   loggedIn: boolean;
   filter?: MessageCenterFilter;
 }): Promise<MessageCenterMessage[]> {
+  // NEXTORE: the inbox is an AMR surface, and both proxies live under
+  // /api/integrations/vela, which the edition kill switch answers with 404. The
+  // component polls on mount, on open, on visibility and every 60s, so an
+  // unguarded call is a steady stream of console errors (NXD-D26).
+  if (!isFeatureEnabled('cloud-amr')) return [];
   const messages: MessageCenterMessage[] = [];
   let cursor: string | null = null;
   let pages = 0;
@@ -141,6 +146,7 @@ export async function pullMessageCenter(input: {
 }
 
 export async function markAccountMessageRead(messageId: string): Promise<void> {
+  if (!isFeatureEnabled('cloud-amr')) return;
   const response = await fetch(`${ACCOUNT_PROXY}/messages/${encodeURIComponent(messageId)}/read`, { method: 'POST' });
   if (!response.ok) throw new Error(`Mark message read failed: ${response.status}`);
 }
