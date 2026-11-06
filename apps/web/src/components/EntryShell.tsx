@@ -2898,6 +2898,17 @@ function OnboardingView({
   // Local/BYOK configuration.
   async function handleCloudSignIn() {
     if (amrLoginBusy || amrLoginCancelPending) return;
+
+    // The NexTore edition has no cloud AMR: identity comes from the site the app
+    // is installed on, and /api/integrations/vela is a disabled surface there
+    // (the call this used to make answered 404 feature_disabled). The same
+    // button therefore hands the browser to the daemon's OAuth entry point.
+    if (!isFeatureEnabled('cloud-amr')) {
+      const here = window.location.pathname + window.location.search;
+      window.location.assign('/auth/start?return=' + encodeURIComponent(here || '/'));
+      return;
+    }
+
     const cardAttribution = recordAmrEntry(
       analytics.track,
       'onboarding_amr_card',
