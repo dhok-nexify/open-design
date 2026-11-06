@@ -4252,3 +4252,48 @@ body.od-quick-switcher-open .chat-composer-fixed-layer .composer-att .msg-att-de
   line-height: 1.4;
   white-space: nowrap;
 }
+
+/* NexTore edition: projects that exist in NexTore but not on this device. */
+.nextore-remote-projects {
+  margin: 24px 0 8px;
+  padding: 14px 16px;
+  border: 1px dashed var(--border);
+  border-radius: 12px;
+  background: var(--bg-subtle);
+}
+.nextore-remote-projects-title {
+  margin: 0 0 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--chat-message-muted-ink);
+}
+.nextore-remote-projects-hint {
+  margin: 0 0 10px;
+  font-size: 12px;
+  color: var(--chat-message-muted-ink);
+}
+.nextore-remote-projects-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.nextore-remote-project {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-panel);
+  font-size: 12px;
+  color: var(--chat-message-muted-ink);
+}
+.nextore-remote-project-name {
+  color: var(--chat-floating-card-text, inherit);
+}
+.nextore-remote-project-state {
+  opacity: 0.7;
+}

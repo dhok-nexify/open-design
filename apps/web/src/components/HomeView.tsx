@@ -57,7 +57,8 @@ import {
   resolvePluginQueryFallback,
 } from '../state/projects';
 import { FigmaImportModal } from './FigmaImportModal';
-import { isFeatureEnabled } from '../nextore/features';
+import { NEXTORE_WEB_EDITION, isFeatureEnabled } from '../nextore/features';
+import { NextoreRemoteProjects } from './NextoreRemoteProjects';
 import { fetchMcpServers } from '../state/mcp';
 import { takeHomeComposerAssetSeed } from '../state/libraryHandoff';
 import { useI18n, useT } from '../i18n';
@@ -3266,6 +3267,8 @@ export function HomeView({
         {...(onRenameProject ? { onRename: onRenameProject } : {})}
       />
       )}
+
+      {NEXTORE_WEB_EDITION === 'nextore' ? <NextoreRemoteProjects /> : null}
 
       <AnimatePresence>
         {detailsRecord && detailsTemplate ? (
