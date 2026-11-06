@@ -4239,3 +4239,16 @@ body.od-quick-switcher-open .chat-composer-fixed-layer .composer-att .msg-att-de
 .nextore-permissions-link:hover {
   color: var(--accent-strong);
 }
+
+/* NexTore edition: who wrote this user turn (hidden for your own messages). */
+.nextore-author-badge {
+  margin-right: 6px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border);
+  color: var(--chat-message-muted-ink);
+  font-size: 11px;
+  line-height: 1.4;
+  white-space: nowrap;
+}

@@ -415,6 +415,7 @@ import { resolveSandboxProvider, SandboxUnavailableError } from './sandbox/index
 import { createNextoreClient } from './nextore/client.js';
 import { resolveProductBrandName } from './nextore/branding-state.js';
 import { readNextoreConfig } from './nextore/config.js';
+import { registerNextoreDirectoryRoutes } from './routes/nextore-directory.js';
 import { createNextoreAuth } from './nextore/auth/routes.js';
 import { lazyNextoreSecrets } from './nextore/auth/secrets.js';
 import { createNextoreSessionStore } from './nextore/auth/session-store.js';
@@ -8139,6 +8140,8 @@ export async function startServer({
 
   if (nextoreClient) {
     registerNextoreRoutes(app, { client: nextoreClient });
+    // Member directory for the transcript's author chips (NXD-D11).
+    registerNextoreDirectoryRoutes(app);
   }
 
   app.get('/api/ready', async (_req, res) => {

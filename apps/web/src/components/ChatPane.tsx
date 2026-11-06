@@ -1,4 +1,6 @@
 import { QuoteBar } from './chat/QuoteBar';
+import { NextoreAuthorBadge } from './NextoreAuthorBadge';
+import { NEXTORE_WEB_EDITION } from '../nextore/features';
 import { chatLogSelfResizeObserveDisabled } from '../runtime/chat-scroll-experiments';
 import { shouldShowJumpToLatest } from '../runtime/chat/jump-to-latest';
 import {
@@ -7272,6 +7274,11 @@ const UserMessage = memo(UserMessageImpl);
               <UserBubble content={displayContent} t={t} />
             )}
             <div className="user-actions">
+              {NEXTORE_WEB_EDITION === 'nextore' ? (
+                <NextoreAuthorBadge
+                  authorMemberId={(message as { authorMemberId?: number }).authorMemberId}
+                />
+              ) : null}
               {/* 稿子**渲染出来**是「时间 → 复制 → 重试」(它的说明文字写的是「时间在最右」,
                   和自己的 DOM 打架;用户 2026-08-26 指认以渲染为准)。
                   时间不是动作,所以不给按钮那套 30px 命中框。 */}
