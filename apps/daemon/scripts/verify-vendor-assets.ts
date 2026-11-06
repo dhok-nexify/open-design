@@ -15,6 +15,7 @@ import { VENDOR_ASSETS } from '../src/vendor/manifest.js';
  * Windows: a checkout that converted the vendored files' line endings.
  */
 const vendorRoot = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'vendor');
+console.log('vendor root: ' + vendorRoot);
 let failures = 0;
 
 for (const asset of VENDOR_ASSETS) {
