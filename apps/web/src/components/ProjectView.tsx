@@ -18,6 +18,10 @@ import { createHtmlArtifactManifest, inferLegacyManifest } from '../artifacts/ma
 import { NEXTORE_WEB_EDITION, isFeatureEnabled } from '../nextore/features';
 import { TierToggle } from '../nextore/TierToggle';
 import { readStoredNextoreTier, writeStoredNextoreTier } from '../nextore/tier';
+import {
+  fetchNextoreProjectAccess,
+  type NextoreProjectAccessView,
+} from '../nextore/access';
 import { resolveHtmlPointerArtifactTarget } from '../artifacts/pointer';
 import { validateHtmlArtifact } from '../artifacts/validate';
 import { recoverHtmlDocumentFromMarkdownFence, recoverStandaloneHtmlDocument, resolvePersistedArtifactHtml } from '../artifacts/recover';
@@ -2446,8 +2450,28 @@ export function ProjectView({
   // proves first materialization finished. Keep the read-only ownership banner
   // keyed to `projectCollab.viewerOnly` below so an owner reinstall sees a
   // syncing project, not the misleading “shared by someone else” notice.
+  // NEXTORE: NexTore owns the project ACL, so read-only comes from the module's
+  // effective rights rather than from local collab state (NXD-D10). A failed or
+  // unmapped lookup keeps the local (writable) default.
+  const [nextoreProjectAccess, setNextoreProjectAccess] =
+    useState<NextoreProjectAccessView | null>(null);
+  useEffect(() => {
+    if (NEXTORE_WEB_EDITION !== 'nextore' || !project?.id) {
+      setNextoreProjectAccess(null);
+      return;
+    }
+    const controller = new AbortController();
+    void fetchNextoreProjectAccess(project.id, { signal: controller.signal }).then((access) => {
+      if (!controller.signal.aborted) setNextoreProjectAccess(access);
+    });
+    return () => controller.abort();
+  }, [project?.id]);
+  const nextoreProjectReadOnly =
+    NEXTORE_WEB_EDITION === 'nextore'
+    && nextoreProjectAccess?.mapped === true
+    && !nextoreProjectAccess.canEdit;
   const projectMutationReadOnly =
-    projectCollab.viewerOnly || projectCollab.materializationPending;
+    projectCollab.viewerOnly || projectCollab.materializationPending || nextoreProjectReadOnly;
   const { resolve: resolvePresenceMember } = useTeamMembers(
     currentUserDirectoryEntry(projectRunWorkspaceContext),
     projectRunWorkspaceContext,

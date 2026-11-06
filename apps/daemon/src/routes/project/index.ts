@@ -5328,6 +5328,53 @@ export function registerProjectRoutes(app: Express, ctx: RegisterProjectRoutesDe
     }
   });
 
+  // NEXTORE: effective rights for the project detail surface (NXD-D10).
+  // Unmapped projects answer the local default so pre-mapping behavior stays
+  // identical; a mapped project answers exactly what the module computes.
+  app.get('/api/projects/:id/nextore-access', async (req, res) => {
+    const project = getProject(db, req.params.id);
+    if (!project) {
+      return sendApiError(res, 404, 'PROJECT_NOT_FOUND', 'not found');
+    }
+    if (!await authorizeProjectRequest(req, res, req.params.id, { mode: 'read' })) return;
+
+    const metadata = project.metadata as { nextoreProjectId?: string } | null | undefined;
+    const nextoreProjectId = metadata?.nextoreProjectId?.trim();
+    const nextore = ctx.nextore;
+    if (!nextore || resolveEdition(process.env.OD_EDITION) !== 'nextore' || !nextoreProjectId) {
+      return res.json({
+        mapped: false,
+        exists: true,
+        canRead: true,
+        canEdit: true,
+        canDelete: true,
+        canManage: true,
+        canDownload: true,
+      });
+    }
+
+    const session = (res.locals as { nextoreSession?: { accessToken?: string } }).nextoreSession;
+    const accessToken = typeof session?.accessToken === 'string' ? session.accessToken.trim() : '';
+    if (!accessToken) {
+      return sendApiError(res, 401, 'SESSION_REQUIRED', 'A NexTore session is required.');
+    }
+
+    try {
+      const access = await nextore.client.projectAccess<Record<string, unknown>>(
+        accessToken,
+        nextoreProjectId,
+      );
+      return res.json({ mapped: true, ...access });
+    } catch (error) {
+      return sendApiError(
+        res,
+        503,
+        'NEXTORE_UNAVAILABLE',
+        error instanceof Error ? error.message : String(error),
+      );
+    }
+  });
+
   app.delete('/api/projects/:id', async (req, res) => {
     try {
       const project = getProject(db, req.params.id);
