@@ -19,6 +19,16 @@ export class NextoreClientError extends Error {
   }
 }
 
+export interface NextoreProjectCreateInput {
+  workspaceId: number;
+  name: string;
+  /** The daemon's project id; the module stores it for the reverse mapping. */
+  designerProjectId: string;
+  designSystemId?: string | null;
+  skillId?: string | null;
+  designerUrl?: string | null;
+}
+
 export interface NextoreClientOptions {
   config: NextoreConfig;
   fetch?: FetchLike;
@@ -28,6 +38,8 @@ export interface NextoreClientOptions {
 interface RequestOptions {
   accessToken?: string;
   signal?: AbortSignal;
+  method?: 'GET' | 'POST' | 'DELETE';
+  body?: unknown;
 }
 
 export interface NextoreClient {
@@ -38,6 +50,12 @@ export interface NextoreClient {
   projectAccess<T>(accessToken: string, projectId: string, signal?: AbortSignal): Promise<T>;
   /** Deep link into the site's permission editor for one DesignProject. */
   projectPermissionUrl<T>(accessToken: string, projectId: string, signal?: AbortSignal): Promise<T>;
+  /** The caller's workspaces, with the personal one created on first use (N06). */
+  workspaces<T>(accessToken: string, signal?: AbortSignal): Promise<T>;
+  /** Creates the DesignProject record for a local project (D08). */
+  createProject<T>(accessToken: string, body: NextoreProjectCreateInput, signal?: AbortSignal): Promise<T>;
+  /** Deletes the DesignProject record; 404 is a no-op for the caller. */
+  deleteProject<T>(accessToken: string, projectId: string, signal?: AbortSignal): Promise<T>;
 }
 
 function parseJson(text: string): unknown {
@@ -75,12 +93,16 @@ export function createNextoreClient(options: NextoreClientOptions): NextoreClien
 
     const headers: Record<string, string> = { accept: 'application/json' };
     if (requestOptions.accessToken) headers.APIkey = requestOptions.accessToken;
+    if (requestOptions.body !== undefined) headers['content-type'] = 'application/json';
 
     try {
       const response = await fetchImpl(url, {
-        method: 'GET',
+        method: requestOptions.method ?? 'GET',
         headers,
         signal: controller.signal,
+        ...(requestOptions.body !== undefined
+          ? { body: JSON.stringify(requestOptions.body) }
+          : {}),
       });
       const text = await response.text();
       const payload = parseJson(text);
@@ -137,6 +159,29 @@ export function createNextoreClient(options: NextoreClientOptions): NextoreClien
       return request<T>(
         'api/designer/projects/' + encodeURIComponent(projectId) + '/permission-url',
         signal ? { accessToken, signal } : { accessToken },
+      );
+    },
+
+    workspaces<T>(accessToken: string, signal?: AbortSignal) {
+      return request<T>(
+        'api/designer/workspaces',
+        signal ? { accessToken, signal } : { accessToken },
+      );
+    },
+
+    createProject<T>(accessToken: string, body: NextoreProjectCreateInput, signal?: AbortSignal) {
+      return request<T>('api/designer/projects', {
+        accessToken,
+        method: 'POST',
+        body,
+        ...(signal ? { signal } : {}),
+      });
+    },
+
+    deleteProject<T>(accessToken: string, projectId: string, signal?: AbortSignal) {
+      return request<T>(
+        'api/designer/projects/' + encodeURIComponent(projectId),
+        { accessToken, method: 'DELETE', ...(signal ? { signal } : {}) },
       );
     },
 

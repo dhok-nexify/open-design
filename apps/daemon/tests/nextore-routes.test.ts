@@ -32,6 +32,9 @@ describe('createNextoreSelfTestHandler', () => {
       bootstrap: async <T>() => ({} as T),
       projectAccess: async <T>() => ({} as T),
       projectPermissionUrl: async <T>() => ({} as T),
+      workspaces: async <T>() => ({} as T),
+      createProject: async <T>() => ({} as T),
+      deleteProject: async <T>() => ({} as T),
     };
     const handler = createNextoreSelfTestHandler(client);
     const headers = new Map<string, string>();
