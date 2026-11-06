@@ -416,6 +416,7 @@ import { createNextoreClient } from './nextore/client.js';
 import { resolveProductBrandName } from './nextore/branding-state.js';
 import { readNextoreConfig } from './nextore/config.js';
 import { registerNextoreDirectoryRoutes } from './routes/nextore-directory.js';
+import { applyFrameDenyHeaders } from './nextore-frame-guard.js';
 import { createNextoreAuth } from './nextore/auth/routes.js';
 import { lazyNextoreSecrets } from './nextore/auth/secrets.js';
 import { createNextoreSessionStore } from './nextore/auth/session-store.js';
@@ -3773,6 +3774,14 @@ export async function startServer({
   });
 
   if (fs.existsSync(staticDir)) {
+    // NEXTORE: refuse to be framed; artifacts/frames stay embeddable for the
+    // shell's own previews (NXD-D25). Upstream keeps its headers.
+    if (edition === 'nextore') {
+      app.use((req, res, next) => {
+        applyFrameDenyHeaders(edition, req.path, res);
+        next();
+      });
+    }
     app.use(express.static(staticDir));
   }
 
