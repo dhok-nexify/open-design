@@ -3,10 +3,13 @@ import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import {
+  resolveEdition,
   strategyTaskProvesDelivery,
   todoSnapshotHasUnfinishedWork,
   turnEndedByAskingUser,
 } from '@open-design/contracts';
+
+import { classifyNextoreRunFailure } from '../nextore-run-failure.js';
 import {
   collectProcessTreePids,
   listProcessSnapshots,
@@ -1485,8 +1488,21 @@ export function createChatRunService({
     childExitObservedAt: run.childExitObservedAt ?? null,
     exitCode: run.exitCode,
     signal: run.signal,
-    error: run.error ?? null,
-    errorCode: run.errorCode ?? null,
+    // NEXTORE: the edition turns known NexTore failures into one actionable
+    // sentence (NXD-D16). Upstream keeps the raw provider text untouched.
+    ...(() => {
+      if (resolveEdition(process.env.OD_EDITION) !== 'nextore') {
+        return { error: run.error ?? null, errorCode: run.errorCode ?? null };
+      }
+      const classified = classifyNextoreRunFailure({
+        error: run.error,
+        errorCode: run.errorCode,
+      });
+      return {
+        error: classified?.message ?? run.error ?? null,
+        errorCode: classified?.code ?? run.errorCode ?? null,
+      };
+    })(),
     failureCategory: run.failureCategory ?? null,
     failureDetail: run.failureDetail ?? null,
     failureAction: run.failureAction ?? null,
