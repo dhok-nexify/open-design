@@ -1304,6 +1304,11 @@ export function isChatArtifactStaticCoverReady(
 }
 
 export interface ChatMessage {
+  /**
+   * NexTore edition: the member who authored this user turn. Absent for
+   * assistant messages and for rows written before the column existed.
+   */
+  authorMemberId?: number | null;
   id: string;
   role: ChatRole;
   content: string;

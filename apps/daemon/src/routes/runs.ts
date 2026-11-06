@@ -2690,9 +2690,14 @@ export function registerRunRoutes(app: Express, ctx: RegisterRunRoutesDeps) {
     const seedRunUserMessage = () => {
       if (!runUserSeed) return;
       const now = Date.now();
+      // NEXTORE: the seeded user turn belongs to the signed-in member.
+      const seedAuthorMemberId = (res.locals as {
+        nextoreSession?: { memberId?: number };
+      }).nextoreSession?.memberId;
       upsertMessage(db, runUserSeed.conversationId, {
         id: runUserSeed.id,
         role: 'user',
+        ...(typeof seedAuthorMemberId === 'number' ? { authorMemberId: seedAuthorMemberId } : {}),
         content: runUserSeed.content,
         startedAt: now,
         endedAt: now,

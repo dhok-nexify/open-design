@@ -1,5 +1,5 @@
 import type { Express } from 'express';
-import { type ChatSessionMode } from '@open-design/contracts';
+import { resolveEdition, type ChatSessionMode } from '@open-design/contracts';
 import { readAnalyticsContext } from '../../analytics.js';
 import { nextForkedConversationTitle } from '../../conversation-fork-title.js';
 import { backfillBrandExtractionTranscriptForProject } from '../../brands/index.js';
@@ -747,6 +747,18 @@ export function registerProjectConversationRoutes(app: Express, ctx: RegisterPro
       return res.status(404).json({ error: 'conversation not found' });
     }
     const m = req.body || {};
+    // NEXTORE: stamp who wrote a user turn (NXD-D11). Assistant rows are
+    // produced by the agent, so only user messages carry an author.
+    const nextoreAuthorMemberId = (res.locals as {
+      nextoreSession?: { memberId?: number };
+    }).nextoreSession?.memberId;
+    if (
+      resolveEdition(process.env.OD_EDITION) === 'nextore'
+      && m.role === 'user'
+      && typeof nextoreAuthorMemberId === 'number'
+    ) {
+      m.authorMemberId = nextoreAuthorMemberId;
+    }
     if (m.id && m.id !== req.params.mid) {
       return res.status(400).json({ error: 'id mismatch' });
     }

@@ -235,6 +235,7 @@ function migrate(db: SqliteDb): void {
       content TEXT NOT NULL,
       agent_id TEXT,
       agent_name TEXT,
+      author_member_id INTEGER,
       result_delivery_state TEXT,
       events_json TEXT,
       attachments_json TEXT,
@@ -430,6 +431,9 @@ function migrate(db: SqliteDb): void {
   }
   if (!messageCols.some((c: DbRow) => c.name === 'agent_name')) {
     db.exec(`ALTER TABLE messages ADD COLUMN agent_name TEXT`);
+  }
+  if (!messageCols.some((c: DbRow) => c.name === 'author_member_id')) {
+    db.exec(`ALTER TABLE messages ADD COLUMN author_member_id INTEGER`);
   }
   if (!messageCols.some((c: DbRow) => c.name === 'run_id')) {
     db.exec(`ALTER TABLE messages ADD COLUMN run_id TEXT`);
@@ -2798,6 +2802,7 @@ export function listMessages(db: SqliteDb, conversationId: string) {
   const messages = db
     .prepare(
       `SELECT id, role, content, agent_id AS agentId, agent_name AS agentName,
+              author_member_id AS authorMemberId,
               run_id AS runId, run_status AS runStatus,
               result_delivery_state AS resultDeliveryState,
               last_run_event_id AS lastRunEventId,
@@ -2864,6 +2869,7 @@ export function getMessage(db: SqliteDb, id: string, conversationId?: string) {
   const row = db
     .prepare(
       `SELECT id, role, content, agent_id AS agentId, agent_name AS agentName,
+              author_member_id AS authorMemberId,
               run_id AS runId, run_status AS runStatus,
               result_delivery_state AS resultDeliveryState,
               last_run_event_id AS lastRunEventId,
@@ -3089,7 +3095,7 @@ export function upsertMessage(db: SqliteDb, conversationId: string, m: DbRow) {
     const createdAt = typeof m.createdAt === 'number' && Number.isFinite(m.createdAt)
       ? m.createdAt
       : now;
-    // 28 values: id, conversation_id, role, content, agent_id, agent_name,
+    // 29 values: id, conversation_id, role, content, agent_id, agent_name, author_member_id,
     // run_id, run_status, result_delivery_state, last_run_event_id, events_json, attachments_json,
     // comment_attachments_json, produced_files_json, trace_object_files_json,
     // feedback_json, pre_turn_file_names_json, session_mode, run_context_json,
@@ -3098,14 +3104,14 @@ export function upsertMessage(db: SqliteDb, conversationId: string, m: DbRow) {
     // created_at.
     db.prepare(
       `INSERT INTO messages
-         (id, conversation_id, role, content, agent_id, agent_name,
+         (id, conversation_id, role, content, agent_id, agent_name, author_member_id,
           run_id, run_status, result_delivery_state, last_run_event_id, events_json,
           attachments_json, comment_attachments_json, produced_files_json,
           trace_object_files_json, feedback_json, pre_turn_file_names_json,
           session_mode, run_context_json, task_analytics_json,
           applied_plugin_snapshot_json, forked_into_json, cancel_origin,
           telemetry_finalized_at, started_at, ended_at, position, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).run(
       m.id,
       conversationId,
@@ -3113,6 +3119,7 @@ export function upsertMessage(db: SqliteDb, conversationId: string, m: DbRow) {
       m.content,
       m.agentId ?? null,
       m.agentName ?? null,
+      typeof m.authorMemberId === 'number' ? m.authorMemberId : null,
       m.runId ?? null,
       m.runStatus ?? null,
       normalizeResultDeliveryStateForStorage(m.resultDeliveryState),
@@ -3146,6 +3153,7 @@ export function upsertMessage(db: SqliteDb, conversationId: string, m: DbRow) {
   const row = db
     .prepare(
       `SELECT id, role, content, agent_id AS agentId, agent_name AS agentName,
+              author_member_id AS authorMemberId,
               run_id AS runId, run_status AS runStatus,
               result_delivery_state AS resultDeliveryState,
               last_run_event_id AS lastRunEventId,
@@ -4591,6 +4599,7 @@ function normalizeMessage(
     ),
     agentId: row.agentId ?? undefined,
     agentName: row.agentName ?? undefined,
+    authorMemberId: typeof row.authorMemberId === 'number' ? row.authorMemberId : undefined,
     runId: row.runId ?? undefined,
     runStatus: row.runStatus ?? undefined,
     resultDeliveryState: normalizeResultDeliveryState(row.resultDeliveryState),
