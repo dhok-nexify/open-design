@@ -81,6 +81,7 @@ function client(overrides: { bootstrap?: (token: string) => Promise<unknown> } =
     projectAccess: async <T>() => ({} as T),
     projectPermissionUrl: async <T>() => ({} as T),
     workspaces: async <T>() => ({} as T),
+    workspaceProjects: async <T>() => ({} as T),
     createProject: async <T>() => ({} as T),
     deleteProject: async <T>() => ({} as T),
   };

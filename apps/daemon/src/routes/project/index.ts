@@ -12,6 +12,7 @@ import { resolveEdition } from '@open-design/contracts';
 import { NextoreClientError, type NextoreClient } from '../../nextore/client.js';
 import { readNextoreConfig } from '../../nextore/config.js';
 import { registerNextoreProject } from '../../nextore/projects/register-project.js';
+import { listNextoreProjects } from '../../nextore/projects/list-projects.js';
 import {
   PREVIEW_OBSERVABILITY_BRIDGE_MARKER,
   buildPreviewBaseHrefBridge,
@@ -5366,6 +5367,36 @@ export function registerProjectRoutes(app: Express, ctx: RegisterProjectRoutesDe
         nextoreProjectId,
       );
       return res.json({ mapped: true, ...access });
+    } catch (error) {
+      return sendApiError(
+        res,
+        503,
+        'NEXTORE_UNAVAILABLE',
+        error instanceof Error ? error.message : String(error),
+      );
+    }
+  });
+
+  // NEXTORE: the member's NexTore project list reconciled with this daemon's
+  // local rows (NXD-D08). Read-only: the mismatch lists are reported, never
+  // acted on here.
+  app.get('/api/nextore/projects', async (req, res) => {
+    const nextore = ctx.nextore;
+    if (!nextore || resolveEdition(process.env.OD_EDITION) !== 'nextore') {
+      return sendApiError(res, 404, 'FEATURE_DISABLED', 'not available in this edition');
+    }
+    const session = (res.locals as { nextoreSession?: { accessToken?: string } }).nextoreSession;
+    const accessToken = typeof session?.accessToken === 'string' ? session.accessToken.trim() : '';
+    if (!accessToken) {
+      return sendApiError(res, 401, 'SESSION_REQUIRED', 'A NexTore session is required.');
+    }
+    try {
+      const listing = await listNextoreProjects({
+        client: nextore.client,
+        accessToken,
+        localProjectIds: listProjects(db).map((item: { id: string }) => item.id),
+      });
+      return res.json(listing);
     } catch (error) {
       return sendApiError(
         res,

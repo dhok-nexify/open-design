@@ -57,6 +57,8 @@ export interface NextoreClient {
   ): Promise<T>;
   /** The caller's workspaces, with the personal one created on first use (N06). */
   workspaces<T>(accessToken: string, signal?: AbortSignal): Promise<T>;
+  /** Projects the caller can read in one workspace (D08 listing). */
+  workspaceProjects<T>(accessToken: string, workspaceId: number, signal?: AbortSignal): Promise<T>;
   /** Creates the DesignProject record for a local project (D08). */
   createProject<T>(accessToken: string, body: NextoreProjectCreateInput, signal?: AbortSignal): Promise<T>;
   /** Deletes the DesignProject record; 404 is a no-op for the caller. */
@@ -176,6 +178,13 @@ export function createNextoreClient(options: NextoreClientOptions): NextoreClien
     workspaces<T>(accessToken: string, signal?: AbortSignal) {
       return request<T>(
         'api/designer/workspaces',
+        signal ? { accessToken, signal } : { accessToken },
+      );
+    },
+
+    workspaceProjects<T>(accessToken: string, workspaceId: number, signal?: AbortSignal) {
+      return request<T>(
+        'api/designer/workspaces/' + encodeURIComponent(String(workspaceId)) + '/projects',
         signal ? { accessToken, signal } : { accessToken },
       );
     },
