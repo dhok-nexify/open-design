@@ -22,6 +22,7 @@
   ],
   "scripts": {
     "dev": "next dev --turbopack",
+    "prebuild": "pnpm --filter @open-design/contracts build",
     "build": "next build",
     "build:sidecar": "tsc -p tsconfig.sidecar.json",
     "typecheck": "tsc -b --noEmit",
