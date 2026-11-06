@@ -97,7 +97,7 @@ export interface ProjectPreviewScopeDeps {
   mint: (
     projectId: string,
     workspace?: { workspaceId: string; workspaceMemberId: string } | null,
-    options?: { readonly ttlMs?: number },
+    options?: { readonly ttlMs?: number; readonly memberId?: number | null },
   ) => string;
   /**
    * Like `mint`, but reuses the live scope for this exact (project, workspace)
@@ -113,7 +113,7 @@ export interface ProjectPreviewScopeDeps {
   acquire: (
     projectId: string,
     workspace?: { workspaceId: string; workspaceMemberId: string } | null,
-    options?: { readonly ttlMs?: number },
+    options?: { readonly ttlMs?: number; readonly memberId?: number | null },
   ) => string;
   revoke: (scope: string) => void;
   expiresAt: (projectId: string, scope: string) => number | undefined;
@@ -129,10 +129,16 @@ export interface ProjectPreviewScopeDeps {
     scope: string,
     options?: { readonly ttlMs?: number },
   ) => number | undefined;
-  validate: (projectId: string, scope: string) => boolean;
+  /**
+   * `memberId` is checked only when the scope was minted for a member; an
+   * edition scope is bound to the member who created the preview, so a leaked
+   * scope URL cannot be replayed by another signed-in member.
+   */
+  validate: (projectId: string, scope: string, memberId?: number | null) => boolean;
   resolve: (
     projectId: string,
     scope: string,
+    memberId?: number | null,
   ) => { workspaceId: string; workspaceMemberId: string } | null | undefined;
 }
 

@@ -6756,6 +6756,11 @@ export function registerProjectFileRoutes(app: Express, ctx: RegisterProjectFile
         project.metadata,
       );
       const requestContext = workspaceProjectContextFromRequest(req);
+      // NEXTORE: the scope is bound to the member who asked for the preview
+      // (NXD-D25), so a leaked preview URL cannot be replayed by another member.
+      const previewMemberId = (res.locals as {
+        nextoreSession?: { memberId?: number };
+      }).nextoreSession?.memberId;
       const scope = projectPreviewScopes.mint(
         project.id,
         requestContext === null || requestContext === 'missing'
@@ -6764,6 +6769,7 @@ export function registerProjectFileRoutes(app: Express, ctx: RegisterProjectFile
               workspaceId: requestContext.workspaceId,
               workspaceMemberId: requestContext.workspaceMemberId,
             },
+        typeof previewMemberId === 'number' ? { memberId: previewMemberId } : {},
       );
       const expiresAt = projectPreviewScopes.expiresAt(project.id, scope);
       if (expiresAt === undefined) {
@@ -6812,7 +6818,16 @@ export function registerProjectFileRoutes(app: Express, ctx: RegisterProjectFile
         sendApiError(res, 404, 'PROJECT_NOT_FOUND', 'project not found');
         return;
       }
-      const previewWorkspace = projectPreviewScopes.resolve(project.id, scope);
+      // NEXTORE: a scope minted for another member is not this member's
+      // preview, even with a valid session cookie (NXD-D25).
+      const previewMemberId = (res.locals as {
+        nextoreSession?: { memberId?: number };
+      }).nextoreSession?.memberId;
+      const previewWorkspace = projectPreviewScopes.resolve(
+        project.id,
+        scope,
+        typeof previewMemberId === 'number' ? previewMemberId : null,
+      );
       if (previewWorkspace === undefined) {
         sendApiError(res, 404, 'PREVIEW_SCOPE_NOT_FOUND', 'preview scope not found');
         return;
@@ -6923,7 +6938,16 @@ export function registerProjectFileRoutes(app: Express, ctx: RegisterProjectFile
         sendApiError(res, 404, 'PROJECT_NOT_FOUND', 'project not found');
         return;
       }
-      const previewWorkspace = projectPreviewScopes.resolve(project.id, scope);
+      // NEXTORE: a scope minted for another member is not this member's
+      // preview, even with a valid session cookie (NXD-D25).
+      const previewMemberId = (res.locals as {
+        nextoreSession?: { memberId?: number };
+      }).nextoreSession?.memberId;
+      const previewWorkspace = projectPreviewScopes.resolve(
+        project.id,
+        scope,
+        typeof previewMemberId === 'number' ? previewMemberId : null,
+      );
       if (previewWorkspace === undefined) {
         sendApiError(res, 404, 'PREVIEW_SCOPE_NOT_FOUND', 'preview scope not found');
         return;
@@ -7075,7 +7099,14 @@ export function registerProjectFileRoutes(app: Express, ctx: RegisterProjectFile
                   workspaceMemberId: headerContext.workspaceMemberId,
                 }
               : null;
-          const scope = projectPreviewScopes.acquire(projectId, previewWorkspace);
+          const previewMemberId = (res.locals as {
+            nextoreSession?: { memberId?: number };
+          }).nextoreSession?.memberId;
+          const scope = projectPreviewScopes.acquire(
+            projectId,
+            previewWorkspace,
+            typeof previewMemberId === 'number' ? { memberId: previewMemberId } : {},
+          );
           // The document's own expiry, not the live one: renewal must keep the
           // scope alive without changing a single byte of what this read
           // returns.

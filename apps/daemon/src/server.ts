@@ -417,6 +417,7 @@ import { resolveProductBrandName } from './nextore/branding-state.js';
 import { readNextoreConfig } from './nextore/config.js';
 import { registerNextoreDirectoryRoutes } from './routes/nextore-directory.js';
 import { applyFrameDenyHeaders } from './nextore-frame-guard.js';
+import { previewScopeMemberMismatch } from './preview-scope-member.js';
 import { addDesignerOrigin } from './nextore-allowed-origin.js';
 import { createNextoreAuth } from './nextore/auth/routes.js';
 import { lazyNextoreSecrets } from './nextore/auth/secrets.js';
@@ -2587,6 +2588,7 @@ function createProjectPreviewScopeRegistry() {
     scopes.set(scope, {
       projectId: String(projectId),
       workspace,
+      memberId: typeof options.memberId === 'number' ? options.memberId : null,
       reusable,
       expiresAt,
       // The expiry this scope's DOCUMENTS report, frozen at creation.
@@ -2685,7 +2687,7 @@ function createProjectPreviewScopeRegistry() {
       entry.expiresAt = Date.now() + (options.ttlMs ?? PROJECT_PREVIEW_SCOPE_TTL_MS);
       return entry.expiresAt;
     },
-    validate(projectId, scope) {
+    validate(projectId, scope, memberId) {
       const key = String(scope || '');
       const entry = scopes.get(key);
       if (!entry) return false;
@@ -2693,9 +2695,10 @@ function createProjectPreviewScopeRegistry() {
         scopes.delete(key);
         return false;
       }
-      return entry.projectId === String(projectId);
+      if (entry.projectId !== String(projectId)) return false;
+      return !previewScopeMemberMismatch(entry, memberId);
     },
-    resolve(projectId, scope) {
+    resolve(projectId, scope, memberId) {
       const key = String(scope || '');
       const entry = scopes.get(key);
       if (!entry) return undefined;
@@ -2704,6 +2707,7 @@ function createProjectPreviewScopeRegistry() {
         return undefined;
       }
       if (entry.projectId !== String(projectId)) return undefined;
+      if (previewScopeMemberMismatch(entry, memberId)) return undefined;
       return entry.workspace ?? null;
     },
   };
