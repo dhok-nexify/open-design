@@ -417,6 +417,7 @@ import { resolveProductBrandName } from './nextore/branding-state.js';
 import { readNextoreConfig } from './nextore/config.js';
 import { registerNextoreDirectoryRoutes } from './routes/nextore-directory.js';
 import { applyFrameDenyHeaders } from './nextore-frame-guard.js';
+import { addDesignerOrigin } from './nextore-allowed-origin.js';
 import { createNextoreAuth } from './nextore/auth/routes.js';
 import { lazyNextoreSecrets } from './nextore/auth/secrets.js';
 import { createNextoreSessionStore } from './nextore/auth/session-store.js';
@@ -3144,7 +3145,7 @@ export async function startServer({
   host = normalizeDaemonBindHost(host);
   let resolvedPort = port;
   let daemonShuttingDown = false;
-  const extraAllowedOrigins = configuredAllowedOrigins();
+  let extraAllowedOrigins = configuredAllowedOrigins();
   const workspaceAuthorityCacheMode = resolveWorkspaceAuthorityCacheMode(
     process.env.OD_WORKSPACE_AUTHORITY_CACHE_MODE,
   );
@@ -3186,6 +3187,13 @@ export async function startServer({
     console.warn('[sandbox] OD_SANDBOX=noop — agent runs are NOT isolated on this host');
   }
   const nextoreConfig = readNextoreConfig(process.env, edition);
+  // NEXTORE: the deployment's public origin is the only browser origin the
+  // edition trusts beyond the daemon's own ports (NXD-D24).
+  extraAllowedOrigins = addDesignerOrigin(
+    extraAllowedOrigins,
+    edition,
+    nextoreConfig?.designerBaseUrl,
+  );
   const nextoreClient = nextoreConfig ? createNextoreClient({ config: nextoreConfig }) : null;
   const app = express();
   if (nextoreConfig?.trustProxy) {
