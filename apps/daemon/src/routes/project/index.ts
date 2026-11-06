@@ -10,6 +10,7 @@ import type { Express, Request, Response } from 'express';
 import type { LintArtifactRequest, LintArtifactResponse } from '@open-design/contracts';
 import { resolveEdition } from '@open-design/contracts';
 import { NextoreClientError, type NextoreClient } from '../../nextore/client.js';
+import { readNextoreConfig } from '../../nextore/config.js';
 import { registerNextoreProject } from '../../nextore/projects/register-project.js';
 import {
   PREVIEW_OBSERVABILITY_BRIDGE_MARKER,
@@ -5366,6 +5367,70 @@ export function registerProjectRoutes(app: Express, ctx: RegisterProjectRoutesDe
       );
       return res.json({ mapped: true, ...access });
     } catch (error) {
+      return sendApiError(
+        res,
+        503,
+        'NEXTORE_UNAVAILABLE',
+        error instanceof Error ? error.message : String(error),
+      );
+    }
+  });
+
+  // NEXTORE: the site's permission editor for this project (NXD-D12). The
+  // return URL is built here from the configured Designer origin so a caller
+  // cannot redirect the member anywhere else.
+  app.get('/api/projects/:id/permission-url', async (req, res) => {
+    const project = getProject(db, req.params.id);
+    if (!project) {
+      return sendApiError(res, 404, 'PROJECT_NOT_FOUND', 'not found');
+    }
+    if (!await authorizeProjectRequest(req, res, req.params.id, { mode: 'read' })) return;
+
+    const metadata = project.metadata as { nextoreProjectId?: string } | null | undefined;
+    const nextoreProjectId = metadata?.nextoreProjectId?.trim();
+    const nextore = ctx.nextore;
+    if (!nextore || resolveEdition(process.env.OD_EDITION) !== 'nextore' || !nextoreProjectId) {
+      return sendApiError(
+        res,
+        404,
+        'PROJECT_NOT_MAPPED',
+        'this project has no NexTore record',
+      );
+    }
+
+    const session = (res.locals as { nextoreSession?: { accessToken?: string } }).nextoreSession;
+    const accessToken = typeof session?.accessToken === 'string' ? session.accessToken.trim() : '';
+    if (!accessToken) {
+      return sendApiError(res, 401, 'SESSION_REQUIRED', 'A NexTore session is required.');
+    }
+
+    const config = readNextoreConfig(process.env, 'nextore');
+    const returnUrl = config
+      ? config.designerBaseUrl + '/projects/' + encodeURIComponent(project.id)
+      : null;
+
+    try {
+      const result = await nextore.client.projectPermissionUrl<{ url?: string }>(
+        accessToken,
+        nextoreProjectId,
+        returnUrl,
+      );
+      if (!result?.url) {
+        return sendApiError(
+          res,
+          502,
+          'NEXTORE_RESPONSE_INVALID',
+          'NexTore returned no permission URL.',
+        );
+      }
+      return res.json({ url: result.url });
+    } catch (error) {
+      if (error instanceof NextoreClientError && error.statusCode === 403) {
+        return sendApiError(res, 403, 'PROJECT_FORBIDDEN', 'You cannot manage this project.');
+      }
+      if (error instanceof NextoreClientError && error.statusCode === 404) {
+        return sendApiError(res, 404, 'PROJECT_NOT_FOUND', 'Project not found.');
+      }
       return sendApiError(
         res,
         503,

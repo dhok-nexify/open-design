@@ -4220,3 +4220,22 @@ body.od-quick-switcher-open .chat-composer-fixed-layer .composer-att .msg-att-de
   cursor: default;
   opacity: 0.5;
 }
+
+/* NexTore edition: jump to the site's permission editor from the project header. */
+.nextore-permissions-link {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--chat-message-muted-ink);
+  font: inherit;
+  font-size: 12px;
+  margin-left: 8px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.nextore-permissions-link:hover {
+  color: var(--accent-strong);
+}

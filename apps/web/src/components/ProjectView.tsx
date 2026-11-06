@@ -13492,6 +13492,31 @@ export function ProjectView({
     </>
   );
 
+  // NEXTORE: opens the site's permission editor for this project (NXD-D12).
+  // A bound project answers with an absolute URL; anything else surfaces as a
+  // toast instead of opening a blank tab.
+  async function openNextorePermissions() {
+    if (!project?.id) return;
+    try {
+      const response = await fetch(
+        '/api/projects/' + encodeURIComponent(project.id) + '/permission-url',
+        { headers: { accept: 'application/json' } },
+      );
+      if (!response.ok) {
+        setProjectActionsToast({ message: t('chat.referenceProject.loadFailed'), details: null });
+        return;
+      }
+      const body = (await response.json()) as { url?: string };
+      if (!body.url) {
+        setProjectActionsToast({ message: t('chat.referenceProject.loadFailed'), details: null });
+        return;
+      }
+      window.open(body.url, '_blank', 'noopener');
+    } catch {
+      setProjectActionsToast({ message: t('chat.referenceProject.loadFailed'), details: null });
+    }
+  }
+
   // The `.app` shell belongs to the caller, not to this component. App.tsx
   // renders the same `div.app` around both this view and
   // ProjectCreationPendingView so React reconciles one element across the
@@ -13852,6 +13877,16 @@ export function ProjectView({
                   </span>
                   {projectTypeLabel ? (
                     <span className="meta" data-testid="project-meta">{projectTypeLabel}</span>
+                  ) : null}
+                  {NEXTORE_WEB_EDITION === 'nextore' ? (
+                    <button
+                      type="button"
+                      className="nextore-permissions-link"
+                      data-testid="nextore-manage-permissions"
+                      onClick={() => { void openNextorePermissions(); }}
+                    >
+                      {t('plugins.availableDetails.permissions')}
+                    </button>
                   ) : null}
                 </span>
               )}

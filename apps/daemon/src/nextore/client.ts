@@ -49,7 +49,12 @@ export interface NextoreClient {
   /** Effective rights for one DesignProject, as the module computes them. */
   projectAccess<T>(accessToken: string, projectId: string, signal?: AbortSignal): Promise<T>;
   /** Deep link into the site's permission editor for one DesignProject. */
-  projectPermissionUrl<T>(accessToken: string, projectId: string, signal?: AbortSignal): Promise<T>;
+  projectPermissionUrl<T>(
+    accessToken: string,
+    projectId: string,
+    returnUrl?: string | null,
+    signal?: AbortSignal,
+  ): Promise<T>;
   /** The caller's workspaces, with the personal one created on first use (N06). */
   workspaces<T>(accessToken: string, signal?: AbortSignal): Promise<T>;
   /** Creates the DesignProject record for a local project (D08). */
@@ -155,9 +160,15 @@ export function createNextoreClient(options: NextoreClientOptions): NextoreClien
       );
     },
 
-    projectPermissionUrl<T>(accessToken: string, projectId: string, signal?: AbortSignal) {
+    projectPermissionUrl<T>(
+      accessToken: string,
+      projectId: string,
+      returnUrl?: string | null,
+      signal?: AbortSignal,
+    ) {
+      const query = returnUrl ? '?returnUrl=' + encodeURIComponent(returnUrl) : '';
       return request<T>(
-        'api/designer/projects/' + encodeURIComponent(projectId) + '/permission-url',
+        'api/designer/projects/' + encodeURIComponent(projectId) + '/permission-url' + query,
         signal ? { accessToken, signal } : { accessToken },
       );
     },
