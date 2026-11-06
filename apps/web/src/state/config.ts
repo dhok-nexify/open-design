@@ -88,7 +88,9 @@ export const DEFAULT_CONFIG: AppConfig = {
   apiProtocolConfigs: {},
   configMigrationVersion: CONFIG_MIGRATION_VERSION,
   apiProviderBaseUrl: 'https://api.anthropic.com',
-  agentId: null,
+  // The NexTore edition ships exactly one runtime (see the daemon's edition
+  // agent gate); a new install should not sit on an empty picker.
+  agentId: NEXTORE_WEB_EDITION === 'nextore' ? 'byok-opencode' : null,
   skillId: null,
   designSystemId: NEXTORE_WEB_EDITION === 'nextore' ? 'nextore' : null,
   onboardingCompleted: false,

@@ -34,6 +34,7 @@ import type {
   AmrWalletSnapshot,
   ByokChatProviderConfig,
   MediaExecutionPolicy,
+  NextoreTier,
   ResearchOptions,
   RunCancelOrigin,
   RunContextSelection,
@@ -569,6 +570,8 @@ export interface DaemonStreamOptions {
   reasoning?: string | null;
   serviceTier?: string | null;
   byokProvider?: ByokChatProviderConfig;
+  /** NexTore edition: which model tier this run asks for. */
+  tier?: NextoreTier;
   byokMediaDefaults?: ChatRequest['byokMediaDefaults'];
   research?: ResearchOptions;
   context?: RunContextSelection;
@@ -1051,6 +1054,7 @@ export async function streamViaDaemon({
   reasoning,
   serviceTier,
   byokProvider,
+  tier,
   byokMediaDefaults,
   research,
   context,
@@ -1098,6 +1102,7 @@ export async function streamViaDaemon({
     reasoning: reasoning ?? null,
     serviceTier: serviceTier ?? null,
     ...(byokProvider ? { byokProvider } : {}),
+    ...(tier ? { tier } : {}),
     ...(byokMediaDefaults ? { byokMediaDefaults } : {}),
     locale,
     ...(appliedPluginSnapshotId ? { appliedPluginSnapshotId } : {}),

@@ -4186,3 +4186,37 @@ body.od-quick-switcher-open .chat-composer-fixed-layer .composer-att .msg-att-de
 .fork-sep.is-new {
   animation: fork-in var(--duration-normal) var(--ease-out) both;
 }
+
+/* NexTore edition: Fast / Expert tier selector in the composer footer. */
+.nextore-tier-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-subtle);
+}
+.nextore-tier-option {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--chat-message-muted-ink);
+  font: inherit;
+  font-size: 12px;
+  line-height: 1;
+  padding: 5px 10px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+.nextore-tier-option:hover:not(:disabled) {
+  color: var(--chat-floating-card-text, inherit);
+}
+.nextore-tier-option.is-active {
+  background: var(--accent-tint);
+  color: var(--accent-strong);
+}
+.nextore-tier-option:disabled {
+  cursor: default;
+  opacity: 0.5;
+}

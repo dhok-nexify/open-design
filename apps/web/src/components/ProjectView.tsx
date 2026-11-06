@@ -15,7 +15,9 @@ import {
 } from 'react';
 import { AnimatePresence } from 'motion/react';
 import { createHtmlArtifactManifest, inferLegacyManifest } from '../artifacts/manifest';
-import { isFeatureEnabled } from '../nextore/features';
+import { NEXTORE_WEB_EDITION, isFeatureEnabled } from '../nextore/features';
+import { TierToggle } from '../nextore/TierToggle';
+import { readStoredNextoreTier, writeStoredNextoreTier } from '../nextore/tier';
 import { resolveHtmlPointerArtifactTarget } from '../artifacts/pointer';
 import { validateHtmlArtifact } from '../artifacts/validate';
 import { recoverHtmlDocumentFromMarkdownFence, recoverStandaloneHtmlDocument, resolvePersistedArtifactHtml } from '../artifacts/recover';
@@ -89,6 +91,7 @@ import {
   type ChatTaskExecutionAnalytics,
   type ProjectWorkspaceScope,
   type ResearchOptions,
+  type NextoreTier,
 } from '@open-design/contracts';
 import {
   anonymizeArtifactId,
@@ -9997,9 +10000,12 @@ export function ProjectView({
           model: daemonByokOpenCode ? config.model : choice?.model ?? null,
           reasoning: daemonByokOpenCode ? null : choice?.reasoning ?? null,
           serviceTier: daemonByokOpenCode ? null : choice?.serviceTier ?? null,
-          ...(daemonByokOpenCode && byokOpenCodeProvider
+          // NEXTORE: the daemon derives the provider from the session, so the
+          // browser must not send one — only the tier it wants.
+          ...(daemonByokOpenCode && byokOpenCodeProvider && NEXTORE_WEB_EDITION !== 'nextore'
             ? { byokProvider: byokOpenCodeProvider }
             : {}),
+          ...(NEXTORE_WEB_EDITION === 'nextore' ? { tier: nextoreTier } : {}),
           ...(daemonByokOpenCode
             ? {
                 byokMediaDefaults: byokMediaDefaultsForRun({
@@ -13389,7 +13395,18 @@ export function ProjectView({
 
   // CLI / agent selector lives below the chat conversation (composer footer),
   // not in the top-right header.
-  const executionControls = (
+  // NEXTORE: the edition has one runtime and two tiers, so the agent/model
+  // picker is replaced by the tier selector (NXD-D14). Upstream keeps the
+  // existing avatar menu untouched.
+  const [nextoreTier, setNextoreTier] = useState<NextoreTier>(() => readStoredNextoreTier());
+  const chooseNextoreTier = useCallback((tier: NextoreTier) => {
+    setNextoreTier(tier);
+    writeStoredNextoreTier(tier);
+  }, []);
+
+  const executionControls = NEXTORE_WEB_EDITION === 'nextore' ? (
+    <TierToggle value={nextoreTier} onChange={chooseNextoreTier} />
+  ) : (
     <>
       <AvatarMenu
         config={config}
