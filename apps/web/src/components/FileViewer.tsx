@@ -3,6 +3,10 @@ import type { ArtifactExportFormat } from '../runtime/chat/artifact-export';
 import { AnchoredMenuShell } from './chat/AnchoredMenuShell';
 import { isFeatureEnabled } from '../nextore/features';
 import {
+  ARTIFACT_NETWORK_NONE,
+  type ArtifactNetworkRules,
+} from '../runtime/artifact-network';
+import {
   fetchCurrentMemberId,
   fetchNextoreMembers,
   memberDisplayName,
@@ -1749,6 +1753,8 @@ interface Props {
   // Read-only viewer of a team-shared project: the viewer can comment but not
   // edit, export, share, download, or send changes to Chat.
   viewerOnly?: boolean;
+  /** Project-level artifact network policy (NXD-D25 follow-up). */
+  artifactNetwork?: ArtifactNetworkRules;
   projectName?: string;
   projectDir?: string | null;
   agents?: AgentInfo[];
@@ -1839,6 +1845,7 @@ export const FileViewer = memo(function FileViewer({
   agents,
   artifactId,
   artifactKind,
+  artifactNetwork = ARTIFACT_NETWORK_NONE,
   metricsConsent,
   installationId,
   workspaceActive = true,
@@ -1923,6 +1930,7 @@ export const FileViewer = memo(function FileViewer({
         downloadRequest={downloadRequest}
         slideNavRequest={slideNavRequest}
         viewerOnly={viewerOnly}
+        artifactNetwork={artifactNetwork}
         projectName={projectName}
         projectDir={projectDir}
         agents={agents}
@@ -7384,6 +7392,7 @@ function HtmlViewer({
   downloadRequest,
   slideNavRequest,
   viewerOnly = false,
+  artifactNetwork = ARTIFACT_NETWORK_NONE,
   projectName,
   projectDir,
   agents,
@@ -7420,6 +7429,8 @@ function HtmlViewer({
   slideNavRequest?: { slideIndex: number; nonce: number } | null;
   // Read-only viewer of a team-shared project: comment-only, no edit/export.
   viewerOnly?: boolean;
+  /** Project-level artifact network policy (NXD-D25 follow-up). */
+  artifactNetwork?: ArtifactNetworkRules;
   projectName?: string;
   projectDir?: string | null;
   agents?: AgentInfo[];
@@ -10846,6 +10857,7 @@ function HtmlViewer({
         srcDoc: previewSource ? buildSrcdoc(previewSource, {
           deck: effectiveDeck,
           baseHref: srcDocBaseHref,
+          artifactNetwork,
           initialSlideIndex: htmlPreviewSlideState.get(previewStateKey)?.active ?? 0,
           hideDeckChrome: effectiveDeck,
           selectionBridge: true,

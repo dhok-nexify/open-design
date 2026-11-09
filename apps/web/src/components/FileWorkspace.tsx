@@ -26,6 +26,10 @@ import {
 import { deriveUploadCohort } from '../analytics/upload-tracking';
 import { useI18n, useT, type Locale } from '../i18n';
 import { useStableHandler } from '../lib/use-stable-handler';
+import {
+  ARTIFACT_NETWORK_NONE,
+  type ArtifactNetworkRules,
+} from '../runtime/artifact-network';
 import { useDeckPreviewScale } from '../lib/use-deck-preview-scale';
 import { isMacPlatform } from '../utils/platform';
 import {
@@ -364,6 +368,8 @@ interface Props {
    * true, edit affordances are withheld and a notice explains why.
    */
   viewerOnly?: boolean;
+  /** Project-level artifact network policy, forwarded to the preview builder. */
+  artifactNetwork?: ArtifactNetworkRules;
   /** First-open placeholder: do not mount cached/write-capable workspace tabs. */
   materializationPending?: boolean;
   /** See DesignFilesPanel's `filesAuthoritative`. */
@@ -1394,6 +1400,7 @@ export function FileWorkspace({
   fileActionsBefore,
   headerActions,
   viewerOnly = false,
+  artifactNetwork = ARTIFACT_NETWORK_NONE,
   materializationPending = false,
   filesAuthoritative = true,
   readonlyNotice,
@@ -3416,6 +3423,7 @@ export function FileWorkspace({
     <FileViewer
       projectId={projectId}
       projectKind={projectKind}
+      artifactNetwork={artifactNetwork}
       file={file}
       filesRefreshKey={filesRefreshKey}
       isDeck={isDeck}

@@ -66,6 +66,11 @@ import {
   MANUAL_EDIT_SOURCE_PATH_ATTR,
 } from '../edit-mode/bridge';
 import { isApprovedFontStylesheetHref } from './deck-thumbnail-parser';
+import {
+  ARTIFACT_NETWORK_NONE,
+  buildArtifactNetworkGuardScript,
+  type ArtifactNetworkRules,
+} from './artifact-network';
 
 export type SrcdocOptions = {
   deck?: boolean;
@@ -80,6 +85,13 @@ export type SrcdocOptions = {
   paletteBridge?: boolean;
   initialPalette?: string | null;
   previewFocusGuard?: boolean;
+  /**
+   * Project-level artifact network policy (NXD-D25 follow-up). Defaults to the
+   * edition's strict `connect-src 'none'`; a project that lists readable
+   * same-origin paths in its metadata gets the guarded
+   * `same-origin-readonly` policy instead.
+   */
+  artifactNetwork?: ArtifactNetworkRules;
   /** Install the live-preview error and white-screen reporting bridge. Keep
    * this disabled for exports, captures, thumbnails, and historical previews. */
   previewObservability?: boolean;
@@ -357,7 +369,9 @@ export function buildSrcdoc(
   // sanitized title as the default filename — one that Microsoft Teams will
   // accept. Only the title text changes; visible page content is untouched.
   // NEXTORE: previews may not reach the daemon API from inside the artifact.
-  const withCsp = NEXTORE_WEB_EDITION === 'nextore' ? injectPreviewConnectCsp(wrapped) : wrapped;
+  const withCsp = NEXTORE_WEB_EDITION === 'nextore'
+    ? injectPreviewConnectCsp(wrapped, options.artifactNetwork ?? ARTIFACT_NETWORK_NONE)
+    : wrapped;
   const withSafeTitle = sanitizeTitleInDoc(withCsp);
   const withOdIds = annotateMissingOdIds(withSafeTitle);
   const withSourcePaths = options.editBridge ? annotateManualEditSourcePaths(withOdIds) : withOdIds;
@@ -1426,11 +1440,26 @@ function injectAtDocumentStart(doc: string, payload: string): string {
  * only governs requests made after it is parsed. Idempotent: a second pass keeps
  * one meta.
  */
-export function injectPreviewConnectCsp(doc: string): string {
-  if (doc.includes('content="connect-src \'none\'"')) return doc;
+export function injectPreviewConnectCsp(
+  doc: string,
+  rules: ArtifactNetworkRules = ARTIFACT_NETWORK_NONE,
+): string {
+  if (rules.policy === 'none') {
+    if (doc.includes('content="connect-src \'none\'"')) return doc;
+    return injectAtDocumentStart(
+      doc,
+      '<meta http-equiv="Content-Security-Policy" content="connect-src \'none\'">',
+    );
+  }
+  // Opt-in: CSP alone cannot express "read-only, these paths only", so the meta
+  // only widens to 'self' and the guard that follows it — inserted at document
+  // start, before any authored script — is what enforces the rest.
+  if (doc.includes('data-od-artifact-network="same-origin-readonly"')) return doc;
   return injectAtDocumentStart(
     doc,
-    '<meta http-equiv="Content-Security-Policy" content="connect-src \'none\'">',
+    '<meta http-equiv="Content-Security-Policy" content="connect-src \'self\'" '
+      + 'data-od-artifact-network="same-origin-readonly">'
+      + buildArtifactNetworkGuardScript(rules),
   );
 }
 

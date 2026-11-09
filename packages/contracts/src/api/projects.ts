@@ -200,6 +200,19 @@ export interface ProjectMetadata {
    * present (NXD-D07).
    */
   nextoreProjectId?: string;
+  /**
+   * NexTore edition: how much network a previewed artifact may reach. Absent
+   * means `none` — the default `connect-src 'none'` CSP. The opt-in
+   * `same-origin-readonly` allows same-origin GET/HEAD only, and only under
+   * {@link artifactNetworkPaths} (NXD-D25 follow-up).
+   */
+  artifactNetwork?: 'none' | 'same-origin-readonly';
+  /**
+   * Same-origin path prefixes an opted-in artifact may read, each starting with
+   * '/'. Project-scoped prefixes only (for example its own artifact subtree):
+   * a bare '/' would hand the artifact every same-origin reader endpoint.
+   */
+  artifactNetworkPaths?: string[];
   // `live-artifact`: the data-backed live dashboard flow (drives the
   // live-artifact skill/system-prompt path). `web-clone`: website reproduction
   // projects from the Home `Website clone` card — stored as prototypes so they

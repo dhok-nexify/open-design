@@ -411,6 +411,7 @@ import {
 } from '../lib/resolve-finalize-request';
 import type { CommentSendResult } from './comment-send-result';
 import { projectReadOnlyNotice } from './project-readonly-claim';
+import { resolveArtifactNetworkRules } from '../runtime/artifact-network';
 
 type BrandBrowserSnapshot =
   | { status: 'ready'; html: string; css: string; baseUrl: string }
@@ -2533,6 +2534,13 @@ export function ProjectView({
     project,
     detailedProject,
     authoritativeProjectName,
+  );
+  // NEXTORE (NXD-D25 follow-up): the artifact network policy lives in project
+  // metadata. Read it once per project revision; anything malformed resolves to
+  // the strict 'none' default, so the preview builder never guesses.
+  const artifactNetworkRules = useMemo(
+    () => resolveArtifactNetworkRules(currentProject.metadata),
+    [currentProject.metadata],
   );
   let projectTitleTooltip = currentProject.name;
   if (readonlyNoticeText) projectTitleTooltip = readonlyNoticeText;
@@ -13944,6 +13952,7 @@ export function ProjectView({
         <FileWorkspace
           projectId={project.id}
           projectName={currentProject.name}
+          artifactNetwork={artifactNetworkRules}
           viewerOnly={projectMutationReadOnly}
           materializationPending={projectCollab.materializationPending}
           filesAuthoritative={committedFilesGeneration > 0}

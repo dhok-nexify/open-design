@@ -250,7 +250,7 @@ const PROJECT_STRING_FLAGS = new Set([
   'client-request-id',
   'agent', 'model', 'service-tier', 'snapshot-id', 'inputs', 'grant-caps', 'editor',
   'title', 'label', 'against', 'seed-from', 'fork-after', 'mode',
-  'source', 'out',
+  'source', 'out', 'policy', 'paths',
 ]);
 const PROJECT_RESOURCE_STRING_FLAGS = new Set([
   ...PROJECT_STRING_FLAGS,
@@ -7005,6 +7005,11 @@ async function runProject(args) {
   od project list                         List projects.
   od project nextore-list [--json]        List the member's NexTore projects,
                                           marking which have local content.
+  od project artifact-network <id> [--policy none|same-origin-readonly]
+                    [--paths /a/,/b/] [--json]
+                    Show or set the preview artifact network policy. The
+                    default is none; the opt-in policy allows same-origin
+                    GET/HEAD under the listed path prefixes only.
   od project gc [<projectId> --confirm]   List quarantined projects (local rows
                                           NexTore no longer knows). Purging needs
                                           the id plus --confirm and an expired
@@ -7110,6 +7115,70 @@ Common options:
         return;
       }
       for (const p of projects) console.log(`${p.id}\t${p.name}\t${p.skillId ?? '-'}`);
+      return;
+    }
+    case 'artifact-network': {
+      const targetId = positionalArgs(rest, PROJECT_RESOURCE_STRING_FLAGS)[0] ?? '';
+      if (!targetId) {
+        console.error('Usage: od project artifact-network <id> [--policy none|same-origin-readonly --paths /a/,/b/]');
+        process.exit(2);
+      }
+      const infoResp = await fetch(`${base}/api/projects/${encodeURIComponent(targetId)}`, {
+        headers: workspaceHeaders,
+      });
+      if (!infoResp.ok) return structuredHttpFailure(infoResp);
+      const info = await infoResp.json();
+      const projectRow = info?.project ?? info;
+      const metadata = {
+        ...(projectRow?.metadata && typeof projectRow.metadata === 'object'
+          ? projectRow.metadata
+          : {}),
+      };
+      const requestedPolicy = typeof flags.policy === 'string' ? flags.policy.trim() : '';
+      if (!requestedPolicy) {
+        const policy = typeof metadata.artifactNetwork === 'string'
+          ? metadata.artifactNetwork
+          : 'none';
+        const paths = Array.isArray(metadata.artifactNetworkPaths)
+          ? metadata.artifactNetworkPaths
+          : [];
+        if (flags.json) {
+          return process.stdout.write(
+            JSON.stringify({ projectId: targetId, policy, paths }, null, 2) + '\n',
+          );
+        }
+        console.log(`${targetId}\t${policy}${paths.length ? '\t' + paths.join(',') : ''}`);
+        return;
+      }
+      if (requestedPolicy === 'none') {
+        delete metadata.artifactNetwork;
+        delete metadata.artifactNetworkPaths;
+      } else if (requestedPolicy === 'same-origin-readonly') {
+        const paths = String(flags.paths ?? '')
+          .split(',')
+          .map((entry) => entry.trim())
+          .filter(Boolean);
+        if (paths.length === 0) {
+          console.error('--paths is required with --policy same-origin-readonly');
+          process.exit(2);
+        }
+        metadata.artifactNetwork = requestedPolicy;
+        metadata.artifactNetworkPaths = paths;
+      } else {
+        console.error(`Unknown policy: ${requestedPolicy}`);
+        process.exit(2);
+      }
+      // The route replaces metadata wholesale, so the merged object above is
+      // what preserves every other key.
+      const patchResp = await fetch(`${base}/api/projects/${encodeURIComponent(targetId)}`, {
+        method: 'PATCH',
+        headers: { ...workspaceHeaders, 'content-type': 'application/json' },
+        body: JSON.stringify({ metadata }),
+      });
+      if (!patchResp.ok) return structuredHttpFailure(patchResp);
+      const saved = await patchResp.json();
+      if (flags.json) return process.stdout.write(JSON.stringify(saved, null, 2) + '\n');
+      console.log(`${targetId}\t${metadata.artifactNetwork ?? 'none'}`);
       return;
     }
     case 'gc': {
