@@ -4260,6 +4260,20 @@ export function ChatPane({
     />
     </>
   );
+  // Read-only viewer (team share or a NexTore project the member may only
+  // read): a disabled-but-visible composer reads as a broken input, so the
+  // slot is replaced by a one-line explanation instead. The text comes from
+  // the caller, which already knows whether this is a share, a sync or an
+  // ACL read-only state.
+  const composerSlotNode = viewerOnly ? (
+    <div
+      className="chat-composer-view-only"
+      data-testid="chat-composer-view-only"
+      role="status"
+    >
+      {composerPlaceholder ?? t('workspace.readonlyNotice')}
+    </div>
+  ) : composerNode;
   const shouldPortalComposer =
     tab === 'chat'
     && composerPortalTarget !== null
@@ -5182,7 +5196,7 @@ export function ChatPane({
               style={composerSlotStyle}
               aria-hidden={shouldPortalComposer ? true : undefined}
             >
-              {shouldPortalComposer ? null : composerNode}
+              {shouldPortalComposer ? null : composerSlotNode}
             </div>
             {shouldPortalComposer && composerPortalTarget && composerPortalRect
               ? createPortal(
@@ -5206,7 +5220,7 @@ export function ChatPane({
                       width: composerPortalRect.width,
                     }}
                   >
-                    {composerNode}
+                    {composerSlotNode}
                   </div>,
                   composerPortalTarget,
                 )

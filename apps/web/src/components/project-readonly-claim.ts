@@ -25,3 +25,21 @@ export function projectReadOnlyClaim(input: {
     ? input.t('workspace.readonlyNoticeBy', { owner: input.ownerDisplayName })
     : input.t('workspace.readonlyNotice');
 }
+
+/**
+ * The banner a project surface shows for a viewer who may only read.
+ *
+ * Team sharing names the owner when the collab cloud proved it. The NexTore
+ * edition has no such directory entry: the member's module rights are the only
+ * evidence, and "view and comment, not edit" is exactly what they mean, so it
+ * reuses the explain-why copy instead of leaving the banner blank (NXD-D10/5b).
+ */
+export function projectReadOnlyNotice(input: {
+  isSharedNonOwner: boolean;
+  ownerDisplayName?: string | null;
+  viewerCanOnlyRead: boolean;
+  t: (key: any, vars?: Record<string, string>) => string;
+}): string | undefined {
+  return projectReadOnlyClaim(input)
+    ?? (input.viewerCanOnlyRead ? input.t('workspace.readonlyNotice') : undefined);
+}

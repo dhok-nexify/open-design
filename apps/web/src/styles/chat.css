@@ -1474,6 +1474,21 @@ body:has(.manual-edit-workspace) .chat-composer-fixed-layer {
    surfaces — white input sitting on the gray shell — so it still reads as a
    composer. The disabled state is carried by the muted placeholder / caret
    below, not by flattening both surfaces into one gray block. */
+/* NEXTORE / read-only viewer: the composer is removed instead of shown
+   disabled, so this card is the whole slot — same surfaces, no fake input. */
+.chat-composer-view-only {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 72px;
+  padding: 16px 20px;
+  border: 1px dashed var(--border);
+  border-radius: var(--chat-radius);
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.5;
+  text-align: center;
+}
 .composer.composer-readonly .composer-input-wrap:focus-within {
   border-color: transparent;
 }

@@ -410,7 +410,7 @@ import {
   buildFinalizeRequest,
 } from '../lib/resolve-finalize-request';
 import type { CommentSendResult } from './comment-send-result';
-import { projectReadOnlyClaim } from './project-readonly-claim';
+import { projectReadOnlyNotice } from './project-readonly-claim';
 
 type BrandBrowserSnapshot =
   | { status: 'ready'; html: string; css: string; baseUrl: string }
@@ -2506,9 +2506,10 @@ export function ProjectView({
   // also covers the status-unknown window, where naming this a shared project
   // would be a guess. `isSharedNonOwner` requires positive evidence (see its
   // docblock in useProjectCollab) -- exactly what a factual banner needs.
-  const readonlyNoticeText = projectReadOnlyClaim({
+  const readonlyNoticeText = projectReadOnlyNotice({
     isSharedNonOwner: projectCollab.isSharedNonOwner,
     ownerDisplayName: projectCollab.ownerDisplayName,
+    viewerCanOnlyRead: nextoreProjectReadOnly,
     t,
   });
   // Team-share file-sync badge for the design-files tab bar + empty state
@@ -13752,7 +13753,11 @@ export function ProjectView({
                 projectMutationReadOnly ? undefined : handleForkFromMessage
               }
               forkingMessageId={forkingMessageId}
-              onNewConversation={handleNewConversation}
+              // A read-only member cannot start a conversation, so the control
+              // is removed rather than shown disabled (NXD-D10/5b).
+              onNewConversation={
+                projectMutationReadOnly ? undefined : handleNewConversation
+              }
               newConversationDisabled={newConversationDisabled}
               conversations={conversations}
               activeConversationId={activeConversationId}
