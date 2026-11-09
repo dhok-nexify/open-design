@@ -41,6 +41,7 @@ import { EntryView } from './components/EntryView';
 import type { ProjectTitleHint } from './components/EntryShell';
 import type { IntegrationTab } from './components/IntegrationsView';
 import { MarketplaceView } from './components/MarketplaceView';
+import { ShareLinkEntry } from './components/ShareLinkEntry';
 import { PluginDetailView } from './components/PluginDetailView';
 import type { CreateInput, ImportClaudeDesignOutcome } from './components/NewProjectPanel';
 import {
@@ -5091,6 +5092,15 @@ function AppInner() {
       <div className="entry-shell entry-shell--no-header">
         <CenteredLoader label={t('entry.loadingWorkspace')} />
       </div>
+    );
+  } else if (route.kind === 'share') {
+    appMain = (
+      <ShareLinkEntry
+        token={route.token}
+        onResolved={(projectId) =>
+          navigate({ kind: 'project', projectId, conversationId: null, fileName: null })}
+        onHome={() => navigate({ kind: 'home', view: 'home' })}
+      />
     );
   } else if (route.kind === 'marketplace') {
     appMain = <MarketplaceView />;

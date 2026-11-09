@@ -422,6 +422,8 @@ import { addDesignerOrigin } from './nextore-allowed-origin.js';
 import { createNextoreAuth } from './nextore/auth/routes.js';
 import { registerNextoreMcpRoutes } from './nextore/mcp/routes.js';
 import { listNextoreMcpServers } from './nextore/mcp/store.js';
+import { hasValidShareGrant } from './nextore/share/service.js';
+import { registerNextoreShareRoutes } from './nextore/share/routes.js';
 import { lazyNextoreSecrets } from './nextore/auth/secrets.js';
 import { createNextoreSessionStore } from './nextore/auth/session-store.js';
 import { migrateNextoreDatabase } from './nextore/db.js';
@@ -8353,6 +8355,17 @@ export async function startServer({
   // module's ACL (NXD-D07). Projects without a mapping keep today's behavior,
   // so this becomes enforcing only once D08 starts writing the mapping.
   const nextoreProjectAccessCache = nextoreClient ? createProjectAccessCache() : null;
+  const readNextoreProjectMapping = (projectId: string): string | null => {
+    try {
+      const metadata = getProject(db, projectId)?.metadata as
+        | { nextoreProjectId?: string }
+        | null
+        | undefined;
+      return metadata?.nextoreProjectId?.trim() || null;
+    } catch {
+      return null;
+    }
+  };
   const authorizeProjectRequest: AuthorizeProjectRequest = nextoreClient && nextoreConfig && nextoreProjectAccessCache
     ? createNextoreProjectAuthorizer(localAuthorizeProjectRequest, {
         edition,
@@ -8367,17 +8380,9 @@ export async function startServer({
             ? { accessToken: session.accessToken, memberId: session.memberId }
             : null;
         },
-        readProjectMapping: (projectId) => {
-          try {
-            const metadata = getProject(db, projectId)?.metadata as
-              | { nextoreProjectId?: string }
-              | null
-              | undefined;
-            return metadata?.nextoreProjectId?.trim() || null;
-          } catch {
-            return null;
-          }
-        },
+        readProjectMapping: readNextoreProjectMapping,
+        readShareGrant: (memberId, projectId) =>
+          hasValidShareGrant(db, memberId, projectId),
         deny: (res, status, code, message) => sendApiError(res as never, status, code, message),
       })
     : localAuthorizeProjectRequest;
@@ -8605,6 +8610,18 @@ export async function startServer({
     critiqueResponseCapBytes: critiqueCfg.parserMaxBlockBytes,
     critiqueRunRegistry,
   };
+
+  // NXD-D20: share links live next to the project ACL because minting and
+  // revoking them is a CanManage action, while redeeming one is the only path
+  // that does not require DesignerAccess.
+  if (edition === 'nextore' && nextoreConfig) {
+    registerNextoreShareRoutes(app, {
+      db,
+      config: nextoreConfig,
+      authorizeProject: authorizeProjectRequest,
+      readProjectMapping: readNextoreProjectMapping,
+    });
+  }
 
   // External services
   // NXD-D21: the upstream global MCP config / OAuth / install-info surface is

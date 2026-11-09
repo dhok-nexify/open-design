@@ -20,7 +20,24 @@ export interface NextoreProjectAuthorizerDeps {
   readSession: (res: unknown) => NextoreSessionView | null;
   /** The NexTore project id a local project maps to, or null when unmapped. */
   readProjectMapping: (localProjectId: string) => string | null;
+  /**
+   * A live share grant for (member, local project), or false when the member
+   * has none / the link was revoked or expired (NXD-D20). Share grants only
+   * cover read and comment; every other capability still needs module ACL.
+   */
+  readShareGrant?: (memberId: number, localProjectId: string) => boolean;
   deny: (res: unknown, status: number, code: string, message: string) => void;
+}
+
+/**
+ * A share grant is deliberately narrow: it substitutes for the module ACL only
+ * on the read/comment surfaces. Conversation history, downloads and sharing
+ * the project onward still require the member's own NexTore rights.
+ */
+function shareGrantCovers(options: AuthorizeProjectRequestOptions): boolean {
+  if (options.mode === 'write') return options.capability === 'comment';
+  if (options.capability === 'download' || options.capability === 'share') return false;
+  return options.readKind !== 'conversation';
 }
 
 function requiredRight(
@@ -81,6 +98,15 @@ export function createNextoreProjectAuthorizer(
     if (!session) {
       deps.deny(res, 401, 'SESSION_REQUIRED', 'A NexTore session is required.');
       return false;
+    }
+
+    // NXD-D20: a redeemed share link is the authority for read + comment on
+    // exactly this project, even when the member has no NexTore ACL on it.
+    if (
+      shareGrantCovers(options)
+      && deps.readShareGrant?.(session.memberId, projectId)
+    ) {
+      return true;
     }
 
     const loadAccess = () => deps.load(session.accessToken, nextoreProjectId);

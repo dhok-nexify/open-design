@@ -4145,6 +4145,13 @@ export interface Dict {
   'fileViewer.workspaceUnshareFailed': string;
   'fileViewer.readonlySharedNoExport': string;
   'fileViewer.copyShareLink': string;
+  'nextore.share.subtitle': string;
+  'nextore.share.expiry': string;
+  'nextore.share.never': string;
+  'nextore.share.days': string;
+  'nextore.share.empty': string;
+  'nextore.share.loadFailed': string;
+  'nextore.share.confirmRevoke': string;
   'fileViewer.openSharePage': string;
   'fileViewer.shareLinkRequiresDeploy': string;
   'fileViewer.shareLinkPublishGuide': string;

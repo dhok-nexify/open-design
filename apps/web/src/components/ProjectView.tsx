@@ -17,6 +17,7 @@ import { AnimatePresence } from 'motion/react';
 import { createHtmlArtifactManifest, inferLegacyManifest } from '../artifacts/manifest';
 import { NEXTORE_WEB_EDITION, isFeatureEnabled } from '../nextore/features';
 import { TierToggle } from '../nextore/TierToggle';
+import { ShareLinkDialog } from './ShareLinkDialog';
 import { readStoredNextoreTier, writeStoredNextoreTier } from '../nextore/tier';
 import {
   fetchNextoreProjectAccess,
@@ -2457,6 +2458,7 @@ export function ProjectView({
   // unmapped lookup keeps the local (writable) default.
   const [nextoreProjectAccess, setNextoreProjectAccess] =
     useState<NextoreProjectAccessView | null>(null);
+  const [shareDialogOpen, setShareDialogOpen] = useState(false);
   useEffect(() => {
     if (NEXTORE_WEB_EDITION !== 'nextore' || !project?.id) {
       setNextoreProjectAccess(null);
@@ -13922,14 +13924,27 @@ export function ProjectView({
                     </span>
                   ) : null}
                   {NEXTORE_WEB_EDITION === 'nextore' ? (
-                    <button
-                      type="button"
-                      className="nextore-permissions-link"
-                      data-testid="nextore-manage-permissions"
-                      onClick={() => { void openNextorePermissions(); }}
-                    >
-                      {t('plugins.availableDetails.permissions')}
-                    </button>
+                    <>
+                      {nextoreProjectAccess?.canManage === true
+                        && nextoreProjectAccess?.shareLinksEnabled !== false ? (
+                          <button
+                            type="button"
+                            className="nextore-permissions-link"
+                            data-testid="nextore-share-link"
+                            onClick={() => setShareDialogOpen(true)}
+                          >
+                            {t('fileViewer.publishSingleFileTitle')}
+                          </button>
+                        ) : null}
+                      <button
+                        type="button"
+                        className="nextore-permissions-link"
+                        data-testid="nextore-manage-permissions"
+                        onClick={() => { void openNextorePermissions(); }}
+                      >
+                        {t('plugins.availableDetails.permissions')}
+                      </button>
+                    </>
                   ) : null}
                 </span>
               )}
@@ -14192,6 +14207,13 @@ export function ProjectView({
           />
         ) : null}
       </AnimatePresence>
+      {shareDialogOpen && project ? (
+        <ShareLinkDialog
+          projectId={project.id}
+          locale={locale}
+          onClose={() => setShareDialogOpen(false)}
+        />
+      ) : null}
     </CollabProvider>
   );
 }

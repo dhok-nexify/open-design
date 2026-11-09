@@ -73,6 +73,21 @@ describe('parseRoute / buildPath (issue #1505)', () => {
     expect(buildPath(route)).toBe('/projects/p-1/conversations/conv-abc/files/index.html');
   });
 
+  it('round-trips a share-link route', () => {
+    const route: Route = { kind: 'share', token: 'abc_DEF-1234567890abcdef' };
+    expect(roundTrip(route)).toEqual(route);
+    expect(buildPath(route)).toBe('/s/abc_DEF-1234567890abcdef');
+  });
+
+  it('parses /projects/:id/view as the project route', () => {
+    expect(parseRoute('/projects/p-1/view')).toEqual({
+      kind: 'project',
+      projectId: 'p-1',
+      conversationId: null,
+      fileName: null,
+    });
+  });
+
   it('percent-encodes ids and file names with reserved characters', () => {
     const route: Route = {
       kind: 'project',

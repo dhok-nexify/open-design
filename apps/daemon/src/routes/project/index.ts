@@ -13,6 +13,7 @@ import { NextoreClientError, type NextoreClient } from '../../nextore/client.js'
 import { readNextoreConfig } from '../../nextore/config.js';
 import { registerNextoreProject } from '../../nextore/projects/register-project.js';
 import { listNextoreProjects } from '../../nextore/projects/list-projects.js';
+import { hasValidShareGrant } from '../../nextore/share/service.js';
 import {
   listGcCandidates,
   isGcCandidateEligible,
@@ -5357,13 +5358,39 @@ export function registerProjectRoutes(app: Express, ctx: RegisterProjectRoutesDe
         canDelete: true,
         canManage: true,
         canDownload: true,
+        shareLinksEnabled: true,
       });
     }
 
-    const session = (res.locals as { nextoreSession?: { accessToken?: string } }).nextoreSession;
+    const session = (res.locals as {
+      nextoreSession?: {
+        accessToken?: string;
+        memberId?: number;
+        member?: { features?: { shareLinks?: unknown } | null } | null;
+      };
+    }).nextoreSession;
     const accessToken = typeof session?.accessToken === 'string' ? session.accessToken.trim() : '';
     if (!accessToken) {
       return sendApiError(res, 401, 'SESSION_REQUIRED', 'A NexTore session is required.');
+    }
+    const shareLinksEnabled = session?.member?.features?.shareLinks !== false;
+    // A redeemed share link has no NexTore ACL; report the grant's read-only
+    // shape so the project surface never offers edit or download controls.
+    if (
+      typeof session?.memberId === 'number'
+      && hasValidShareGrant(db, session.memberId, project.id)
+    ) {
+      return res.json({
+        mapped: true,
+        exists: true,
+        canRead: true,
+        canEdit: false,
+        canDelete: false,
+        canManage: false,
+        canDownload: false,
+        shareLinksEnabled,
+        viaShareLink: true,
+      });
     }
 
     try {
@@ -5371,7 +5398,7 @@ export function registerProjectRoutes(app: Express, ctx: RegisterProjectRoutesDe
         accessToken,
         nextoreProjectId,
       );
-      return res.json({ mapped: true, ...access });
+      return res.json({ mapped: true, ...access, shareLinksEnabled });
     } catch (error) {
       return sendApiError(
         res,

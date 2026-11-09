@@ -13,6 +13,10 @@ export interface NextoreProjectAccessView {
   canDelete: boolean;
   canManage: boolean;
   canDownload: boolean;
+  /** Module ShareLinksEnabled; absent means enabled. */
+  shareLinksEnabled?: boolean;
+  /** True when access came from a redeemed share link (NXD-D20). */
+  viaShareLink?: boolean;
 }
 
 export const LOCAL_PROJECT_ACCESS: NextoreProjectAccessView = {
@@ -23,6 +27,7 @@ export const LOCAL_PROJECT_ACCESS: NextoreProjectAccessView = {
   canDelete: true,
   canManage: true,
   canDownload: true,
+  shareLinksEnabled: true,
 };
 
 function normalize(value: unknown): NextoreProjectAccessView {
@@ -37,6 +42,8 @@ function normalize(value: unknown): NextoreProjectAccessView {
     canDelete: flag('canDelete'),
     canManage: flag('canManage'),
     canDownload: flag('canDownload'),
+    shareLinksEnabled: source.shareLinksEnabled !== false,
+    viaShareLink: source.viaShareLink === true,
   };
 }
 

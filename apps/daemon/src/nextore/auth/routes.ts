@@ -73,6 +73,8 @@ interface PendingSignIn {
   state: string;
   verifier: string;
   returnTo: string;
+  /** Share-link token carried through SSO, when this sign-in started at /s/<token>. */
+  share?: string;
   issuedAt: number;
 }
 
@@ -277,6 +279,16 @@ export function safeReturnTo(value: unknown): string {
   }
 }
 
+/**
+ * A share token is opaque base64url produced by the daemon. Validate it before
+ * it enters the signed pending cookie so the cookie cannot carry arbitrary text.
+ */
+function safeShareToken(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const token = value.trim();
+  return /^[A-Za-z0-9_-]{32,128}$/.test(token) ? token : null;
+}
+
 function pkceChallenge(verifier: string): string {
   return base64Url(createHash('sha256').update(verifier, 'ascii').digest());
 }
@@ -363,10 +375,12 @@ export function createNextoreAuth(options: NextoreAuthOptions): NextoreAuth {
     if (typeof value.state !== 'string' || !value.state) return null;
     if (typeof value.verifier !== 'string' || !value.verifier) return null;
     if (typeof value.issuedAt !== 'number' || !Number.isFinite(value.issuedAt)) return null;
+    const share = safeShareToken(value.share);
     return {
       state: value.state,
       verifier: value.verifier,
       returnTo: safeReturnTo(value.returnTo),
+      ...(share ? { share } : {}),
       issuedAt: value.issuedAt,
     };
   }
@@ -630,12 +644,22 @@ export function createNextoreAuth(options: NextoreAuthOptions): NextoreAuth {
     const state = randomToken(32);
     const verifier = randomToken(48);
     const returnTo = safeReturnTo(req.query.return);
+    const share = safeShareToken(req.query.share);
 
     try {
       setCookie(
         res,
         PENDING_COOKIE,
-        signPayload(secrets(), { state, verifier, returnTo, issuedAt } satisfies PendingSignIn),
+        signPayload(
+          secrets(),
+          {
+            state,
+            verifier,
+            returnTo,
+            ...(share ? { share } : {}),
+            issuedAt,
+          } satisfies PendingSignIn,
+        ),
         PENDING_TTL_MS,
         config,
       );
@@ -724,7 +748,14 @@ export function createNextoreAuth(options: NextoreAuthOptions): NextoreAuth {
     });
 
     setSessionCookie(res, session.sid, at);
-    res.redirect(302, safeReturnTo(pending.returnTo));
+    // A share-link sign-in returns to the link, not to an arbitrary return path:
+    // the landing page redeems the token and writes the grant.
+    res.redirect(
+      302,
+      pending.share
+        ? '/s/' + encodeURIComponent(pending.share)
+        : safeReturnTo(pending.returnTo),
+    );
   }
 
   function logout(req: Request, res: Response): void {

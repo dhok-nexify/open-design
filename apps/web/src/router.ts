@@ -49,6 +49,11 @@ export type Route =
   | { kind: 'design-system-create' }
   | { kind: 'design-system-detail'; designSystemId: string }
   | {
+      /** Public share-link entry: redeem the token then open the project. */
+      kind: 'share';
+      token: string;
+    }
+  | {
       kind: 'project';
       projectId: string;
       /**
@@ -91,6 +96,11 @@ export function parseRoute(pathname: string): Route {
         }
         return { kind: 'project', projectId, conversationId, fileName: null };
       }
+      // /projects/:id/view — share-link landing alias; the project surface
+      // itself already renders read-only from the grant.
+      if (parts[2] === 'view') {
+        return { kind: 'project', projectId, conversationId: null, fileName: null };
+      }
       // /projects/:id/files/...
       if (parts[2] === 'files' && parts[3]) {
         return {
@@ -103,6 +113,9 @@ export function parseRoute(pathname: string): Route {
       return { kind: 'project', projectId, conversationId: null, fileName: null };
     }
     return { kind: 'home', view: 'projects' };
+  }
+  if (parts[0] === 's' && parts[1]) {
+    return { kind: 'share', token: decodeURIComponent(parts[1]) };
   }
   if (parts[0] === 'design-systems') {
     if (parts[1] === 'create') {
@@ -195,6 +208,7 @@ export function buildPath(route: Route): string {
   if (route.kind === 'collab-demo') {
     return route.projectId ? `/collab-demo/${encodeURIComponent(route.projectId)}` : '/collab-demo';
   }
+  if (route.kind === 'share') return `/s/${encodeURIComponent(route.token)}`;
   if (route.kind === 'design-system-create') return '/design-systems/create';
   if (route.kind === 'design-system-detail') {
     return `/design-systems/${encodeURIComponent(route.designSystemId)}`;
