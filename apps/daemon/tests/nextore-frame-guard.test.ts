@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
   applyFrameDenyHeaders,
+  applySameOriginPreviewFrameHeaders,
   isEmbeddablePath,
 } from '../src/nextore-frame-guard.js';
 
@@ -36,6 +37,24 @@ describe('applyFrameDenyHeaders', () => {
   it('does nothing upstream', () => {
     const target = { setHeader: vi.fn() };
     expect(applyFrameDenyHeaders('upstream', '/', target)).toBe(false);
+    expect(target.setHeader).not.toHaveBeenCalled();
+  });
+});
+
+describe('applySameOriginPreviewFrameHeaders', () => {
+  it('allows only the shell origin to frame raw previews', () => {
+    const target = { setHeader: vi.fn(), removeHeader: vi.fn() };
+    expect(applySameOriginPreviewFrameHeaders('nextore', target)).toBe(true);
+    expect(target.setHeader).toHaveBeenCalledWith(
+      'Content-Security-Policy',
+      "frame-ancestors 'self'",
+    );
+    expect(target.removeHeader).toHaveBeenCalledWith('X-Frame-Options');
+  });
+
+  it('does nothing upstream', () => {
+    const target = { setHeader: vi.fn(), removeHeader: vi.fn() };
+    expect(applySameOriginPreviewFrameHeaders('upstream', target)).toBe(false);
     expect(target.setHeader).not.toHaveBeenCalled();
   });
 });

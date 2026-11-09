@@ -18,7 +18,10 @@ import { createHtmlArtifactManifest, inferLegacyManifest } from '../artifacts/ma
 import { NEXTORE_WEB_EDITION, isFeatureEnabled } from '../nextore/features';
 import { TierToggle } from '../nextore/TierToggle';
 import { ShareLinkDialog } from './ShareLinkDialog';
-import { readStoredNextoreTier, writeStoredNextoreTier } from '../nextore/tier';
+import {
+  readStoredNextoreTierForProject,
+  writeStoredNextoreTierForProject,
+} from '../nextore/tier';
 import {
   fetchNextoreProjectAccess,
   type NextoreProjectAccessView,
@@ -3725,6 +3728,19 @@ export function ProjectView({
       setArtifact(null);
       savedArtifactRef.current = null;
     }
+    if (nextoreProjectReadOnly) {
+      setConversations([]);
+      setActiveConversationId(null);
+      setMessages([]);
+      setConversationLoadError(null);
+      setError(null);
+      setPendingEmptyConversationSeed(null);
+      return () => {
+        cancelled = true;
+        conversationMaterializationGenerationController.invalidate(generation);
+        conversationMaterializationRecoveryRef.current = null;
+      };
+    }
     (async () => {
       try {
         const list = await listConversationsWithRetry(
@@ -3804,6 +3820,7 @@ export function ProjectView({
   }, [
     commitPreviewComments,
     conversationMaterializationGenerationController,
+    nextoreProjectReadOnly,
     project.id,
     projectRunAuthorityKey,
   ]);
@@ -8324,9 +8341,10 @@ export function ProjectView({
         ),
       );
       const byokOpenCodeProvider = byokOpenCodeProviderFromConfig(config);
-      const requiresByokPreflight =
-        (config.mode === 'api' && config.apiProtocol !== 'bedrock') ||
-        (config.mode === 'daemon' && config.agentId === 'byok-opencode');
+      const requiresByokPreflight = NEXTORE_WEB_EDITION !== 'nextore' && (
+        (config.mode === 'api' && config.apiProtocol !== 'bedrock')
+        || (config.mode === 'daemon' && config.agentId === 'byok-opencode')
+      );
       if (requiresByokPreflight && !byokOpenCodeProvider) {
         const blockReason = byokPreflightBlockReason(config) ?? 'config_invalid';
         const recoveryActionInstanceId = `blocked:${taskAnalytics.taskExecutionId}`;
@@ -10222,7 +10240,7 @@ export function ProjectView({
         // Forward the per-call BYOK provider snapshot so "Same as chat"
         // memory extraction uses the same vendor, endpoint, key and model as
         // the run. The daemon consumes it for this request only.
-        const byokChatProvider = byokOpenCodeProvider
+        const byokChatProvider = NEXTORE_WEB_EDITION !== 'nextore' && byokOpenCodeProvider
           ? {
               provider: byokOpenCodeProvider.protocol,
               apiKey: byokOpenCodeProvider.apiKey,
@@ -10297,7 +10315,9 @@ export function ProjectView({
           model: config.model,
           reasoning: null,
           serviceTier: null,
-          ...(byokOpenCodeProvider ? { byokProvider: byokOpenCodeProvider } : {}),
+          ...(byokOpenCodeProvider && NEXTORE_WEB_EDITION !== 'nextore'
+            ? { byokProvider: byokOpenCodeProvider }
+            : {}),
           byokMediaDefaults: byokMediaDefaultsForRun({
             imageModelOverride: byokImageModelOverride,
             videoModelOverride: byokVideoModelOverride,
@@ -13454,11 +13474,13 @@ export function ProjectView({
   // NEXTORE: the edition has one runtime and two tiers, so the agent/model
   // picker is replaced by the tier selector (NXD-D14). Upstream keeps the
   // existing avatar menu untouched.
-  const [nextoreTier, setNextoreTier] = useState<NextoreTier>(() => readStoredNextoreTier());
+  const [nextoreTier, setNextoreTier] = useState<NextoreTier>(() =>
+    readStoredNextoreTierForProject(project.id),
+  );
   const chooseNextoreTier = useCallback((tier: NextoreTier) => {
     setNextoreTier(tier);
-    writeStoredNextoreTier(tier);
-  }, []);
+    writeStoredNextoreTierForProject(project.id, tier);
+  }, [project.id]);
 
   const executionControls = NEXTORE_WEB_EDITION === 'nextore' ? (
     <TierToggle value={nextoreTier} onChange={chooseNextoreTier} />

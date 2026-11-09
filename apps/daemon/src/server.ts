@@ -3253,6 +3253,39 @@ export async function startServer({
     app.use('/api', nextoreAuth.gate);
     app.use('/artifacts', nextoreAuth.gate);
     app.use('/frames', nextoreAuth.gate);
+    if (edition === 'nextore') {
+      // The session row can outlive a revoked DesignerAccess right. Reject
+      // those requests before any business route runs, including stale rows
+      // created before the callback enforced the bootstrap right.
+      const requireDesignerAccess = (
+        _req: import('express').Request,
+        res: import('express').Response,
+        next: import('express').NextFunction,
+      ) => {
+        const session = (res.locals as {
+          nextoreSession?: { member?: { rights?: { access?: unknown } } };
+        }).nextoreSession;
+        if (!session?.member?.rights) return next();
+        if (session.member.rights.access === true) return next();
+        res.status(403).json({
+          error: {
+            code: 'DESIGNER_ACCESS_REQUIRED',
+            message: 'Your NexTore account does not have access to Designer.',
+          },
+        });
+      };
+      app.use('/api', requireDesignerAccess);
+      app.use('/artifacts', requireDesignerAccess);
+      app.use('/frames', requireDesignerAccess);
+      // '/auth/me' is outside the /api gate. Anonymous callers must keep the
+      // route's 200 { signedIn: false } contract, so only invoke the session
+      // gate when a session cookie is actually present.
+      app.use('/auth/me', (req, res, next) => {
+        if (!req.headers.cookie?.includes('nxd_session=')) return next();
+        return nextoreAuth.gate(req, res, next);
+      });
+      app.use('/auth/me', requireDesignerAccess);
+    }
   }
   // Clipper page captures are self-contained HTML with inlined images plus a
   // Figma IR, which for an image-heavy site (The Economist, news front pages)

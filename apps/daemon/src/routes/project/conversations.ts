@@ -29,6 +29,11 @@ export interface RegisterProjectConversationRoutesDeps extends RouteDeps<'db' | 
    */
   enforceWorkspaceProjectMutation?: BoundWorkspaceResourceMutationGate;
   authorizeProjectRequest?: AuthorizeProjectRequest;
+  resolveProjectCanManage?: (
+    req: import('express').Request,
+    res: unknown,
+    projectId: string,
+  ) => Promise<boolean>;
   /**
    * Passed alongside `enforceWorkspaceProjectMutation` above — the gate calls
    * this to write the 401/403 response body when it denies a mutation. Kept

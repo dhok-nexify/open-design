@@ -18,6 +18,7 @@ export function isEmbeddablePath(pathname: string): boolean {
 
 export interface FrameGuardTarget {
   setHeader(name: string, value: string): unknown;
+  removeHeader?(name: string): unknown;
 }
 
 /**
@@ -34,5 +35,20 @@ export function applyFrameDenyHeaders(
   if (isEmbeddablePath(pathname)) return false;
   target.setHeader('Content-Security-Policy', "frame-ancestors 'none'");
   target.setHeader('X-Frame-Options', 'DENY');
+  return true;
+}
+
+/**
+ * Raw project files are embedded by the Designer shell. They are same-origin
+ * previews, not the shell itself, so allow only the shell's origin to frame
+ * them and drop the shell-wide DENY header.
+ */
+export function applySameOriginPreviewFrameHeaders(
+  edition: Edition,
+  target: FrameGuardTarget,
+): boolean {
+  if (edition !== 'nextore') return false;
+  target.setHeader('Content-Security-Policy', "frame-ancestors 'self'");
+  target.removeHeader?.('X-Frame-Options');
   return true;
 }

@@ -30,6 +30,35 @@ export function readStoredNextoreTier(storage: TierStorage | null = defaultStora
   }
 }
 
+export function nextoreTierStorageKeyForProject(projectId: string): string {
+  return NEXTORE_TIER_STORAGE_KEY + ':' + projectId;
+}
+
+/** A project's tier starts at Expert unless that project has its own saved choice. */
+export function readStoredNextoreTierForProject(
+  projectId: string,
+  storage: TierStorage | null = defaultStorage(),
+): NextoreTier {
+  try {
+    const raw = storage?.getItem(nextoreTierStorageKeyForProject(projectId));
+    return isNextoreTier(raw) ? raw : DEFAULT_NEXTORE_TIER;
+  } catch {
+    return DEFAULT_NEXTORE_TIER;
+  }
+}
+
+export function writeStoredNextoreTierForProject(
+  projectId: string,
+  tier: NextoreTier,
+  storage: TierStorage | null = defaultStorage(),
+): void {
+  try {
+    storage?.setItem(nextoreTierStorageKeyForProject(projectId), tier);
+  } catch {
+    // Private mode or a full quota: the toggle still works for this page.
+  }
+}
+
 export function writeStoredNextoreTier(
   tier: NextoreTier,
   storage: TierStorage | null = defaultStorage(),

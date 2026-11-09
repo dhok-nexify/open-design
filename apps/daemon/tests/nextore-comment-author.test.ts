@@ -69,7 +69,12 @@ function seedDatabase(dir: string) {
 async function startServer({
   canWrite = true,
   canRead = true,
-}: { canWrite?: boolean; canRead?: boolean } = {}) {
+  canManage = false,
+}: {
+  canWrite?: boolean;
+  canRead?: boolean;
+  canManage?: boolean;
+} = {}) {
   tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'od-nextore-comment-'));
   const db = seedDatabase(tempDir);
   const projectWrites: Array<Record<string, unknown>> = [];
@@ -105,6 +110,7 @@ async function startServer({
     } as any,
     // No workspace identity: the edition never has one.
     isSharedProject: async () => false,
+    resolveProjectCanManage: async () => canManage,
     authorizeProjectRequest: async (_req, res, _projectId, options) => {
       projectWrites.push(options as unknown as Record<string, unknown>);
       const requested = options as { mode?: string; capability?: string };
@@ -166,6 +172,57 @@ describe('NexTore comment authorship (NXD-D22)', () => {
     expect(stored).toHaveLength(1);
     expect(stored[0]?.authorNextoreMemberId).toBe(MEMBER);
     expect(stored[0]?.authorMemberId).toBeUndefined();
+  });
+
+  it('strips client-supplied author identifiers before storing the comment', async () => {
+    const api = await startServer();
+    const created = await api.json(api.route, {
+      method: 'POST',
+      nextoreMember: MEMBER,
+      body: {
+        target: target(),
+        note: 'forged author attempt',
+        authorMemberId: 'forged',
+        authorNextoreMemberId: OTHER,
+      },
+    });
+    expect(created.status).toBe(200);
+    expect(created.body.comment.authorNextoreMemberId).toBe(MEMBER);
+    expect(created.body.comment.authorMemberId).toBeUndefined();
+  });
+
+  it('strips client-supplied author identifiers before storing the comment', async () => {
+    const api = await startServer();
+    const created = await api.json(api.route, {
+      method: 'POST',
+      nextoreMember: MEMBER,
+      body: {
+        target: target(),
+        note: 'forged author attempt',
+        authorMemberId: 'forged',
+        authorNextoreMemberId: OTHER,
+      },
+    });
+    expect(created.status).toBe(200);
+    expect(created.body.comment.authorNextoreMemberId).toBe(MEMBER);
+    expect(created.body.comment.authorMemberId).toBeUndefined();
+  });
+
+  it('allows CanManage to change another member\'s comment status', async () => {
+    const api = await startServer({ canManage: true });
+    const created = await api.json(api.route, {
+      method: 'POST',
+      nextoreMember: MEMBER,
+      body: { target: target(), note: 'moderate me' },
+    });
+    const id = created.body.comment.id as string;
+    const moderated = await api.json(`${api.route}/${id}`, {
+      method: 'PATCH',
+      nextoreMember: OTHER,
+      body: { status: 'resolved' },
+    });
+expect(moderated.status).toBe(200);
+    expect(moderated.body.comment.status).toBe('resolved');
   });
 
   it('refuses an edit by another member and keeps the original author', async () => {

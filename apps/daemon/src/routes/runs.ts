@@ -187,6 +187,7 @@ import {
 } from '../runtimes/byok-opencode.js';
 import { resolveChatRunInactivityTimeoutMs } from '../runtimes/chat-run-lifecycle.js';
 import { editionAgentGate } from '../edition/agent-selection.js';
+import { requiresRunProjectAuthorization } from '../nextore/authorization.js';
 import { createProjectRunLock } from '../project-run-lock.js';
 import { resolveNextoreRunProvider } from '../nextore/models/resolve-run-provider.js';
 import { readNextoreConfig } from '../nextore/config.js';
@@ -1484,17 +1485,18 @@ export function registerRunRoutes(app: Express, ctx: RegisterRunRoutesDeps) {
     if (!ctx.projectStore || !ctx.authorizeProjectRequest) {
       return { ok: true, authorizedBoundMutation: false };
     }
+    const edition = resolveEdition(process.env.OD_EDITION);
     const binding = ctx.projectStore.getWorkspaceProjectByProjectId(db, projectId);
-    if (!binding) return { ok: true, authorizedBoundMutation: false };
-
     const requestContext = workspaceResourceContextFromRequest(req);
     // The NexTore edition has no upstream workspace identity headers, so the
     // legacy headerless bypass would skip the module ACL for every run. In the
     // edition every project mutation is authorized, mapped or not.
-    const nextoreEdition = resolveEdition(process.env.OD_EDITION) === 'nextore';
-    const mustAuthorize = nextoreEdition
-      || binding.visibility === 'team'
-      || requestContext !== null;
+    const mustAuthorize = requiresRunProjectAuthorization({
+      edition,
+      hasBinding: binding !== null,
+      visibility: binding?.visibility ?? null,
+      hasRequestContext: requestContext !== null,
+    });
     if (!mustAuthorize) {
       // Headerless local CLI/BYOK calls keep the legacy Personal-project path.
       return { ok: true, authorizedBoundMutation: false };
@@ -2444,12 +2446,15 @@ export function registerRunRoutes(app: Express, ctx: RegisterRunRoutesDeps) {
       meta.byokProvider = nextoreProvider.byokProvider;
       meta.model = nextoreProvider.model;
     }
-    if (!hasCompleteByokOpenCodeConfig({
-      ...meta,
-      ...(requestBody.byokProvider !== undefined
-        ? { byokProvider: requestBody.byokProvider }
-        : {}),
-    })) {
+    const providerSnapshot = nextoreProvider?.ok
+      ? meta
+      : {
+          ...meta,
+          ...(requestBody.byokProvider !== undefined
+            ? { byokProvider: requestBody.byokProvider }
+            : {}),
+        };
+    if (!hasCompleteByokOpenCodeConfig(providerSnapshot)) {
       return sendApiError(
         res,
         400,

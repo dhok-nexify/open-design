@@ -126,6 +126,12 @@ export interface RegisterProjectCommentRoutesDeps extends RouteDeps<'db' | 'proj
    * from the conversations context (a no-op off the edition).
    */
   authorizeProjectRequest?: AuthorizeProjectRequest;
+  /** Whether the caller holds CanManage on this project (NXD-D22 manager edits). */
+  resolveProjectCanManage?: (
+    req: Request,
+    res: unknown,
+    projectId: string,
+  ) => Promise<boolean>;
   /**
    * Fired after a comment is created OR edited (body upsert), so the collab-cloud
    * service can push it to the cross-daemon relay (best-effort — a push failure
@@ -374,7 +380,10 @@ export function registerProjectCommentRoutes(app: Express, ctx: RegisterProjectC
     const nextoreAuthor = comment.authorNextoreMemberId;
     if (typeof nextoreAuthor === 'number') {
       const caller = nextoreMemberIdOf(res);
-      return caller !== null && caller === nextoreAuthor;
+      if (caller !== null && caller === nextoreAuthor) return true;
+      return ctx.resolveProjectCanManage
+        ? ctx.resolveProjectCanManage(req, res, projectId)
+        : false;
     }
     const author = comment.authorMemberId;
     if (!author) {
@@ -482,6 +491,10 @@ export function registerProjectCommentRoutes(app: Express, ctx: RegisterProjectC
       // New comments do not use a natural element key; editing requires an id
       // and is author-only.
       const body = { ...(req.body || {}) };
+      // Authorship is server-owned. A client must not be able to leave a
+      // forged workspace or NexTore author on the row.
+      delete body.authorMemberId;
+      delete body.authorNextoreMemberId;
       const authorMemberId = await resolveCaller(req, workspaceContext);
       const nextoreMemberId = nextoreMemberIdOf(res);
       const requestedId = typeof body.id === 'string' && body.id.trim() ? body.id.trim() : '';

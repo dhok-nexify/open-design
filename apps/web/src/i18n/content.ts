@@ -4,6 +4,7 @@ import type {
   SkillSummary,
 } from '../types';
 import type { Locale } from './types';
+import { interpolateMessage } from './index';
 import {
   FR_DESIGN_SYSTEM_CATEGORIES,
   FR_DESIGN_SYSTEM_SUMMARIES,
@@ -1284,12 +1285,12 @@ export function localizeSkillDescription(locale: Locale, skill: SkillSummary): s
   const inline = localizedRecordValue(locale, skill.descriptionI18n, {
     includeEnglishFallback: false,
   });
-  if (inline) return inline;
+  if (inline) return interpolateMessage(inline);
   const translated = getLocalizedContent(locale)?.skillCopy[skill.id]?.description;
-  if (translated) return translated;
+  if (translated) return interpolateMessage(translated);
   const fallback = localizedRecordValue(locale, skill.descriptionI18n);
-  if (fallback) return fallback;
-  return normalizeText(skill.description);
+  if (fallback) return interpolateMessage(fallback);
+  return interpolateMessage(normalizeText(skill.description));
 }
 
 export function localizeDesignSystemSummary(

@@ -15,6 +15,8 @@ import { registerNextoreProject } from '../../nextore/projects/register-project.
 import { listNextoreProjects } from '../../nextore/projects/list-projects.js';
 import { hasValidShareGrant } from '../../nextore/share/service.js';
 import { normalizeAccess, normalizePermissionUrl } from '../../nextore/wire.js';
+import { applySameOriginPreviewFrameHeaders } from '../../nextore-frame-guard.js';
+import { resolveNextorePermissionUrl } from '../../nextore/authorization.js';
 import {
   listGcCandidates,
   isGcCandidateEligible,
@@ -3247,9 +3249,29 @@ export function registerProjectRoutes(app: Express, ctx: RegisterProjectRoutesDe
       // construction, unbound — so `workspaceId` is always `null`; no binding
       // lookup needed (a `listWorkspaceProjectBindings` scan here would only
       // ever resolve to misses).
+      let sourceProjects = listUnboundProjects(db);
+      if (resolveEdition(process.env.OD_EDITION) === 'nextore') {
+        const localProjects = listProjects(db);
+        const nextore = ctx.nextore;
+        const session = (res.locals as { nextoreSession?: { accessToken?: string } }).nextoreSession;
+        const accessToken = typeof session?.accessToken === 'string' ? session.accessToken.trim() : '';
+        if (!nextore) {
+          return sendApiError(res, 503, 'NEXTORE_UNAVAILABLE', 'NexTore is not configured.');
+        }
+        if (!accessToken) {
+          return sendApiError(res, 401, 'SESSION_REQUIRED', 'A NexTore session is required.');
+        }
+        const listing = await listNextoreProjects({
+          client: nextore.client,
+          accessToken,
+          localProjectIds: localProjects.map((item: { id: string }) => item.id),
+        });
+        const visibleIds = new Set(listing.projects.map((project) => project.designerProjectId));
+        sourceProjects = localProjects.filter((project: { id: string }) => visibleIds.has(project.id));
+      }
       /** @type {import('@open-design/contracts').ProjectsResponse} */
       const body = {
-        projects: listUnboundProjects(db)
+        projects: sourceProjects
           .filter((project: any) => projectVisibleForLocations(project, locations))
           .map((project: any) => ({
             ...project,
@@ -3267,7 +3289,13 @@ export function registerProjectRoutes(app: Express, ctx: RegisterProjectRoutesDe
       };
       res.json(body);
     } catch (err: any) {
-      sendApiError(res, 500, 'INTERNAL_ERROR', String(err));
+      const nextoreEdition = resolveEdition(process.env.OD_EDITION) === 'nextore';
+      sendApiError(
+        res,
+        nextoreEdition ? 503 : 500,
+        nextoreEdition ? 'NEXTORE_UNAVAILABLE' : 'INTERNAL_ERROR',
+        String(err),
+      );
     }
   });
 
@@ -5345,7 +5373,12 @@ export function registerProjectRoutes(app: Express, ctx: RegisterProjectRoutesDe
     if (!project) {
       return sendApiError(res, 404, 'PROJECT_NOT_FOUND', 'not found');
     }
-    if (!await authorizeProjectRequest(req, res, req.params.id, { mode: 'read' })) return;
+    if (!await authorizeProjectRequest(
+      req,
+      res,
+      req.params.id,
+      { mode: 'read', capability: 'share' },
+    )) return;
 
     const metadata = project.metadata as { nextoreProjectId?: string } | null | undefined;
     const nextoreProjectId = metadata?.nextoreProjectId?.trim();
@@ -5418,11 +5451,17 @@ export function registerProjectRoutes(app: Express, ctx: RegisterProjectRoutesDe
     if (!nextore || resolveEdition(process.env.OD_EDITION) !== 'nextore') {
       return sendApiError(res, 404, 'FEATURE_DISABLED', 'not available in this edition');
     }
-    const session = (res.locals as { nextoreSession?: { accessToken?: string } }).nextoreSession;
+    const session = (res.locals as {
+      nextoreSession?: {
+        accessToken?: string;
+        member?: { rights?: { admin?: boolean } };
+      };
+    }).nextoreSession;
     const accessToken = typeof session?.accessToken === 'string' ? session.accessToken.trim() : '';
     if (!accessToken) {
       return sendApiError(res, 401, 'SESSION_REQUIRED', 'A NexTore session is required.');
     }
+    const canRecordGc = session?.member?.rights?.admin === true;
     try {
       const listing = await listNextoreProjects({
         client: nextore.client,
@@ -5431,7 +5470,7 @@ export function registerProjectRoutes(app: Express, ctx: RegisterProjectRoutesDe
       });
       // A local project NexTore no longer knows about starts its grace window
       // here. Nothing is deleted: the project is only quarantined (NXD-D08).
-      recordGcCandidates(db, listing.localWithoutRemote);
+      if (canRecordGc) recordGcCandidates(db, listing.localWithoutRemote);
       return res.json(listing);
     } catch (error) {
       return sendApiError(
@@ -5451,7 +5490,21 @@ export function registerProjectRoutes(app: Express, ctx: RegisterProjectRoutesDe
     if (resolveEdition(process.env.OD_EDITION) !== 'nextore') {
       return sendApiError(res, 404, 'FEATURE_DISABLED', 'not available in this edition');
     }
-    return res.json({ candidates: listGcCandidates(db) });
+    const session = (res.locals as {
+      nextoreSession?: {
+        memberId?: number;
+        member?: { rights?: { admin?: boolean } };
+      };
+    }).nextoreSession;
+    const admin = session?.member?.rights?.admin === true;
+    const memberId = session?.memberId;
+    const candidates = listGcCandidates(db).filter((candidate) => {
+      if (admin) return true;
+      if (typeof memberId !== 'number') return false;
+      const binding = getWorkspaceProjectByProjectId(db, candidate.projectId);
+      return binding?.createdByWorkspaceMemberId === String(memberId);
+    });
+    return res.json({ candidates });
   });
 
   app.post('/api/nextore/projects/gc/purge', async (req, res) => {
@@ -5535,7 +5588,22 @@ export function registerProjectRoutes(app: Express, ctx: RegisterProjectRoutesDe
           'NexTore returned no permission URL.',
         );
       }
-      return res.json({ url: permissionUrl });
+      if (!config) {
+        return sendApiError(res, 503, 'NEXTORE_UNAVAILABLE', 'NexTore is not configured.');
+      }
+      const absolutePermissionUrl = resolveNextorePermissionUrl(
+        permissionUrl,
+        config.baseUrl,
+      );
+      if (!absolutePermissionUrl) {
+        return sendApiError(
+          res,
+          502,
+          'NEXTORE_RESPONSE_INVALID',
+          'NexTore returned a permission URL outside its origin.',
+        );
+      }
+      return res.json({ url: absolutePermissionUrl });
     } catch (error) {
       if (error instanceof NextoreClientError && error.statusCode === 403) {
         return sendApiError(res, 403, 'PROJECT_FORBIDDEN', 'You cannot manage this project.');
@@ -5675,10 +5743,35 @@ export function registerProjectRoutes(app: Express, ctx: RegisterProjectRoutesDe
   // authoritative `enforceWorkspaceProjectMutation` instance so a comment's
   // gate matches its parent project's exactly, instead of comments quietly
   // shipping a second, weaker copy.
+  const resolveProjectCanManage = async (
+    req: import('express').Request,
+    res: unknown,
+    projectId: string,
+  ): Promise<boolean> => {
+    const nextore = ctx.nextore;
+    if (!nextore || resolveEdition(process.env.OD_EDITION) !== 'nextore') return false;
+    const project = getProject(db, projectId);
+    const nextoreProjectId = (project?.metadata as { nextoreProjectId?: string } | null | undefined)
+      ?.nextoreProjectId?.trim();
+    const session = (res as {
+      locals?: { nextoreSession?: { accessToken?: string } };
+    }).locals?.nextoreSession;
+    const accessToken = typeof session?.accessToken === 'string' ? session.accessToken.trim() : '';
+    if (!nextoreProjectId || !accessToken) return false;
+    try {
+      const access = normalizeAccess(
+        await nextore.client.projectAccess<unknown>(accessToken, nextoreProjectId),
+      );
+      return access.canManage;
+    } catch {
+      return false;
+    }
+  };
   registerProjectConversationRoutes(app, {
     ...ctx,
     enforceWorkspaceProjectMutation,
     authorizeProjectRequest,
+    resolveProjectCanManage,
     sendApiError,
   });
 
@@ -6965,6 +7058,12 @@ export function registerProjectFileRoutes(app: Express, ctx: RegisterProjectFile
         projectId,
         { mode: 'read', allowNavigationQuery: true },
       )) return;
+      // The shell embeds raw HTML/Markdown previews in an iframe. The global
+      // edition guard denies shell framing, which is correct, but it must not
+      // also deny this same-origin preview document.
+      if (resolveEdition(process.env.OD_EDITION) === 'nextore') {
+        applySameOriginPreviewFrameHeaders('nextore', res);
+      }
       const meta = await resolveProjectFilePath(
         PROJECTS_DIR,
         projectId,

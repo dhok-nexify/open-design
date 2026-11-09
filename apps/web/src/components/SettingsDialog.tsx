@@ -299,7 +299,6 @@ export function resolveSettingsSectionForEdition(
       || normalized === 'media'
       || normalized === 'privacy'
       || normalized === 'composio'
-      || normalized === 'integrations'
     ) {
       return 'general';
     }
@@ -1671,11 +1670,6 @@ export function SettingsDialog({
       : {},
   );
   const [activeSection, setActiveSection] = useState<SettingsSection>(() => resolveSettingsSection(initialSection));
-  // NexTore edition: Labs (OD Next) is not part of the first release (DESIGN §13.2).
-  useEffect(() => {
-    const resolved = resolveSettingsSection(activeSection);
-    if (resolved !== activeSection) setActiveSection(resolved);
-  }, [activeSection]);
   // Workspace region gating (E-frontend, D4.3). One shared read of the workspace
   // context; the Workspace section only renders for a team workspace whose
   // viewer may see workspace settings. Gate on the folded permission bits,
@@ -4472,19 +4466,17 @@ export function SettingsDialog({
                 </span>
               </button>
             ) : null}
-            {isFeatureEnabled('od-mcp-server') ? (
-              <button
-                type="button"
-                className={`settings-nav-item${activeSection === 'integrations' ? ' active' : ''}`}
-                onClick={() => setActiveSection('integrations')}
-              >
-                <Icon name="puzzle" size={18} />
-                <span>
-                  <strong>{t('settings.mcpServerTitle')}</strong>
-                  <small>{t('settings.mcpServerHint')}</small>
-                </span>
-              </button>
-            ) : null}
+            <button
+              type="button"
+              className={`settings-nav-item${activeSection === 'integrations' ? ' active' : ''}`}
+              onClick={() => setActiveSection('integrations')}
+            >
+              <Icon name="puzzle" size={18} />
+              <span>
+                <strong>{t('settings.mcpServerTitle')}</strong>
+                <small>{t('settings.mcpServerHint')}</small>
+              </span>
+            </button>
             {NEXTORE_WEB_EDITION !== 'nextore' ? (
               <button
                 type="button"
@@ -5940,7 +5932,7 @@ export function SettingsDialog({
               }}
             />
           ) : null}
-          {activeSection === 'integrations' && isFeatureEnabled('od-mcp-server') ? <IntegrationsSection /> : null}
+          {activeSection === 'integrations' ? <IntegrationsSection /> : null}
 
           {activeSection === 'mcpClient' ? <McpClientSection surface="settings" /> : null}
 

@@ -7,7 +7,9 @@ describe('settings section edition gating', () => {
   it('folds disabled edition sections into General', () => {
     expect(resolveSettingsSectionForEdition('execution', 'nextore', false)).toBe('general');
     expect(resolveSettingsSectionForEdition('media', 'nextore', false)).toBe('general');
-    expect(resolveSettingsSectionForEdition('integrations', 'nextore', false)).toBe('general');
+    // Integrations stays addressable; its nav/render is gated by the
+    // permission-aware `nextoreMcpAllowed` state in the dialog.
+    expect(resolveSettingsSectionForEdition('integrations', 'nextore', false)).toBe('integrations');
     expect(resolveSettingsSectionForEdition('composio', 'nextore', false)).toBe('general');
   });
 
