@@ -19,10 +19,26 @@ export interface ListedNextoreProject {
   status: string | null;
   /** True when this daemon has a local row for the project. */
   hasLocalContent: boolean;
+  /** Workspace the module reported the project in (NXD-D09). */
+  workspaceId: number;
+  workspaceName: string;
+  workspaceType: string;
+}
+
+export interface ListedNextoreWorkspace {
+  id: number;
+  name: string;
+  type: string;
+  /** False when this member could not read this workspace's project list. */
+  readable: boolean;
+  /** Deduped project ids that resolved into this workspace. */
+  projectIds: string[];
 }
 
 export interface NextoreProjectListing {
   projects: ListedNextoreProject[];
+  /** Every visible workspace, in the order the module returned them. */
+  workspaces: ListedNextoreWorkspace[];
   /** NexTore knows these, this daemon has no content for them. */
   remoteWithoutLocal: string[];
   /** This daemon has this project, NexTore does not (orphan candidate for GC). */
@@ -36,7 +52,9 @@ export interface NextoreProjectListing {
  * Listing is read-only on purpose: the two mismatch lists are reported so an
  * operator or a later GC step can decide what to do. A project known only to
  * NexTore has no content on this host yet; a project known only locally is an
- * orphan the module no longer vouches for.
+ * orphan the module no longer vouches for. The workspace order the module
+ * returned is preserved so the sidebar can group projects without a second
+ * round trip.
  */
 export async function listNextoreProjects(input: {
   client: NextoreClient;
@@ -48,25 +66,41 @@ export async function listNextoreProjects(input: {
   }>(input.accessToken);
   const workspaces = workspacesResponse?.workspaces ?? [];
 
-  const summaries: NextoreProjectSummary[] = [];
-  for (const workspace of workspaces) {
+  const listedWorkspaces: ListedNextoreWorkspace[] = workspaces.map((workspace) => ({
+    id: workspace.id,
+    name: workspace.name?.trim() || '',
+    type: workspace.type?.trim() || '',
+    readable: true,
+    projectIds: [],
+  }));
+
+  const summaries: Array<{
+    summary: NextoreProjectSummary;
+    workspace: ListedNextoreWorkspace;
+  }> = [];
+  for (const [index, workspace] of workspaces.entries()) {
     try {
       const response = await input.client.workspaceProjects<{
         projects?: NextoreProjectSummary[];
       }>(input.accessToken, workspace.id);
-      summaries.push(...(response?.projects ?? []));
+      const entry = listedWorkspaces[index]!;
+      for (const summary of response?.projects ?? []) {
+        summaries.push({ summary, workspace: entry });
+      }
     } catch {
       // One workspace the member cannot read must not hide the others.
+      listedWorkspaces[index]!.readable = false;
     }
   }
 
   const seen = new Set<string>();
   const localIds = new Set(input.localProjectIds);
   const projects: ListedNextoreProject[] = [];
-  for (const summary of summaries) {
+  for (const { summary, workspace } of summaries) {
     const designerProjectId = summary.designerProjectId?.trim();
     if (!designerProjectId || seen.has(designerProjectId)) continue;
     seen.add(designerProjectId);
+    workspace.projectIds.push(designerProjectId);
     projects.push({
       nextoreProjectId: String(summary.id),
       designerProjectId,
@@ -75,11 +109,15 @@ export async function listNextoreProjects(input: {
       skillId: summary.skillId?.trim() || null,
       status: summary.status?.trim() || null,
       hasLocalContent: localIds.has(designerProjectId),
+      workspaceId: workspace.id,
+      workspaceName: workspace.name,
+      workspaceType: workspace.type,
     });
   }
 
   return {
     projects,
+    workspaces: listedWorkspaces,
     remoteWithoutLocal: projects
       .filter((project) => !project.hasLocalContent)
       .map((project) => project.designerProjectId),

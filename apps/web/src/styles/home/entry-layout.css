@@ -941,6 +941,71 @@
 }
 .entry-nav-rail__team svg { color: var(--text-soft); }
 
+/* NexTore workspace + project list replacing the cloud switcher (NXD-D09). */
+.nextore-rail {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  margin: 4px 0 10px;
+  padding: 0 6px;
+}
+.nextore-rail__workspace {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.nextore-rail__workspace-name {
+  margin: 0;
+  padding: 0 4px;
+  color: var(--text-faint);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.nextore-rail__projects {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.nextore-rail__project {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: var(--radius);
+  color: var(--text);
+  font-size: 13px;
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+a.nextore-rail__project:hover {
+  background: var(--bg-subtle);
+  color: var(--text-strong);
+}
+.nextore-rail__project.is-remote { color: var(--text-faint); cursor: default; }
+.nextore-rail__badge {
+  flex: 0 0 auto;
+  margin-left: auto;
+  padding: 1px 5px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  color: var(--text-faint);
+  font-size: 10px;
+  line-height: 14px;
+}
+
 /* Section label (e.g. 更多) */
 .entry-nav-rail__section {
   margin: 15px 0 5px;

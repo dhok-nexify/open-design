@@ -61,6 +61,8 @@ import type { EntrySettingsSection } from './EntrySettingsMenu';
 import { isRtlLocale, useI18n } from '../i18n';
 import { useDismissOnOutsideInteraction } from '../hooks/useDismissOnOutsideInteraction';
 import { ENTRY_RAIL_TOGGLE_EVENT } from './entryRailBridge';
+import { NextoreWorkspaceSidebar } from '../nextore/WorkspaceSidebar';
+import { NEXTORE_WEB_EDITION } from '../nextore/features';
 import {
   beginWorkspaceScopedRead,
   notifyTeamProjectsChanged,
@@ -1243,11 +1245,16 @@ export function EntryNavRail({
   const homeLabel = t('entry.navRecents');
   const isHome = view === 'home';
 
-  const isTeam = Boolean(context) && context!.workspaceType === 'team';
+  // The NexTore edition has no cloud team switcher: workspaces and their
+  // projects come from the module and render in NextoreWorkspaceSidebar.
+  const isTeam = NEXTORE_WEB_EDITION !== 'nextore'
+    && Boolean(context)
+    && context!.workspaceType === 'team';
   const permissions = context?.permissions;
   // Demo `canOwnWorkspace` → real owner-level view of workspace settings. Never
   // re-derive from role — the permission bits already fold role + lifecycle in.
-  const canViewWorkspaceSettings = Boolean(permissions?.canViewWorkspaceSettings);
+  const canViewWorkspaceSettings = NEXTORE_WEB_EDITION !== 'nextore'
+    && Boolean(permissions?.canViewWorkspaceSettings);
   const canInviteMembers = Boolean(permissions?.canInviteMembers);
   const canAccessInviteFlow = canAccessWorkspaceInviteFlow(context);
   const workspaceSettingsUrl = context?.workspaceSettingsUrl?.trim() || null;
@@ -1515,7 +1522,9 @@ export function EntryNavRail({
       <div className="entry-nav-rail__panel">
       <div className="entry-nav-rail__group">
 
-        {context ? (
+        {NEXTORE_WEB_EDITION === 'nextore' ? (
+          <NextoreWorkspaceSidebar refreshKey={view} />
+        ) : context ? (
           <div className="entry-nav-rail__team-wrap">
             <button
               type="button"

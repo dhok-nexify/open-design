@@ -46,8 +46,23 @@ describe('listNextoreProjects', () => {
     });
 
     expect(listing.projects.map((p) => p.designerProjectId)).toEqual(['local-a', 'remote-b']);
-    expect(listing.projects[0]).toMatchObject({ hasLocalContent: true, nextoreProjectId: '10' });
-    expect(listing.projects[1]).toMatchObject({ hasLocalContent: false, skillId: null });
+    expect(listing.projects[0]).toMatchObject({
+      hasLocalContent: true,
+      nextoreProjectId: '10',
+      workspaceId: 1,
+      workspaceName: 'Me',
+      workspaceType: 'personal',
+    });
+    expect(listing.projects[1]).toMatchObject({
+      hasLocalContent: false,
+      skillId: null,
+      workspaceId: 2,
+      workspaceName: 'Team',
+    });
+    expect(listing.workspaces).toEqual([
+      { id: 1, name: 'Me', type: 'personal', readable: true, projectIds: ['local-a'] },
+      { id: 2, name: 'Team', type: 'team', readable: true, projectIds: ['remote-b'] },
+    ]);
     expect(listing.remoteWithoutLocal).toEqual(['remote-b']);
     expect(listing.localWithoutRemote).toEqual(['local-c']);
     expect(workspaceProjects).toHaveBeenCalledWith('token', 1);
@@ -86,6 +101,26 @@ describe('listNextoreProjects', () => {
       localProjectIds: [],
     });
     expect(listing.projects.map((p) => p.designerProjectId)).toEqual(['remote-b']);
+    expect(listing.workspaces).toEqual([
+      { id: 1, name: 'A', type: 'personal', readable: false, projectIds: [] },
+      { id: 2, name: 'B', type: 'team', readable: true, projectIds: ['remote-b'] },
+    ]);
+  });
+
+  it('keeps a readable workspace that has no projects yet', async () => {
+    const listing = await listNextoreProjects({
+      client: client({
+        workspaces: vi.fn().mockResolvedValue({
+          workspaces: [{ id: 3, name: 'Empty team', type: 'team' }],
+        }),
+      }),
+      accessToken: 'token',
+      localProjectIds: [],
+    });
+    expect(listing.projects).toEqual([]);
+    expect(listing.workspaces).toEqual([
+      { id: 3, name: 'Empty team', type: 'team', readable: true, projectIds: [] },
+    ]);
   });
 
   it('handles a member with no workspaces', async () => {
@@ -95,6 +130,7 @@ describe('listNextoreProjects', () => {
       localProjectIds: ['local-a'],
     });
     expect(listing.projects).toEqual([]);
+    expect(listing.workspaces).toEqual([]);
     expect(listing.localWithoutRemote).toEqual(['local-a']);
   });
 });
