@@ -28,11 +28,20 @@ function requiredRight(
   options: AuthorizeProjectRequestOptions,
 ): boolean {
   if (options.mode === 'read') {
+    // Export/download hands the caller the project's bytes, so it follows the
+    // module's download right (share: the right to hand them to someone else).
+    if (options.capability === 'download') return access.canDownload;
+    if (options.capability === 'share') return access.canManage;
     // Conversation surfaces are stricter than content reads: Q34 says only a
     // member who may edit the project may read its history or run streams.
     return options.readKind === 'conversation' ? access.canEdit : access.canRead;
   }
   switch (options.capability) {
+    // Annotating is the promise the read-only banner makes ("view and
+    // comment"), so a reader may comment; editing someone else's note is
+    // enforced per comment by authorship, not here.
+    case 'comment':
+      return access.canRead;
     case 'delete':
       return access.canDelete;
     case 'download':

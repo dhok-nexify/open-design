@@ -184,6 +184,23 @@ const localAllow: AuthorizeProjectRequest = vi.fn(async () => true);
     })).resolves.toBe(true);
   });
 
+  it('applies the download right to reads and lets a reader comment', async () => {
+    const limited = { ...READ_ONLY, canDownload: false };
+    const { authorizer: run, deny } = authorizer({
+      load: vi.fn().mockResolvedValue(limited),
+    });
+    await expect(run(req, res, 'local-1', {
+      mode: 'read',
+      capability: 'download',
+    })).resolves.toBe(false);
+    expect(deny).toHaveBeenCalledWith(res, 403, 'PROJECT_FORBIDDEN', expect.any(String));
+    // Annotating is a read-level right: the banner promises "view and comment".
+    await expect(run(req, res, 'local-1', {
+      mode: 'write',
+      capability: 'comment',
+    })).resolves.toBe(true);
+  });
+
   it('does not serve writes from the access cache', async () => {
     const load = vi.fn().mockResolvedValue(FULL);
     const { authorizer: run } = authorizer({ load });

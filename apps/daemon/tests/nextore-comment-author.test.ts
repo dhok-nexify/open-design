@@ -66,7 +66,10 @@ function seedDatabase(dir: string) {
   return db;
 }
 
-async function startServer({ canWrite = true }: { canWrite?: boolean } = {}) {
+async function startServer({
+  canWrite = true,
+  canRead = true,
+}: { canWrite?: boolean; canRead?: boolean } = {}) {
   tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'od-nextore-comment-'));
   const db = seedDatabase(tempDir);
   const projectWrites: Array<Record<string, unknown>> = [];
@@ -104,7 +107,11 @@ async function startServer({ canWrite = true }: { canWrite?: boolean } = {}) {
     isSharedProject: async () => false,
     authorizeProjectRequest: async (_req, res, _projectId, options) => {
       projectWrites.push(options as unknown as Record<string, unknown>);
-      if (canWrite) return true;
+      const requested = options as { mode?: string; capability?: string };
+      // Reading and annotating need the read right; only writeFiles is the
+      // stricter project-edit one this fixture can withhold.
+      const allowed = canRead && (canWrite || requested.capability !== 'writeFiles');
+      if (allowed) return true;
       // Mirrors the real authorizer, which writes the denial itself.
       (res as any).status(403).json({ error: 'forbidden' });
       return false;
@@ -226,7 +233,21 @@ describe('NexTore comment authorship (NXD-D22)', () => {
       body: { status: 'applying' },
     });
     expect(sent.status).toBe(403);
-    expect(readonly.projectWrites).toHaveLength(1);
+    // create, then the status change, then the send-to-agent transition
+    expect(readonly.projectWrites.map((options) => options.capability))
+      .toEqual(['comment', 'comment', 'writeFiles']);
+  });
+
+  it('refuses comment traffic without project read rights', async () => {
+    const denied = await startServer({ canRead: false });
+    const list = await denied.json(denied.route, { nextoreMember: MEMBER });
+    expect(list.status).toBe(403);
+    const created = await denied.json(denied.route, {
+      method: 'POST',
+      nextoreMember: MEMBER,
+      body: { target: target(), note: 'nope' },
+    });
+    expect(created.status).toBe(403);
   });
 
   it('allows handing a note to the agent with project edit rights', async () => {

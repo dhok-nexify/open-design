@@ -14,6 +14,13 @@ export type AuthorizeProjectRequestOptions =
       /** EventSource, iframe, and direct asset navigation cannot set headers. */
       allowNavigationQuery?: boolean;
       /**
+       * A read that also hands the caller the project's bytes (export and
+       * download routes). Local workspace authority is unchanged — a viewer may
+       * always download — while an edition project consults the module's
+       * download/manage right instead of plain CanRead (NXD-D07).
+       */
+      capability?: 'download' | 'share';
+      /**
        * Content reads need CanRead; conversation surfaces (conversations,
        * messages, run status and streams) are stricter and need CanEdit (Q34).
        */

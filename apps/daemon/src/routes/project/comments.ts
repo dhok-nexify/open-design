@@ -6,7 +6,10 @@ import type {
 import { projectKindFromMetadataToTrackingOrLegacyDefault } from '@open-design/contracts/analytics';
 import type { RouteDeps } from '../../server-context.js';
 import type { BoundWorkspaceResourceMutationGate } from '../../collab/workspace-resource-mutation.js';
-import type { AuthorizeProjectRequest } from '../../collab/project-request-authority.js';
+import type {
+  AuthorizeProjectRequest,
+  AuthorizeProjectRequestOptions,
+} from '../../collab/project-request-authority.js';
 import { getProject, isProjectCommentAnchorConversationId } from '../../db.js';
 
 /**
@@ -405,7 +408,26 @@ export function registerProjectCommentRoutes(app: Express, ctx: RegisterProjectC
 
   // ---- Preview comments ----------------------------------------------------
 
+  /**
+   * The project ACL gate for comment traffic (NXD-D07). A comment has no
+   * workspace binding of its own in the edition, so without this the routes
+   * answered for any project id the caller could name. Reading notes is a
+   * plain project read and writing one is the `comment` right — a reader may
+   * annotate — while handing a note to the agent still needs CanEdit (below).
+   * Optional, so storage-only comment-CRUD fixtures keep working unchanged.
+   */
+  async function allowCommentAction(
+    req: Request,
+    res: any,
+    projectId: string,
+    options: AuthorizeProjectRequestOptions,
+  ): Promise<boolean> {
+    if (!ctx.authorizeProjectRequest) return true;
+    return ctx.authorizeProjectRequest(req, res, projectId, options);
+  }
+
   app.get('/api/projects/:id/conversations/:cid/comments', async (req, res) => {
+    if (!await allowCommentAction(req, res, req.params.id, { mode: 'read' })) return;
     const conv = getRoutableConversation(req.params.id, req.params.cid);
     if (!conv) {
       return res.status(404).json({ error: 'conversation not found' });
@@ -435,6 +457,12 @@ export function registerProjectCommentRoutes(app: Express, ctx: RegisterProjectC
   });
 
   app.post('/api/projects/:id/conversations/:cid/comments', async (req, res) => {
+    if (!await allowCommentAction(
+      req,
+      res,
+      req.params.id,
+      { mode: 'write', capability: 'comment' },
+    )) return;
     const conv = getRoutableConversation(req.params.id, req.params.cid);
     if (!conv) {
       return res.status(404).json({ error: 'conversation not found' });
@@ -579,6 +607,12 @@ export function registerProjectCommentRoutes(app: Express, ctx: RegisterProjectC
   app.patch(
     '/api/projects/:id/conversations/:cid/comments/:commentId',
     async (req, res) => {
+      if (!await allowCommentAction(
+        req,
+        res,
+        req.params.id,
+        { mode: 'write', capability: 'comment' },
+      )) return;
       const conv = getRoutableConversation(req.params.id, req.params.cid);
       if (!conv) {
         return res.status(404).json({ error: 'conversation not found' });
@@ -746,6 +780,12 @@ export function registerProjectCommentRoutes(app: Express, ctx: RegisterProjectC
   app.delete(
     '/api/projects/:id/conversations/:cid/comments/:commentId',
     async (req, res) => {
+      if (!await allowCommentAction(
+        req,
+        res,
+        req.params.id,
+        { mode: 'write', capability: 'comment' },
+      )) return;
       const conv = getRoutableConversation(req.params.id, req.params.cid);
       if (!conv) {
         return res.status(404).json({ error: 'conversation not found' });

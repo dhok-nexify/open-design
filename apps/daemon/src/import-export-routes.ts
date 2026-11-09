@@ -655,6 +655,12 @@ export function registerProjectExportRoutes(app: Express, ctx: RegisterProjectEx
       allowNavigationQuery?: boolean;
       deriveWorkspaceFromProject?: boolean;
       toolEndpoint?: string;
+      /**
+       * The edition right this export needs. Every export route here hands the
+       * caller project bytes, so it defaults to 'download'; a caller that is
+       * only reading a manifest can pass it explicitly.
+       */
+      capability?: 'download' | 'share';
     } = {},
   ): Promise<AuthorizedExportRead | null> {
     const authorization = req.get('authorization');
@@ -703,9 +709,11 @@ export function registerProjectExportRoutes(app: Express, ctx: RegisterProjectEx
       req,
       res,
       req.params.id,
-      options.allowNavigationQuery
-        ? { mode: 'read', allowNavigationQuery: true }
-        : { mode: 'read' },
+      {
+        mode: 'read',
+        capability: options.capability ?? 'download',
+        ...(options.allowNavigationQuery ? { allowNavigationQuery: true } : {}),
+      },
     );
     if (!authorized) return null;
     const requestWorkspace = workspaceResourceContextFromRequest(req);
@@ -1399,7 +1407,12 @@ export function registerProjectExportRoutes(app: Express, ctx: RegisterProjectEx
       if (!project) {
         return sendApiError(res, 404, 'PROJECT_NOT_FOUND', 'project not found');
       }
-      if (!await ctx.authorizeProjectRequest(req, res, project.id, { mode: 'read' })) return;
+      if (!await ctx.authorizeProjectRequest(
+        req,
+        res,
+        project.id,
+        { mode: 'read', capability: 'download' },
+      )) return;
       const files = await listFiles(PROJECTS_DIR, req.params.id, {
         metadata: project.metadata,
       });
@@ -1433,7 +1446,12 @@ export function registerProjectExportRoutes(app: Express, ctx: RegisterProjectEx
       if (!project) {
         return sendApiError(res, 404, 'PROJECT_NOT_FOUND', 'project not found');
       }
-      if (!await ctx.authorizeProjectRequest(req, res, project.id, { mode: 'read' })) return;
+      if (!await ctx.authorizeProjectRequest(
+        req,
+        res,
+        project.id,
+        { mode: 'read', capability: 'download' },
+      )) return;
       const metadata = project?.metadata ?? null;
       const versionId = normalizeExportVersionId(req.body?.versionId);
       const sourceHtml = await readExportVersionSource(req.params.id, fileName, versionId, metadata);
