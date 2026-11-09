@@ -33,6 +33,8 @@ interface DistillOptions {
   chatAgentId?: string | null;
   chatModel?: string | null;
   chatProvider?: unknown;
+  /** Edition-only provider lock; passed through to the LLM extractor. */
+  nextoreExtraction?: unknown;
   // Test seam: inject a fake suggest function so the LLM pass can be exercised
   // without a network call.
   suggest?: typeof suggestWithLLM;
@@ -211,6 +213,7 @@ export async function distillRulesFromAnnotations(
         chatAgentId: options.chatAgentId ?? null,
         chatModel: options.chatModel ?? null,
         chatProvider: options.chatProvider ?? null,
+        ...(options.nextoreExtraction ? { nextoreExtraction: options.nextoreExtraction } : {}),
         kind: 'llm',
         systemPrompt: RULE_SYSTEM_PROMPT,
         candidateFilter: (candidate: { type?: string }) => candidate?.type === 'rule',

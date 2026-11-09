@@ -99,6 +99,10 @@ export interface OdNextInitialPromptMeta {
     effectiveMode?: 'off' | 'observe' | 'active';
   } | null;
   runtimeCapabilitySnapshot?: unknown;
+  /** NexTore member whose memory store the prompt should read (NXD-D19). */
+  nextoreMemberId?: number | null;
+  /** Snapshot of the module's global MemoryEnabled switch. */
+  nextoreMemoryEnabled?: boolean | null;
 }
 
 interface DaemonSystemPromptResult {
@@ -352,6 +356,9 @@ export function createOdNextInitialPromptBundleService(
       odNextAutomaticAdmission:
         meta.strategyRolloutDecision?.effectiveMode === 'active',
       runtimeCapabilitySnapshot: meta.runtimeCapabilitySnapshot,
+      nextoreMemberId:
+        typeof meta.nextoreMemberId === 'number' ? meta.nextoreMemberId : null,
+      nextoreMemoryEnabled: meta.nextoreMemoryEnabled !== false,
     });
     const loadedTaskInputs = loadOdNextTaskInputSnapshot(
       taskInputSnapshot,

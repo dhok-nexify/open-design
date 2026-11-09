@@ -488,6 +488,10 @@ import {
   readMemoryConfig,
 } from './memory.js';
 import { runAutoExtractionCleanup } from './memory-cleanup.js';
+import {
+  memoryRootFor,
+  nextoreFastMemoryProvider,
+} from './nextore/memory/scoped-memory.js';
 import { attachAcpSession } from './agent-protocol/index.js';
 import { attachPiRpcSession } from './agent-protocol/index.js';
 import { attachDshProfileSession } from './agent-protocol/index.js';
@@ -7840,6 +7844,7 @@ export async function startServer({
     http: { createSseResponse, requireLocalDaemonRequest },
     paths: { RUNTIME_DATA_DIR, PROJECT_ROOT, PROJECTS_DIR },
     appConfig: { readAppConfig },
+    nextore: { edition, config: nextoreConfig },
   });
 
   registerAutomationRoutes(app, {
@@ -9805,6 +9810,8 @@ export async function startServer({
     odNextSyntheticCanary = false,
     odNextAutomaticAdmission = false,
     runtimeCapabilitySnapshot,
+    nextoreMemberId = null,
+    nextoreMemoryEnabled = true,
   }) => {
     const project =
       typeof projectId === 'string' && projectId
@@ -10151,9 +10158,17 @@ export async function startServer({
     // memory the user just edited in settings shows up on the very next
     // run. composeMemoryBody returns '' when memory is disabled or
     // empty; the composer drops the block on a falsy value.
+    // NXD-D19: the edition reads one store per member and honors the module's
+    // global MemoryEnabled switch. Upstream keeps the single daemon-wide store.
+    const memoryDataDir =
+      typeof nextoreMemberId === 'number' && nextoreMemberId > 0
+        ? memoryRootFor(RUNTIME_DATA_DIR, nextoreMemberId)
+        : RUNTIME_DATA_DIR;
     let memoryBody = '';
     try {
-      memoryBody = await composeMemoryBody(RUNTIME_DATA_DIR);
+      if (nextoreMemoryEnabled !== false) {
+        memoryBody = await composeMemoryBody(memoryDataDir);
+      }
     } catch (err) {
       console.warn('[memory] composeMemoryBody failed', err);
     }
@@ -10165,15 +10180,21 @@ export async function startServer({
     // composer treats as on-by-default — matching the config's default-on
     // semantics.
     let memoryHooks: { profile?: boolean; rewrite?: boolean; verify?: boolean } | undefined;
-    try {
-      const memCfg = await readMemoryConfig(RUNTIME_DATA_DIR);
-      memoryHooks = {
-        profile: memCfg.profileEnabled,
-        rewrite: memCfg.rewriteEnabled,
-        verify: memCfg.verifyEnabled,
-      };
-    } catch (err) {
-      console.warn('[memory] readMemoryConfig failed', err);
+    if (nextoreMemoryEnabled === false) {
+      // The module switch also stops the PRE/POST hooks: no rewrite brief and
+      // no verify scorecard may run against a memory store the admin closed.
+      memoryHooks = { profile: false, rewrite: false, verify: false };
+    } else {
+      try {
+        const memCfg = await readMemoryConfig(memoryDataDir);
+        memoryHooks = {
+          profile: memCfg.profileEnabled,
+          rewrite: memCfg.rewriteEnabled,
+          verify: memCfg.verifyEnabled,
+        };
+      } catch (err) {
+        console.warn('[memory] readMemoryConfig failed', err);
+      }
     }
 
     // User-level custom instructions from app-config.json.
@@ -11134,10 +11155,16 @@ export async function startServer({
       typeof message === 'string' &&
       message.trim().length > 0
     ) {
-      try {
-        await extractFromMessage(RUNTIME_DATA_DIR, message);
-      } catch (err) {
-        console.warn('[memory] extractFromMessage failed', err);
+      if (run.nextoreMemoryEnabled !== false) {
+        try {
+          const memoryDataDir =
+            typeof run.nextoreMemberId === 'number' && run.nextoreMemberId > 0
+              ? memoryRootFor(RUNTIME_DATA_DIR, run.nextoreMemberId)
+              : RUNTIME_DATA_DIR;
+          await extractFromMessage(memoryDataDir, message);
+        } catch (err) {
+          console.warn('[memory] extractFromMessage failed', err);
+        }
       }
     }
 
@@ -11484,6 +11511,9 @@ export async function startServer({
         mediaHintSignal: intentSignals.media,
         platformHintSignal: intentSignals.platform,
         frozenSkillPackage: undefined,
+        nextoreMemberId:
+          typeof run.nextoreMemberId === 'number' ? run.nextoreMemberId : null,
+        nextoreMemoryEnabled: run.nextoreMemoryEnabled !== false,
       });
     const {
       prompt: daemonSystemPrompt,
@@ -14633,6 +14663,18 @@ export async function startServer({
             requiresApiKey: (byokProvider as { requiresApiKey?: boolean }).requiresApiKey,
           }
         : null;
+      // NXD-D19: the edition writes into the member's own store and never
+      // falls back to a daemon credential. The Fast tier is resolved from the
+      // run's session token; when the module switch is off, no pass runs.
+      const memoryDataDir =
+        typeof run.nextoreMemberId === 'number' && run.nextoreMemberId > 0
+          ? memoryRootFor(RUNTIME_DATA_DIR, run.nextoreMemberId)
+          : RUNTIME_DATA_DIR;
+      const memoryRunEnabled = run.nextoreMemoryEnabled !== false;
+      const nextoreAccessToken =
+        typeof (byokProvider as { apiKey?: unknown } | null | undefined)?.apiKey === 'string'
+          ? String((byokProvider as { apiKey: string }).apiKey)
+          : '';
       const memoryOptions = {
         projectRoot: PROJECT_ROOT,
         chatAgentId: typeof agentId === 'string' ? agentId : null,
@@ -14645,7 +14687,15 @@ export async function startServer({
         // re-fired turn collapses but an identical (message, reply) in another
         // conversation is still examined.
         conversationId: run.conversationId ?? null,
+        ...(edition === 'nextore'
+          ? {
+              nextoreExtraction: {
+                provider: nextoreFastMemoryProvider(nextoreConfig, nextoreAccessToken),
+              },
+            }
+          : {}),
       };
+      if (!memoryRunEnabled) return;
       void import('./memory-llm.js')
         .then(({ extractWithLLM, distillAnnotationsToMemory }) => {
           // Read the reply HERE, in the post-import microtask, not in the
@@ -14655,7 +14705,7 @@ export async function startServer({
           // newline isn't truncated.
           const captured = memoryReplyText;
           const generalPass = extractWithLLM(
-            RUNTIME_DATA_DIR,
+            memoryDataDir,
             {
               userMessage: userMsg,
               assistantMessage: captured,
@@ -14671,7 +14721,7 @@ export async function startServer({
           const annotationPass =
             safeCommentAttachments.length > 0
               ? distillAnnotationsToMemory(
-                  RUNTIME_DATA_DIR,
+                  memoryDataDir,
                   {
                     annotations: safeCommentAttachments,
                     userMessage: userMsg,

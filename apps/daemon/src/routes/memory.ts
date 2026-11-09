@@ -1,6 +1,13 @@
 import type { Express } from 'express';
-import { MEMORY_TYPES } from '@open-design/contracts';
+import { MEMORY_TYPES, resolveEdition, type Edition } from '@open-design/contracts';
 import type { RouteDeps } from '../server-context.js';
+import { readNextoreConfig, type NextoreConfig } from '../nextore/config.js';
+import {
+  memoryRootFor,
+  memoryScopeId,
+  nextoreFastMemoryProvider,
+  readNextoreMemorySession,
+} from '../nextore/memory/scoped-memory.js';
 
 import {
   buildMemoryTree,
@@ -35,7 +42,13 @@ import {
   suggestMemoryFromConnectors,
 } from '../memory-connectors.js';
 
-export interface RegisterMemoryRoutesDeps extends RouteDeps<'http' | 'paths' | 'appConfig'> {}
+export interface RegisterMemoryRoutesDeps extends RouteDeps<'http' | 'paths' | 'appConfig'> {
+  /** Injected by the daemon; tests can pin the edition without touching env. */
+  nextore?: {
+    edition: Edition;
+    config: NextoreConfig | null;
+  };
+}
 
 type UnknownRecord = Record<string, unknown>;
 type MemoryType =
@@ -109,25 +122,106 @@ export function registerMemoryRoutes(app: Express, ctx: RegisterMemoryRoutesDeps
   const { RUNTIME_DATA_DIR, PROJECT_ROOT, PROJECTS_DIR } = ctx.paths;
   const { createSseResponse, requireLocalDaemonRequest } = ctx.http;
   const { readAppConfig } = ctx.appConfig;
+  const edition: Edition = ctx.nextore?.edition ?? resolveEdition(process.env.OD_EDITION);
+  const nextoreConfig = ctx.nextore
+    ? ctx.nextore.config
+    : readNextoreConfig(process.env, edition);
+
+  // ----- Memory scope (NXD-D19) -------------------------------------------
+  // Upstream keeps one global markdown store. The NexTore edition scopes the
+  // whole store to the signed-in member and honors the module's global
+  // `MemoryEnabled` switch. Resolving it once per request keeps every route
+  // below from re-parsing the session (and from forgetting the check).
+  app.use('/api/memory', (_req, res, next) => {
+    if (edition !== 'nextore') {
+      res.locals.memoryScope = {
+        dataDir: RUNTIME_DATA_DIR,
+        memberId: null,
+        moduleEnabled: true,
+      };
+      next();
+      return;
+    }
+    const session = readNextoreMemorySession(res);
+    if (!session) {
+      res.status(401).json({
+        error: { code: 'SESSION_REQUIRED', message: 'A NexTore session is required.' },
+      });
+      return;
+    }
+    res.locals.memoryScope = {
+      dataDir: memoryRootFor(RUNTIME_DATA_DIR, session.memberId),
+      memberId: session.memberId,
+      moduleEnabled: session.memoryEnabled,
+    };
+    next();
+  });
+
+  type MemoryRouteScope = {
+    dataDir: string;
+    memberId: number | null;
+    moduleEnabled: boolean;
+  };
+  const scopeOf = (res: any): MemoryRouteScope => res.locals.memoryScope as MemoryRouteScope;
+  const rejectWhenDisabled = (res: any): boolean => {
+    if (scopeOf(res).moduleEnabled) return false;
+    res.status(403).json({
+      error: {
+        code: 'MEMORY_DISABLED',
+        message: 'Memory is disabled by the NexTore administrator.',
+      },
+    });
+    return true;
+  };
+  const currentAccessToken = (res: any): string =>
+    typeof res.locals?.nextoreSession?.accessToken === 'string'
+      ? res.locals.nextoreSession.accessToken
+      : '';
+  // Registered BEFORE requireLocalDaemonRequest so the edition answers 404 no
+  // matter which proxy origin reached the daemon. Upstream keeps the routes.
+  const rejectConnectorMemoryInEdition = (req: any, res: any, next: any): void => {
+    if (edition === 'nextore') {
+      res.status(404).json({ error: 'feature_disabled', feature: 'connectors' });
+      return;
+    }
+    next();
+  };
 
   // ----- Memory store -----------------------------------------------------
   // Markdown-on-disk memory under <dataDir>/memory/. The daemon folds these
   // into every system prompt (gated by `enabled`) and the chat run loop
   // calls `/api/memory/extract` after each turn to sediment new facts.
   app.get('/api/memory', async (_req, res) => {
+    const scope = scopeOf(res);
     try {
+      if (!scope.moduleEnabled) {
+        res.json({
+          enabled: false,
+          moduleEnabled: false,
+          chatExtractionEnabled: false,
+          profileEnabled: false,
+          rewriteEnabled: false,
+          verifyEnabled: false,
+          rootDir: memoryDir(scope.dataDir),
+          index: '',
+          entries: [],
+          extraction: null,
+        });
+        return;
+      }
       const [config, index, entries] = await Promise.all([
-        readMemoryConfig(RUNTIME_DATA_DIR),
-        readMemoryIndex(RUNTIME_DATA_DIR),
-        listMemoryEntries(RUNTIME_DATA_DIR),
+        readMemoryConfig(scope.dataDir),
+        readMemoryIndex(scope.dataDir),
+        listMemoryEntries(scope.dataDir),
       ]);
       res.json({
         enabled: config.enabled,
+        moduleEnabled: true,
         chatExtractionEnabled: config.chatExtractionEnabled,
         profileEnabled: config.profileEnabled,
         rewriteEnabled: config.rewriteEnabled,
         verifyEnabled: config.verifyEnabled,
-        rootDir: memoryDir(RUNTIME_DATA_DIR),
+        rootDir: memoryDir(scope.dataDir),
         index,
         entries,
         extraction: maskMemoryExtractionConfig(config.extraction),
@@ -141,14 +235,25 @@ export function registerMemoryRoutes(app: Express, ctx: RegisterMemoryRoutesDeps
   // BEFORE the `:id` catch-alls so an `index` / `config` / `extract` slug
   // can't shadow the real handlers.
   app.get('/api/memory/tree', async (_req, res) => {
+    const scope = scopeOf(res);
     try {
+      if (!scope.moduleEnabled) {
+        res.json({
+          enabled: false,
+          moduleEnabled: false,
+          rootDir: memoryDir(scope.dataDir),
+          tree: [],
+        });
+        return;
+      }
       const [config, tree] = await Promise.all([
-        readMemoryConfig(RUNTIME_DATA_DIR),
-        buildMemoryTree(RUNTIME_DATA_DIR),
+        readMemoryConfig(scope.dataDir),
+        buildMemoryTree(scope.dataDir),
       ]);
       res.json({
         enabled: config.enabled,
-        rootDir: memoryDir(RUNTIME_DATA_DIR),
+        moduleEnabled: true,
+        rootDir: memoryDir(scope.dataDir),
         tree,
       });
     } catch (err) {
@@ -157,14 +262,16 @@ export function registerMemoryRoutes(app: Express, ctx: RegisterMemoryRoutesDeps
   });
 
   app.patch('/api/memory/tree/:id', async (req, res) => {
+    if (rejectWhenDisabled(res)) return;
+    const scope = scopeOf(res);
     try {
       const body = asRecord(req.body);
       const entry = await updateMemoryTreeNode(
-        RUNTIME_DATA_DIR,
+        scope.dataDir,
         req.params.id,
         body,
       );
-      const tree = await buildMemoryTree(RUNTIME_DATA_DIR);
+      const tree = await buildMemoryTree(scope.dataDir);
       res.json({ entry, tree });
     } catch (err) {
       const message = errorMessage(err);
@@ -173,10 +280,12 @@ export function registerMemoryRoutes(app: Express, ctx: RegisterMemoryRoutesDeps
   });
 
   app.put('/api/memory/index', async (req, res) => {
+    if (rejectWhenDisabled(res)) return;
+    const scope = scopeOf(res);
     try {
       const body = asRecord(req.body);
       const index = typeof body.index === 'string' ? body.index : '';
-      await writeMemoryIndex(RUNTIME_DATA_DIR, index, undefined);
+      await writeMemoryIndex(scope.dataDir, index, undefined);
       res.json({ index });
     } catch (err) {
       res.status(400).json({ error: errorMessage(err) });
@@ -184,6 +293,8 @@ export function registerMemoryRoutes(app: Express, ctx: RegisterMemoryRoutesDeps
   });
 
   app.patch('/api/memory/config', async (req, res) => {
+    if (rejectWhenDisabled(res)) return;
+    const scope = scopeOf(res);
     try {
       const body = asRecord(req.body);
       const patch: MemoryConfigPatch = {};
@@ -225,7 +336,7 @@ export function registerMemoryRoutes(app: Express, ctx: RegisterMemoryRoutesDeps
           patch.extraction = null;
         } else if (body.extraction && typeof body.extraction === 'object') {
           const incoming = body.extraction as UnknownRecord;
-          const current = await readMemoryConfig(RUNTIME_DATA_DIR);
+          const current = await readMemoryConfig(scope.dataDir);
           const currentExtraction = current.extraction as MemoryExtractionPatch | null;
           const apiKeyOmitted = !Object.prototype.hasOwnProperty.call(
             incoming,
@@ -261,7 +372,7 @@ export function registerMemoryRoutes(app: Express, ctx: RegisterMemoryRoutesDeps
           patch.extraction = nextExtraction;
         }
       }
-      const next = await writeMemoryConfig(RUNTIME_DATA_DIR, patch);
+      const next = await writeMemoryConfig(scope.dataDir, patch);
       res.json({
         enabled: next.enabled,
         chatExtractionEnabled: next.chatExtractionEnabled,
@@ -285,19 +396,36 @@ export function registerMemoryRoutes(app: Express, ctx: RegisterMemoryRoutesDeps
   // live "recent extractions" list. We multiplex on a single SSE stream
   // so the browser opens one connection instead of two.
   app.get('/api/memory/events', async (_req, res) => {
+    const scope = scopeOf(res);
+    if (!scope.moduleEnabled) {
+      // 204 tells EventSource to stop reconnecting; a 403 would retry forever.
+      res.status(204).end();
+      return;
+    }
+    const scopeId = memoryScopeId(scope.dataDir);
+    // The daemon-wide bus is shared by every member, so the stream itself is
+    // the only place that can keep one member's extraction previews and edits
+    // out of another member's settings panel. Upstream events carry no member
+    // scope and stay unfiltered.
+    const belongsToScope = (event: unknown): boolean => {
+      if (edition !== 'nextore') return true;
+      if (!event || typeof event !== 'object') return true;
+      const eventScope = (event as { scope?: unknown }).scope;
+      return eventScope === undefined || eventScope === scopeId;
+    };
     const sse = createSseResponse(res);
     sse.send('connected', { at: Date.now() });
     const onChange = (event: unknown) => {
-      sse.send('change', event);
+      if (belongsToScope(event)) sse.send('change', event);
     };
     const onExtraction = (event: unknown) => {
-      sse.send('extraction', event);
+      if (belongsToScope(event)) sse.send('extraction', event);
     };
     // `verify` events carry POST self-verify enforcement outcomes (THREAD 2),
     // one per enforced turn. Multiplexed on the same connection as `change`
     // and `extraction` so the settings panel opens a single stream.
     const onVerify = (event: unknown) => {
-      sse.send('verify', event);
+      if (belongsToScope(event)) sse.send('verify', event);
     };
     memoryEvents.on('change', onChange);
     memoryEvents.on('extraction', onExtraction);
@@ -315,7 +443,9 @@ export function registerMemoryRoutes(app: Express, ctx: RegisterMemoryRoutesDeps
   // glance instead of leaving the user to guess.
   app.get('/api/memory/extractions', async (_req, res) => {
     try {
-      res.json({ extractions: listMemoryExtractions() });
+      res.json({
+        extractions: listMemoryExtractions(memoryScopeId(scopeOf(res).dataDir)),
+      });
     } catch (err) {
       res.status(500).json({ error: String(err) });
     }
@@ -325,8 +455,9 @@ export function registerMemoryRoutes(app: Express, ctx: RegisterMemoryRoutesDeps
   // catch-all so a literal "/api/memory/extractions" can still be
   // cleared with `curl -X DELETE`.
   app.delete('/api/memory/extractions', async (_req, res) => {
+    if (rejectWhenDisabled(res)) return;
     try {
-      const removed = clearMemoryExtractions();
+      const removed = clearMemoryExtractions(memoryScopeId(scopeOf(res).dataDir));
       res.json({ removed });
     } catch (err) {
       res.status(400).json({ error: errorMessage(err) });
@@ -334,8 +465,12 @@ export function registerMemoryRoutes(app: Express, ctx: RegisterMemoryRoutesDeps
   });
 
   app.delete('/api/memory/extractions/:id', async (req, res) => {
+    if (rejectWhenDisabled(res)) return;
     try {
-      const removed = removeMemoryExtraction(req.params.id);
+      const removed = removeMemoryExtraction(
+        req.params.id,
+        memoryScopeId(scopeOf(res).dataDir),
+      );
       res.json({ removed });
     } catch (err) {
       res.status(400).json({ error: errorMessage(err) });
@@ -348,7 +483,9 @@ export function registerMemoryRoutes(app: Express, ctx: RegisterMemoryRoutesDeps
   // verification is actually enforced, not honour-system.
   app.get('/api/memory/verifications', async (_req, res) => {
     try {
-      res.json({ verifications: listMemoryVerifications() });
+      res.json({
+        verifications: listMemoryVerifications(memoryScopeId(scopeOf(res).dataDir)),
+      });
     } catch (err) {
       res.status(500).json({ error: String(err) });
     }
@@ -357,8 +494,9 @@ export function registerMemoryRoutes(app: Express, ctx: RegisterMemoryRoutesDeps
   // Drop the entire verification history. Registered BEFORE the `:id`
   // catch-all so a literal "/api/memory/verifications" can be cleared.
   app.delete('/api/memory/verifications', async (_req, res) => {
+    if (rejectWhenDisabled(res)) return;
     try {
-      const removed = clearMemoryVerifications();
+      const removed = clearMemoryVerifications(memoryScopeId(scopeOf(res).dataDir));
       res.json({ removed });
     } catch (err) {
       res.status(400).json({ error: errorMessage(err) });
@@ -366,8 +504,12 @@ export function registerMemoryRoutes(app: Express, ctx: RegisterMemoryRoutesDeps
   });
 
   app.delete('/api/memory/verifications/:id', async (req, res) => {
+    if (rejectWhenDisabled(res)) return;
     try {
-      const removed = removeMemoryVerification(req.params.id);
+      const removed = removeMemoryVerification(
+        req.params.id,
+        memoryScopeId(scopeOf(res).dataDir),
+      );
       res.json({ removed });
     } catch (err) {
       res.status(400).json({ error: errorMessage(err) });
@@ -380,6 +522,8 @@ export function registerMemoryRoutes(app: Express, ctx: RegisterMemoryRoutesDeps
   // proposal through `POST /api/memory` (`type: 'rule'`). Runs a heuristic
   // pass always, and an LLM pass when an extraction provider is configured.
   app.post('/api/memory/rules/suggest', async (req, res) => {
+    if (rejectWhenDisabled(res)) return;
+    const scope = scopeOf(res);
     try {
       const body = asRecord(req.body);
       const rawAnnotations = Array.isArray(body.annotations) ? body.annotations : [];
@@ -412,14 +556,26 @@ export function registerMemoryRoutes(app: Express, ctx: RegisterMemoryRoutesDeps
             ? appConfig.agentModels[chatAgentId].model ?? null
             : null);
       const result = await distillRulesFromAnnotations(
-        RUNTIME_DATA_DIR,
+        scope.dataDir,
         { annotations },
         {
           projectRoot: PROJECT_ROOT,
           ...(chatAgentId ? { chatAgentId } : {}),
           ...(chatModel ? { chatModel } : {}),
-          ...(body.chatProvider && typeof body.chatProvider === 'object'
+          ...(edition !== 'nextore'
+            && body.chatProvider
+            && typeof body.chatProvider === 'object'
             ? { chatProvider: body.chatProvider }
+            : {}),
+          ...(edition === 'nextore'
+            ? {
+                nextoreExtraction: {
+                  provider: nextoreFastMemoryProvider(
+                    nextoreConfig,
+                    currentAccessToken(res),
+                  ),
+                },
+              }
             : {}),
         },
       );
@@ -429,7 +585,9 @@ export function registerMemoryRoutes(app: Express, ctx: RegisterMemoryRoutesDeps
     }
   });
 
-  app.post('/api/memory/connectors/suggest', requireLocalDaemonRequest, async (req, res) => {
+  app.post('/api/memory/connectors/suggest', rejectConnectorMemoryInEdition, requireLocalDaemonRequest, async (req, res) => {
+    if (rejectWhenDisabled(res)) return;
+    const scope = scopeOf(res);
     try {
       const body = asRecord(req.body);
       const connectorIds = Array.isArray(body.connectorIds)
@@ -470,14 +628,16 @@ export function registerMemoryRoutes(app: Express, ctx: RegisterMemoryRoutesDeps
         ...(chatAgentId ? { chatAgentId } : {}),
         ...(chatModel ? { chatModel } : {}),
       };
-      const result = await suggestMemoryFromConnectors(RUNTIME_DATA_DIR, options);
+      const result = await suggestMemoryFromConnectors(scope.dataDir, options);
       res.json(result);
     } catch (err) {
       res.status(400).json({ error: errorMessage(err) });
     }
   });
 
-  app.post('/api/memory/connectors/extract', requireLocalDaemonRequest, async (req, res) => {
+  app.post('/api/memory/connectors/extract', rejectConnectorMemoryInEdition, requireLocalDaemonRequest, async (req, res) => {
+    if (rejectWhenDisabled(res)) return;
+    const scope = scopeOf(res);
     try {
       const body = asRecord(req.body);
       const connectorIds = Array.isArray(body.connectorIds)
@@ -518,7 +678,7 @@ export function registerMemoryRoutes(app: Express, ctx: RegisterMemoryRoutesDeps
         ...(chatAgentId ? { chatAgentId } : {}),
         ...(chatModel ? { chatModel } : {}),
       };
-      const result = await extractMemoryFromConnectors(RUNTIME_DATA_DIR, options);
+      const result = await extractMemoryFromConnectors(scope.dataDir, options);
       res.json(result);
     } catch (err) {
       res.status(400).json({ error: errorMessage(err) });
@@ -546,6 +706,8 @@ export function registerMemoryRoutes(app: Express, ctx: RegisterMemoryRoutesDeps
   // External callers (curl, replay tools) that pass only
   // `userMessage` keep the legacy behaviour: heuristic-only.
   app.post('/api/memory/extract', async (req, res) => {
+    if (rejectWhenDisabled(res)) return;
+    const scope = scopeOf(res);
     try {
       const body = asRecord(req.body);
       const userMessage =
@@ -553,20 +715,22 @@ export function registerMemoryRoutes(app: Express, ctx: RegisterMemoryRoutesDeps
       const assistantMessage =
         typeof body.assistantMessage === 'string' ? body.assistantMessage : '';
       const hasAssistant = assistantMessage.trim().length > 0;
-      const memoryConfig = await readMemoryConfig(RUNTIME_DATA_DIR);
+      const memoryConfig = await readMemoryConfig(scope.dataDir);
       if (memoryConfig.chatExtractionEnabled === false) {
         return res.json({ changed: [], attemptedLLM: false });
       }
       const changed = hasAssistant
         ? []
-        : await extractFromMessage(RUNTIME_DATA_DIR, userMessage);
+        : await extractFromMessage(scope.dataDir, userMessage);
       // BYOK chat config — only forwarded by the web app for API-mode
       // chats. We strip the surface to the five fields pickProvider()
       // actually consumes and validate the provider against the four
       // shapes the extractor speaks; an unknown / missing provider
       // means "let the legacy chain decide" so a malformed payload
-      // can't override the env / media-config fallbacks.
-      const rawChat = body.chatProvider;
+      // can't override the env / media-config fallbacks. The edition
+      // ignores this field entirely (NXD-D19): extraction always uses
+      // the signed-in member's Fast tier.
+      const rawChat = edition === 'nextore' ? null : body.chatProvider;
       let chatProvider = null;
       if (rawChat && typeof rawChat === 'object') {
         const chatConfig = rawChat as UnknownRecord;
@@ -598,13 +762,23 @@ export function registerMemoryRoutes(app: Express, ctx: RegisterMemoryRoutesDeps
         void import('../memory-llm.js')
           .then(({ extractWithLLM }) =>
             extractWithLLM(
-              RUNTIME_DATA_DIR,
+              scope.dataDir,
               { userMessage, assistantMessage },
               {
                 projectRoot: PROJECT_ROOT,
                 chatAgentId: null,
                 chatProvider,
                 ...(chatModel ? { chatModel } : {}),
+                ...(edition === 'nextore'
+                  ? {
+                      nextoreExtraction: {
+                        provider: nextoreFastMemoryProvider(
+                          nextoreConfig,
+                          currentAccessToken(res),
+                        ),
+                      },
+                    }
+                  : {}),
               },
             ),
           )
@@ -627,8 +801,13 @@ export function registerMemoryRoutes(app: Express, ctx: RegisterMemoryRoutesDeps
   // `memoryBody` field — without this, the Memory tab is a no-op for
   // BYOK users even though the UI saves model/index/entries for them.
   app.get('/api/memory/system-prompt', async (_req, res) => {
+    const scope = scopeOf(res);
     try {
-      const body = await composeMemoryBody(RUNTIME_DATA_DIR);
+      if (!scope.moduleEnabled) {
+        res.json({ body: '' });
+        return;
+      }
+      const body = await composeMemoryBody(scope.dataDir);
       res.json({ body });
     } catch (err) {
       res.status(500).json({ error: errorMessage(err) });
@@ -636,13 +815,15 @@ export function registerMemoryRoutes(app: Express, ctx: RegisterMemoryRoutesDeps
   });
 
   app.post('/api/memory', async (req, res) => {
+    if (rejectWhenDisabled(res)) return;
+    const scope = scopeOf(res);
     try {
       const body = asRecord(req.body);
       if (!isMemoryType(body.type) || typeof body.name !== 'string') {
         throw new Error('memory entry requires `name` and a valid `type`');
       }
       const entry = await upsertMemoryEntry(
-        RUNTIME_DATA_DIR,
+        scope.dataDir,
         body as unknown as MemoryEntryInput,
         undefined,
       );
@@ -653,8 +834,12 @@ export function registerMemoryRoutes(app: Express, ctx: RegisterMemoryRoutesDeps
   });
 
   app.get('/api/memory/:id', async (req, res) => {
+    const scope = scopeOf(res);
+    if (!scope.moduleEnabled) {
+      return res.status(404).json({ error: 'memory not found' });
+    }
     try {
-      const entry = await readMemoryEntry(RUNTIME_DATA_DIR, req.params.id);
+      const entry = await readMemoryEntry(scope.dataDir, req.params.id);
       if (!entry) return res.status(404).json({ error: 'memory not found' });
       res.json({ entry });
     } catch (err) {
@@ -663,13 +848,15 @@ export function registerMemoryRoutes(app: Express, ctx: RegisterMemoryRoutesDeps
   });
 
   app.put('/api/memory/:id', async (req, res) => {
+    if (rejectWhenDisabled(res)) return;
+    const scope = scopeOf(res);
     try {
       const body = asRecord(req.body);
       if (!isMemoryType(body.type) || typeof body.name !== 'string') {
         throw new Error('memory entry requires `name` and a valid `type`');
       }
       const entry = await upsertMemoryEntry(
-        RUNTIME_DATA_DIR,
+        scope.dataDir,
         {
           ...(body as unknown as MemoryEntryInput),
           id: req.params.id,
@@ -683,8 +870,10 @@ export function registerMemoryRoutes(app: Express, ctx: RegisterMemoryRoutesDeps
   });
 
   app.delete('/api/memory/:id', async (req, res) => {
+    if (rejectWhenDisabled(res)) return;
+    const scope = scopeOf(res);
     try {
-      await deleteMemoryEntry(RUNTIME_DATA_DIR, req.params.id);
+      await deleteMemoryEntry(scope.dataDir, req.params.id);
       res.json({ ok: true });
     } catch (err) {
       res.status(400).json({ error: errorMessage(err) });

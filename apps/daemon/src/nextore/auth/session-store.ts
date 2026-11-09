@@ -16,6 +16,15 @@ export interface NextoreSession {
   lastValidatedAt: number;
 }
 
+export interface NextoreSessionFeatures {
+  /** Module setting `MemoryEnabled`; false hides the store and stops extraction. */
+  memory: boolean;
+  /** Module setting `McpEnabled` (NXD-D21). */
+  mcp: boolean;
+  /** Module setting `ShareLinksEnabled` (NXD-D20). */
+  shareLinks: boolean;
+}
+
 export interface NextoreSessionMember {
   id: number;
   login: string;
@@ -23,6 +32,13 @@ export interface NextoreSessionMember {
   email: string;
   language: string;
   profileObjectId: number;
+  /**
+   * Feature switches from the last bootstrap response. Optional because rows
+   * written before NXD-D19 do not carry it; absent means "all enabled", which
+   * is the module default and keeps existing deployments working until the
+   * next revalidation refreshes the member.
+   */
+  features?: NextoreSessionFeatures;
 }
 
 interface SessionRow {
@@ -70,6 +86,20 @@ export interface NextoreSessionStore {
   pruneExpired(before: number): number;
 }
 
+function toFeatures(value: unknown): NextoreSessionFeatures {
+  if (!value || typeof value !== 'object') {
+    // Rows written before NXD-D19 have no features; all-on matches the module
+    // default and is refreshed by the next bootstrap revalidation.
+    return { memory: true, mcp: true, shareLinks: true };
+  }
+  const raw = value as Partial<NextoreSessionFeatures>;
+  return {
+    memory: raw.memory !== false,
+    mcp: raw.mcp !== false,
+    shareLinks: raw.shareLinks !== false,
+  };
+}
+
 function toMember(raw: string): NextoreSessionMember | null {
   try {
     const value = JSON.parse(raw) as Partial<NextoreSessionMember> | null;
@@ -82,6 +112,7 @@ function toMember(raw: string): NextoreSessionMember | null {
       email: typeof value.email === 'string' ? value.email : '',
       language: typeof value.language === 'string' ? value.language : '',
       profileObjectId: typeof value.profileObjectId === 'number' ? value.profileObjectId : 0,
+      features: toFeatures(value.features),
     };
   } catch {
     return null;

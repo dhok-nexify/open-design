@@ -55,6 +55,7 @@ import {
   upsertMemoryEntry,
   memoryEvents,
 } from './memory.js';
+import { memoryScopeId } from './nextore/memory/scoped-memory.js';
 import {
   startExtraction,
   recordSkip,
@@ -1234,17 +1235,36 @@ async function collectProposedEntries(dataDir, input, options) {
   // user's actual chat provider.
   const chatProvider = options?.chatProvider ?? null;
   const userMessage = String(input?.userMessage || '').trim();
+  const recordScope = memoryScopeId(dataDir);
+  // The NexTore edition locks extraction to the module's Fast tier. The
+  // presence of this option (even with a null provider) is deliberate: it
+  // turns off every upstream fallback, so a missing member session can never
+  // make the daemon spend an env/media-config credential instead.
+  const nextoreExtraction =
+    options?.nextoreExtraction && typeof options.nextoreExtraction === 'object'
+      ? options.nextoreExtraction
+      : null;
 
   const cfg = await readMemoryConfig(dataDir);
   if (!cfg.enabled) {
-    recordSkip({ userMessage, reason: 'memory-disabled', kind: extractionKind });
+    recordSkip({
+      userMessage,
+      reason: 'memory-disabled',
+      kind: extractionKind,
+      scope: recordScope,
+    });
     return { status: 'skipped', attemptId: null, proposed: [], existingEntries: [] };
   }
   if (extractionKind !== 'connector' && !cfg.chatExtractionEnabled) {
     return { status: 'skipped', attemptId: null, proposed: [], existingEntries: [] };
   }
   if (userMessage.length === 0) {
-    recordSkip({ userMessage, reason: 'empty-message', kind: extractionKind });
+    recordSkip({
+      userMessage,
+      reason: 'empty-message',
+      kind: extractionKind,
+      scope: recordScope,
+    });
     return { status: 'skipped', attemptId: null, proposed: [], existingEntries: [] };
   }
 
@@ -1276,26 +1296,39 @@ async function collectProposedEntries(dataDir, input, options) {
     }
   }
 
-  const provider = await pickProvider(
-    projectRoot,
-    dataDir,
-    chatAgentId,
-    chatProvider,
-    chatModel,
-  );
+  const provider = nextoreExtraction
+    ? (nextoreExtraction.provider ?? null)
+    : await pickProvider(
+        projectRoot,
+        dataDir,
+        chatAgentId,
+        chatProvider,
+        chatModel,
+      );
   if (!provider) {
     const reason =
-      projectRoot && await hasUnsupportedMediaProviderConfig(projectRoot)
+      !nextoreExtraction
+      && projectRoot
+      && await hasUnsupportedMediaProviderConfig(projectRoot)
         ? 'unsupported-provider'
         : 'no-provider';
-    recordSkip({ userMessage, reason, kind: extractionKind });
+    recordSkip({
+      userMessage,
+      reason,
+      kind: extractionKind,
+      scope: recordScope,
+    });
     return { status: 'skipped', attemptId: null, proposed: [], existingEntries: [] };
   }
 
   // Past this point we have a provider committed and an actual model
   // call about to happen — switch from one-shot skip records to a
   // running record we can update through phase transitions.
-  const attemptId = startExtraction({ userMessage, kind: extractionKind });
+  const attemptId = startExtraction({
+    userMessage,
+    kind: extractionKind,
+    scope: recordScope,
+  });
   markProvider(attemptId, {
     kind: provider.kind,
     model: provider.model,

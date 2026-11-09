@@ -375,6 +375,10 @@ function seededUserMessageTurnMetadataFields(
 
 
 interface RunCreateMeta extends InternalRunCreateInput, JsonRecord {
+  /** NexTore member that started the run (NXD-D19); null upstream. */
+  nextoreMemberId?: number;
+  /** Snapshot of the module's global MemoryEnabled switch at run creation. */
+  nextoreMemoryEnabled?: boolean;
   projectId?: string;
   conversationId?: string;
   userMessageId?: string;
@@ -1004,6 +1008,26 @@ export function registerRunRoutes(app: Express, ctx: RegisterRunRoutesDeps) {
       return undefined;
     }
     return startChatRun(executionMeta, run);
+  };
+
+  /**
+   * NEXTORE: carry the signed-in member into the run so prompt composition and
+   * post-turn extraction can read that member's memory store (NXD-D19). The
+   * module's global MemoryEnabled switch is snapshotted here as well; it is
+   * re-read from the session on the next run after revalidation.
+   */
+  const nextoreMemoryMeta = (res: ApiResponse) => {
+    if (resolveEdition(process.env.OD_EDITION) !== 'nextore') return {};
+    const session = (res.locals as { nextoreSession?: NextoreSession }).nextoreSession;
+    if (!session) return {};
+    // Structural read so this compiles against a session-store build that has
+    // not yet been refreshed with the optional `features` field; absent means
+    // enabled, matching the module default.
+    const features = (session.member as { features?: { memory?: unknown } }).features;
+    return {
+      nextoreMemberId: session.memberId,
+      nextoreMemoryEnabled: features?.memory !== false,
+    };
   };
 
   const nextoreProviderForRun = (res: ApiResponse, tier: unknown) => {
@@ -2316,6 +2340,7 @@ export function registerRunRoutes(app: Express, ctx: RegisterRunRoutesDeps) {
       ...withoutSensitiveRunInput(requestBody),
       mediaExecution: mediaExecution.policy,
       toolBundle: toolBundle.bundle,
+      ...nextoreMemoryMeta(res),
       ...(effectiveAgentId ? { agentId: effectiveAgentId } : {}),
       // Always replace any untrusted request field, including with null for an
       // unbound project.
@@ -3929,6 +3954,7 @@ export function registerRunRoutes(app: Express, ctx: RegisterRunRoutesDeps) {
       ...withoutSensitiveRunInput(requestBody),
       mediaExecution: mediaExecution.policy,
       toolBundle: toolBundle.bundle,
+      ...nextoreMemoryMeta(res),
       ...(chatProject?.metadata ? { projectMetadata: chatProject.metadata } : {}),
       workspaceScope: null,
     };

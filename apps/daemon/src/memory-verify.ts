@@ -160,13 +160,14 @@ function emit(record: VerifyEmit): void {
 // enforcement that actually had something to check, not a per-turn audit log.
 export function recordVerify(
   result: MemoryVerifyResult,
-  meta: { runId?: string; projectId?: string | null } = {},
+  meta: { runId?: string; projectId?: string | null; scope?: string } = {},
 ): MemoryVerifyRecord | null {
   if (result.status === 'skipped') return null;
   const record: MemoryVerifyRecord = {
     ...result,
     id: randomUUID(),
     at: Date.now(),
+    scope: typeof meta.scope === 'string' && meta.scope ? meta.scope : 'global',
     ...(meta.runId ? { runId: meta.runId } : {}),
     ...(meta.projectId !== undefined ? { projectId: meta.projectId } : {}),
   };
@@ -176,12 +177,14 @@ export function recordVerify(
   return record;
 }
 
-export function listVerifications(): MemoryVerifyRecord[] {
-  return records.map((r) => ({ ...r }));
+export function listVerifications(scope?: string): MemoryVerifyRecord[] {
+  const wanted = typeof scope === 'string' && scope ? scope : null;
+  return records.filter((r) => !wanted || r.scope === wanted).map((r) => ({ ...r }));
 }
 
-export function removeVerification(id: string): number {
-  const idx = records.findIndex((r) => r.id === id);
+export function removeVerification(id: string, scope?: string): number {
+  const wanted = typeof scope === 'string' && scope ? scope : null;
+  const idx = records.findIndex((r) => r.id === id && (!wanted || r.scope === wanted));
   if (idx < 0) return 0;
   const [removed] = records.splice(idx, 1);
   const base = removed as MemoryVerifyRecord;
@@ -189,10 +192,15 @@ export function removeVerification(id: string): number {
   return 1;
 }
 
-export function clearVerifications(): number {
-  const removed = records.length;
+export function clearVerifications(scope?: string): number {
+  const wanted = typeof scope === 'string' && scope ? scope : null;
+  const kept = wanted ? records.filter((record) => record.scope !== wanted) : [];
+  const removed = records.length - kept.length;
   records.length = 0;
-  if (removed > 0) emit({ id: 'all', status: 'cleared', at: Date.now() });
+  records.push(...kept);
+  if (removed > 0) {
+    emit({ id: 'all', status: 'cleared', at: Date.now(), ...(wanted ? { scope: wanted } : {}) });
+  }
   return removed;
 }
 

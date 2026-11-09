@@ -611,6 +611,12 @@ function durableRunState(run) {
       ? { designSystemSelectionSource: run.designSystemSelectionSource }
       : {}),
     ...(typeof run.clientType === 'string' ? { clientType: run.clientType } : {}),
+    ...(typeof run.nextoreMemberId === 'number'
+      ? { nextoreMemberId: run.nextoreMemberId }
+      : {}),
+    ...(typeof run.nextoreMemoryEnabled === 'boolean'
+      ? { nextoreMemoryEnabled: run.nextoreMemoryEnabled }
+      : {}),
     ...(run.workspaceScope !== undefined ? { workspaceScope: run.workspaceScope } : {}),
     ...(run.analyticsTelemetry ? { analyticsTelemetry: run.analyticsTelemetry } : {}),
     ...(run.promptTelemetry ? { promptTelemetry: run.promptTelemetry } : {}),
@@ -917,6 +923,14 @@ export function createChatRunService({
           ? meta.strategyRolloutDecision
           : null,
       agentId: typeof meta.agentId === 'string' && meta.agentId ? meta.agentId : null,
+      nextoreMemberId:
+        typeof meta.nextoreMemberId === 'number' && meta.nextoreMemberId > 0
+          ? meta.nextoreMemberId
+          : null,
+      nextoreMemoryEnabled:
+        typeof meta.nextoreMemoryEnabled === 'boolean'
+          ? meta.nextoreMemoryEnabled
+          : null,
       appVersionInfo,
       projectMetadata:
         meta.projectMetadata && typeof meta.projectMetadata === 'object' && !Array.isArray(meta.projectMetadata)

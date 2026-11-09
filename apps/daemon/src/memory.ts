@@ -25,6 +25,7 @@ import path from 'node:path';
 import { EventEmitter } from 'node:events';
 import { MEMORY_TYPES, PROFILE_MEMORY_ID, parseFormAnswers } from '@open-design/contracts';
 import { parseFrontmatter } from './design-systems/frontmatter.js';
+import { memoryScopeId } from './nextore/memory/scoped-memory.js';
 // Imported lazily through the memory-extractions module by the call
 // sites below so a future test-only build of memory.ts that stubs the
 // store can still tree-shake the ring buffer. We use a static import
@@ -61,6 +62,12 @@ export interface MemoryChangeEvent {
   count?: number;
   source?: MemoryEntrySource;
   enabled?: boolean;
+  /**
+   * Which memory store emitted the change (`global` upstream, `member:<id>`
+   * in the edition). The SSE route drops events from another member's store
+   * so one person's edit cannot wake or leak into another's settings panel.
+   */
+  scope?: string;
   at: number;
 }
 
@@ -85,8 +92,12 @@ const VALID_SOURCES = new Set<string>([
   'annotation',
 ]);
 
-function emitChange(event: Omit<MemoryChangeEvent, 'at'>): void {
-  memoryEvents.emit('change', { ...event, at: Date.now() });
+function emitChange(dataDir, event: Omit<MemoryChangeEvent, 'at'>): void {
+  memoryEvents.emit('change', {
+    ...event,
+    scope: memoryScopeId(dataDir),
+    at: Date.now(),
+  });
 }
 
 const INDEX_FILE = 'MEMORY.md';
@@ -285,7 +296,7 @@ export async function writeMemoryConfig(dataDir, patch) {
     || current.rewriteEnabled !== next.rewriteEnabled
     || current.verifyEnabled !== next.verifyEnabled
   ) {
-    emitChange({ kind: 'config', enabled: next.enabled });
+    emitChange(dataDir, { kind: 'config', enabled: next.enabled });
   }
   // We don't emit a separate change event for extraction overrides — the
   // chat hot path doesn't need to react, and the settings panel re-reads
@@ -322,7 +333,7 @@ export async function readMemoryIndex(dataDir) {
 export async function writeMemoryIndex(dataDir, body, options) {
   await ensureDir(memoryDir(dataDir));
   await fsp.writeFile(indexPath(dataDir), String(body ?? ''));
-  if (!options?.silent) emitChange({ kind: 'index' });
+  if (!options?.silent) emitChange(dataDir, { kind: 'index' });
 }
 
 function summarize(id, raw, mtime) {
@@ -521,7 +532,7 @@ export async function upsertMemoryEntry(dataDir, input, options) {
   const entry = await readMemoryEntry(dataDir, id);
   if (!entry) throw new Error('failed to read memory entry after write');
   if (!options?.silent) {
-    emitChange({
+    emitChange(dataDir, {
       kind: 'upsert',
       id: entry.id,
       name: entry.name,
@@ -540,7 +551,7 @@ export async function deleteMemoryEntry(dataDir, id) {
     // Already gone — fine. Caller doesn't care.
   }
   await removeIndexLine(dataDir, id);
-  emitChange({ kind: 'delete', id });
+  emitChange(dataDir, { kind: 'delete', id });
 }
 
 // ----- Index maintenance --------------------------------------------------
@@ -1086,12 +1097,22 @@ export async function extractFromMessage(dataDir, userMessage) {
   // message produces no row at all and the user can't tell whether the
   // hook ran.
   if (typeof userMessage !== 'string' || userMessage.trim().length === 0) {
-    recordSkip({ userMessage: userMessage ?? '', reason: 'empty-message', kind: 'heuristic' });
+    recordSkip({
+      userMessage: userMessage ?? '',
+      reason: 'empty-message',
+      kind: 'heuristic',
+      scope: memoryScopeId(dataDir),
+    });
     return [];
   }
   const cfg = await readMemoryConfig(dataDir);
   if (!cfg.enabled) {
-    recordSkip({ userMessage, reason: 'memory-disabled', kind: 'heuristic' });
+    recordSkip({
+      userMessage,
+      reason: 'memory-disabled',
+      kind: 'heuristic',
+      scope: memoryScopeId(dataDir),
+    });
     return [];
   }
   if (!cfg.chatExtractionEnabled) {
@@ -1168,7 +1189,7 @@ export async function extractFromMessage(dataDir, userMessage) {
     }
   }
   if (changed.length > 0) {
-    emitChange({
+    emitChange(dataDir, {
       kind: 'extract',
       count: changed.length,
       source: 'heuristic',
@@ -1182,6 +1203,7 @@ export async function extractFromMessage(dataDir, userMessage) {
     userMessage,
     writtenCount: changed.length,
     writtenIds: changed.map((c) => c.id),
+    scope: memoryScopeId(dataDir),
   });
   return changed;
 }

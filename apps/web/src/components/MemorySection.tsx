@@ -11,6 +11,7 @@ import { Button } from '@open-design/components';
 import { Icon, type IconName } from './Icon';
 import { ConnectorLogo, useResolvedTheme } from './ConnectorLogo';
 import { useT } from '../i18n';
+import { isFeatureEnabled } from '../nextore/features';
 
 type Translate = ReturnType<typeof useT>;
 import { renderMarkdown } from '../runtime/markdown';
@@ -732,6 +733,10 @@ export function MemorySection({
 }: MemorySectionProps = {}) {
   const t = useT();
   const logoTheme = useResolvedTheme();
+  // NXD-D19: the module's global MemoryEnabled switch outranks the per-user
+  // toggle. Connector memory is an upstream source that the edition removes.
+  const connectorsEnabled = isFeatureEnabled('connectors');
+  const [moduleEnabled, setModuleEnabled] = useState(true);
   const [enabled, setEnabled] = useState(true);
   const [chatExtractionEnabled, setChatExtractionEnabled] = useState(true);
   // False until `GET /api/memory` has actually answered. Every switch position
@@ -871,6 +876,7 @@ export function MemorySection({
     // A pass that never heard back leaves the previous knowledge in place and,
     // when there was none, leaves the switches claiming nothing at all.
     if (!list) return;
+    setModuleEnabled(list.moduleEnabled !== false);
     setEnabled(list.enabled);
     setChatExtractionEnabled(list.chatExtractionEnabled !== false);
     setProfileEnabled(list.profileEnabled !== false);
@@ -913,9 +919,9 @@ export function MemorySection({
   }, [reload, reloadExtractions]);
 
   useEffect(() => {
-    if (activeTab !== 'connected') return;
+    if (!connectorsEnabled || activeTab !== 'connected') return;
     void reloadConnectors();
-  }, [activeTab, reloadConnectors]);
+  }, [activeTab, connectorsEnabled, reloadConnectors]);
 
   useEffect(() => {
     writePendingConnectorAuthIds(pendingConnectorAuthIds);
@@ -1428,19 +1434,21 @@ export function MemorySection({
 
   const onDelete = useCallback(
     async (id: string) => {
+      if (!moduleEnabled) return;
       const ok = await deleteMemoryEntry(id);
       if (ok) {
         await reload();
         fireFlash('deleted');
       }
     },
-    [reload, fireFlash],
+    [moduleEnabled, reload, fireFlash],
   );
 
   const onToggleEnabled = useCallback(async (next: boolean) => {
+    if (!moduleEnabled) return;
     setEnabled(next);
     await setMemoryEnabled(next);
-  }, []);
+  }, [moduleEnabled]);
 
   // Map each hook key to its setter so a single optimistic-set + rollback path
   // covers all four toggles.
@@ -1453,14 +1461,16 @@ export function MemorySection({
 
   const onToggleHook = useCallback(
     async (key: MemoryHookKey, next: boolean) => {
+      if (!moduleEnabled) return;
       const setter = HOOK_SETTERS[key];
       setter(() => next);
       const ok = await patchMemoryConfigFlag(key, next);
       if (!ok) setter((current) => !current);
     },
-    // HOOK_SETTERS references stable useState setters, so the deps are empty.
+    // HOOK_SETTERS references stable useState setters; moduleEnabled gates the
+    // write so a disabled module can never issue a PATCH.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [],
+    [moduleEnabled],
   );
 
   // The daemon's config as far as we actually know it; `null` until the first
@@ -1505,7 +1515,7 @@ export function MemorySection({
   );
 
   const onSaveIndex = useCallback(async () => {
-    if (indexDraft === null) return;
+    if (!moduleEnabled || indexDraft === null) return;
     setBusy(true);
     try {
       const ok = await saveMemoryIndex(indexDraft);
@@ -1517,7 +1527,7 @@ export function MemorySection({
     } finally {
       setBusy(false);
     }
-  }, [indexDraft, fireFlash]);
+  }, [indexDraft, fireFlash, moduleEnabled]);
 
   const onDeleteExtraction = useCallback(async (id: string) => {
     // Optimistic removal: drop the row immediately so the click feels
@@ -1558,12 +1568,14 @@ export function MemorySection({
 	      caption: t('memory.tabManualCaption'),
 	      icon: 'edit',
 	    },
-	    {
-	      id: 'connected',
-	      label: t('memory.tabConnected'),
-	      caption: t('memory.tabConnectedCaption'),
-	      icon: 'link',
-	    },
+	    ...(connectorsEnabled
+	      ? [{
+	          id: 'connected' as const,
+	          label: t('memory.tabConnected'),
+	          caption: t('memory.tabConnectedCaption'),
+	          icon: 'link' as const,
+	        }]
+	      : []),
 	  ];
 
 	  const renderMemoryEntry = (entry: MemoryEntrySummary) => (
@@ -1773,7 +1785,9 @@ export function MemorySection({
           <button
             type="button"
             className="memory-icon-action"
+            disabled={!moduleEnabled}
             onClick={() => {
+              if (!moduleEnabled) return;
               setTopTab('memories');
               setAddModalOpen(true);
             }}
@@ -1785,7 +1799,9 @@ export function MemorySection({
           <button
             type="button"
             className="memory-icon-action"
+            disabled={!moduleEnabled}
             onClick={() => {
+              if (!moduleEnabled) return;
               setTopTab('memories');
               setAdvancedModalOpen(true);
             }}
@@ -1802,14 +1818,18 @@ export function MemorySection({
             <input
               type="checkbox"
               checked={painted.enabled}
-              onChange={(e) => onToggleEnabled(e.target.checked)}
+              disabled={!moduleEnabled}
+              onChange={(e) => {
+                if (!moduleEnabled) return;
+                onToggleEnabled(e.target.checked);
+              }}
             />
             <span className="toggle-slider" />
           </label>
         </div>
       </div>
 
-      {configKnown && !enabled ? (
+      {configKnown && (!moduleEnabled || !enabled) ? (
         <div role="status" className="memory-disabled-banner">
           <strong>{t('settings.memoryDisabled')}</strong> —{' '}
           {t('settings.memoryDisabledBanner')}
@@ -1947,7 +1967,7 @@ export function MemorySection({
               type="button"
               className="primary memory-source-action"
               onClick={startNew}
-              disabled={editing !== null}
+              disabled={!moduleEnabled || editing !== null}
             >
               <Icon name="plus" size={14} />
               <span>{t('settings.memoryNew')}</span>
@@ -2143,7 +2163,7 @@ export function MemorySection({
         </div>
       ) : null}
 
-      {activeTab === 'connected' ? (
+      {connectorsEnabled && activeTab === 'connected' ? (
         <div className="memory-tab-panel memory-connected-panel">
           <div className="memory-source-summary memory-connected-summary">
             <span className="memory-block-icon">

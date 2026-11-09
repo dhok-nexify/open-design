@@ -18,7 +18,12 @@ import {
   verifyPayload,
   type NextoreSecrets,
 } from './secrets.js';
-import type { NextoreSession, NextoreSessionMember, NextoreSessionStore } from './session-store.js';
+import type {
+  NextoreSession,
+  NextoreSessionFeatures,
+  NextoreSessionMember,
+  NextoreSessionStore,
+} from './session-store.js';
 
 export const PENDING_COOKIE = 'nxd_oauth';
 export const SESSION_COOKIE = 'nxd_session';
@@ -90,9 +95,37 @@ interface BootstrapMember {
   ProfileObjectId?: unknown;
 }
 
+interface BootstrapFeatures {
+  memory?: unknown;
+  Memory?: unknown;
+  mcp?: unknown;
+  Mcp?: unknown;
+  shareLinks?: unknown;
+  ShareLinks?: unknown;
+}
+
 interface BootstrapPayload {
   member?: BootstrapMember;
   Member?: BootstrapMember;
+  features?: BootstrapFeatures;
+  Features?: BootstrapFeatures;
+}
+
+function optionalFlag(value: unknown, fallback: boolean): boolean {
+  return typeof value === 'boolean' ? value : fallback;
+}
+
+/**
+ * The module's global feature switches ride on bootstrap. Missing fields keep
+ * the module defaults (all enabled) so an older module build still works.
+ */
+function featuresFrom(payload: BootstrapPayload): NextoreSessionFeatures {
+  const features = payload.features ?? payload.Features;
+  return {
+    memory: optionalFlag(features?.memory ?? features?.Memory, true),
+    mcp: optionalFlag(features?.mcp ?? features?.Mcp, true),
+    shareLinks: optionalFlag(features?.shareLinks ?? features?.ShareLinks, true),
+  };
 }
 
 export interface NextoreAuthOptions {
@@ -250,6 +283,7 @@ function memberFrom(payload: BootstrapPayload): NextoreSessionMember | null {
     email: textField(member.email ?? member.Email),
     language: textField(member.language ?? member.Language),
     profileObjectId: integerField(member.profileObjectId ?? member.ProfileObjectId) ?? 0,
+    features: featuresFrom(payload),
   };
 }
 

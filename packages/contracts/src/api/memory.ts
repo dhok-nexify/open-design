@@ -109,6 +109,12 @@ export interface MemoryHookFlags {
 export interface MemoryListResponse {
   /** True when the daemon will inject memory into the next system prompt. */
   enabled: boolean;
+  /**
+   * False when the NexTore module's global `MemoryEnabled` setting is off.
+   * The per-user `enabled` switch cannot override it; the UI must disable
+   * editing in that state.
+   */
+  moduleEnabled: boolean;
   /** True when new chat turns may create memory suggestions/extractions. */
   chatExtractionEnabled: boolean;
   /** Inject the structured `user_profile` into the prompt (PRE foundation). */
@@ -177,6 +183,8 @@ export interface MemoryEntryResponse {
 // introducing a second memory persistence layer.
 export interface MemoryTreeListResponse {
   enabled: boolean;
+  /** False when the NexTore module's global MemoryEnabled switch is off. */
+  moduleEnabled?: boolean;
   rootDir: string;
   tree: MemoryTreeNode[];
 }
@@ -359,6 +367,8 @@ export interface MemoryChangeEvent {
   source?: 'heuristic' | 'llm' | 'manual' | 'connector' | 'brand' | 'annotation';
   /** Only on `kind: 'config'` — the new enabled flag. */
   enabled?: boolean;
+  /** Internal fan-out scope; see MemoryExtractionRecord.scope. */
+  scope?: string;
   /** Unix milliseconds. */
   at: number;
 }
@@ -485,8 +495,15 @@ export interface MemoryExtractionRecord {
       | 'env'
       | 'media-config'
       | 'chat-byok'
-      | 'chat-cli';
+      | 'chat-cli'
+      | 'nextore';
   };
+  /**
+   * Internal fan-out scope (`global` or `member:<id>`). The daemon uses it to
+   * keep one member's extraction history out of another member's stream; the
+   * settings UI ignores it.
+   */
+  scope?: string;
   /** First ~120 chars of the user's message for display in the list. */
   userMessagePreview: string;
   /** How many entries the model proposed (after JSON parse + type filter).
@@ -630,6 +647,8 @@ export interface MemoryVerifyRecord extends MemoryVerifyResult {
   /** The run that produced the turn, when known. */
   runId?: string;
   projectId?: string | null;
+  /** Internal fan-out scope; see MemoryExtractionRecord.scope. */
+  scope?: string;
 }
 
 // GET /api/memory/verifications — most-recent-first. Capped server-side.

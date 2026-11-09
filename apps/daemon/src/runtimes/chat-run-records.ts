@@ -164,6 +164,10 @@ export interface ChatRun {
   agentId: string | null;
   workspaceScope?: RunWorkspaceScope | null;
   model?: string | null;
+  /** NexTore member that started the run (NXD-D19); null upstream. */
+  nextoreMemberId?: number | null;
+  /** Snapshot of the module's global MemoryEnabled switch at run creation. */
+  nextoreMemoryEnabled?: boolean | null;
   status: ChatRunStatus;
   createdAt: number;
   updatedAt: number;
