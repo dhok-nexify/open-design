@@ -2,6 +2,11 @@ import { memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, 
 import type { ArtifactExportFormat } from '../runtime/chat/artifact-export';
 import { AnchoredMenuShell } from './chat/AnchoredMenuShell';
 import { isFeatureEnabled } from '../nextore/features';
+import {
+  fetchCurrentMemberId,
+  fetchNextoreMembers,
+  memberDisplayName,
+} from '../nextore-members';
 import { createPortal, flushSync } from 'react-dom';
 import { Button, Input, Select } from '@open-design/components';
 import {
@@ -4518,6 +4523,40 @@ export function CommentSidePanel({
   // resolves through `currentUser` even when the directory is empty; an unknown
   // OTHER member still renders without an author line, exactly as before.
   const { resolve: resolveCommentAuthor } = useTeamMembers(currentUser);
+  // NEXTORE (NXD-D22): an edition comment is authored by a NexTore member, not
+  // by a workspaceMemberId, so its author line comes from the NexTore
+  // directory. One batched lookup per comment set; the helper caches results
+  // for the rest of the page load.
+  const nextoreAuthorKey = useMemo(() => {
+    const ids = new Set<number>();
+    for (const comment of comments) {
+      if (typeof comment.authorNextoreMemberId === 'number') {
+        ids.add(comment.authorNextoreMemberId);
+      }
+    }
+    return [...ids].sort((a, b) => a - b).join(',');
+  }, [comments]);
+  const [nextoreAuthorNames, setNextoreAuthorNames] = useState<Record<number, string>>({});
+  useEffect(() => {
+    if (!nextoreAuthorKey) return;
+    const ids = nextoreAuthorKey.split(',').map(Number);
+    let cancelled = false;
+    void (async () => {
+      const members = await fetchNextoreMembers(ids);
+      if (cancelled) return;
+      const resolved: Record<number, string> = {};
+      for (const id of ids) {
+        resolved[id] = memberDisplayName(
+          members.find((member) => member.id === id),
+          id,
+        );
+      }
+      setNextoreAuthorNames((previous) => ({ ...previous, ...resolved }));
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [nextoreAuthorKey]);
   const sorted = comments;
   // recvq5BVsolIxi: the inline "N." prefix must match the canvas pin number
   // (comment.pinSeq) so the two surfaces always agree, even when this panel
@@ -4715,6 +4754,12 @@ export function CommentSidePanel({
           const active = comment.id === activeCommentId;
           const sendable = canSend(comment);
           const author = resolveCommentAuthor(comment.authorMemberId);
+          const nextoreAuthorId =
+            typeof comment.authorNextoreMemberId === 'number'
+              ? comment.authorNextoreMemberId
+              : null;
+          const nextoreAuthorName =
+            nextoreAuthorId !== null ? nextoreAuthorNames[nextoreAuthorId] : undefined;
           const isDragging = dragState?.draggingId === comment.id;
           const dropClass = dragState?.overId === comment.id &&
             dragState.draggingId !== comment.id &&
@@ -4754,18 +4799,24 @@ export function CommentSidePanel({
                   <Icon name="grip-vertical" size={13} />
                 </button>
                 <span className="comment-side-author">
-                  {author ? (
+                  {author || nextoreAuthorName ? (
                     <span
                       className="comment-side-avatar"
-                      style={{ background: commentAuthorAvatarColor(comment.authorMemberId ?? author.memberId) }}
+                      style={{
+                        background: nextoreAuthorId !== null
+                          ? commentAuthorAvatarColor('nextore:' + nextoreAuthorId)
+                          : commentAuthorAvatarColor(comment.authorMemberId ?? author?.memberId ?? ''),
+                      }}
                       aria-hidden="true"
                     >
-                      {commentAuthorInitials(author.displayName)}
+                      {commentAuthorInitials(nextoreAuthorName ?? author?.displayName ?? '')}
                     </span>
                   ) : null}
                   <span className="comment-side-author-copy">
                     <strong>{`${displayCommentNumber(comment, index)}. ${commentDisplayLabel(comment, t)}`}</strong>
-                    {author ? (
+                    {nextoreAuthorName ? (
+                      <small>{nextoreAuthorName}</small>
+                    ) : author ? (
                       <small>
                         {author.displayName}
                         {' · '}
@@ -16085,12 +16136,28 @@ function HtmlViewer({
   // their own note; the author OR the project owner may delete it or send it to
   // the agent. The B lane enforces the same rules server-side.
   const myMemberId = collab.member?.memberId ?? null;
+  // NEXTORE (NXD-D22): the signed-in NexTore member, so an edition comment's
+  // author can be compared against the viewer without a workspace identity.
+  const [nextoreSelfId, setNextoreSelfId] = useState<number | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    void fetchCurrentMemberId().then((id) => {
+      if (!cancelled) setNextoreSelfId(id);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   const iAmProjectOwner = collab.isOwner;
   const commentAuthoredByMe = (comment: PreviewComment | null | undefined): boolean => {
     // No persisted comment means this is the create flow: the draft belongs
     // to the current viewer, including a read-only member/admin annotating
     // someone else's shared project.
     if (!comment) return true;
+    const nextoreAuthorId = comment.authorNextoreMemberId;
+    if (typeof nextoreAuthorId === 'number') {
+      return nextoreSelfId !== null && nextoreSelfId === nextoreAuthorId;
+    }
     const authorId = comment?.authorMemberId ?? null;
     // A legacy shared comment without an author is deliberately owner-only.
     // Treating it as "mine" for every member made the client advertise a

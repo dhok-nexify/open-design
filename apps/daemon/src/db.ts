@@ -298,6 +298,7 @@ function migrate(db: SqliteDb): void {
       anchor_state TEXT,
       anchored_version INTEGER,
       author_member_id TEXT,
+      author_nextore_member_id INTEGER,
       last_good_position_json TEXT,
       FOREIGN KEY(project_id) REFERENCES projects(id) ON DELETE CASCADE,
       FOREIGN KEY(conversation_id) REFERENCES conversations(id) ON DELETE CASCADE
@@ -525,6 +526,11 @@ function migrate(db: SqliteDb): void {
   }
   if (!previewCommentAnchorCols.some((c: DbRow) => c.name === 'author_member_id')) {
     db.exec(`ALTER TABLE preview_comments ADD COLUMN author_member_id TEXT`);
+  }
+  // NEXTORE: the edition's member id lives beside the upstream workspace key so
+  // the two id spaces never mix (NXD-D22).
+  if (!previewCommentAnchorCols.some((c: DbRow) => c.name === 'author_nextore_member_id')) {
+    db.exec(`ALTER TABLE preview_comments ADD COLUMN author_nextore_member_id INTEGER`);
   }
   if (!previewCommentAnchorCols.some((c: DbRow) => c.name === 'last_good_position_json')) {
     db.exec(`ALTER TABLE preview_comments ADD COLUMN last_good_position_json TEXT`);
@@ -812,6 +818,7 @@ function migratePreviewCommentsAllowMultiplePerElement(db: SqliteDb): void {
       anchor_state TEXT,
       anchored_version INTEGER,
       author_member_id TEXT,
+      author_nextore_member_id INTEGER,
       last_good_position_json TEXT,
       FOREIGN KEY(project_id) REFERENCES projects(id) ON DELETE CASCADE,
       FOREIGN KEY(conversation_id) REFERENCES conversations(id) ON DELETE CASCADE
@@ -821,11 +828,13 @@ function migratePreviewCommentsAllowMultiplePerElement(db: SqliteDb): void {
       (id, project_id, conversation_id, file_path, element_id, selector, label,
        text, position_json, html_hint, selection_kind, member_count, pod_members_json,
        style_json, attachments_json, slide_index, slide_key, note, status, created_at, updated_at,
-       anchor_state, anchored_version, author_member_id, last_good_position_json)
+       anchor_state, anchored_version, author_member_id, author_nextore_member_id,
+       last_good_position_json)
     SELECT id, project_id, conversation_id, file_path, element_id, selector, label,
        text, position_json, html_hint, selection_kind, member_count, pod_members_json,
        style_json, attachments_json, slide_index, slide_key, note, status, created_at, updated_at,
-       anchor_state, anchored_version, author_member_id, last_good_position_json
+       anchor_state, anchored_version, author_member_id, author_nextore_member_id,
+       last_good_position_json
       FROM preview_comments;
 
     DROP TABLE preview_comments;
@@ -3569,7 +3578,9 @@ export function listPreviewComments(db: SqliteDb, projectId: string, conversatio
               attachments_json AS attachmentsJson,
               slide_index AS slideIndex,
               anchor_state AS anchorState, anchored_version AS anchoredVersion,
-              author_member_id AS authorMemberId, last_good_position_json AS lastGoodPositionJson,
+              author_member_id AS authorMemberId,
+              author_nextore_member_id AS authorNextoreMemberId,
+              last_good_position_json AS lastGoodPositionJson,
               pin_seq AS pinSeq, sort_key AS sortKey,
               note, status, created_at AS createdAt, updated_at AS updatedAt
          FROM preview_comments
@@ -3596,7 +3607,9 @@ export function listProjectPreviewComments(db: SqliteDb, projectId: string) {
               attachments_json AS attachmentsJson,
               slide_index AS slideIndex,
               anchor_state AS anchorState, anchored_version AS anchoredVersion,
-              author_member_id AS authorMemberId, last_good_position_json AS lastGoodPositionJson,
+              author_member_id AS authorMemberId,
+              author_nextore_member_id AS authorNextoreMemberId,
+              last_good_position_json AS lastGoodPositionJson,
               pin_seq AS pinSeq, sort_key AS sortKey,
               note, status, created_at AS createdAt, updated_at AS updatedAt
          FROM preview_comments
@@ -3658,6 +3671,15 @@ export function upsertPreviewComment(
     typeof input?.authorMemberId === 'string' && input.authorMemberId.trim()
       ? input.authorMemberId.trim()
       : null;
+  // NEXTORE (NXD-D22): a separate id space. The edition's authorship is the
+  // NexTore member id stamped by the route from the session, never the
+  // upstream workspaceMemberId — mixing them would make two unrelated people
+  // share an identity. Left out of the ON CONFLICT SET clause on purpose: an
+  // edit can never rewrite who wrote a comment.
+  const authorNextoreMemberId =
+    Number.isFinite(input?.authorNextoreMemberId)
+      ? Math.max(1, Math.round(input.authorNextoreMemberId as number))
+      : null;
   const requestedId =
     typeof input?.id === 'string' && input.id.trim()
       ? input.id.trim()
@@ -3714,8 +3736,8 @@ export function upsertPreviewComment(
        (id, project_id, conversation_id, file_path, element_id, selector, label,
         text, position_json, html_hint, selection_kind, member_count, pod_members_json,
         style_json, attachments_json, slide_index, slide_key, note, status, created_at, updated_at,
-        anchored_version, author_member_id, pin_seq, pin_seq_confirmed, sort_key)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        anchored_version, author_member_id, author_nextore_member_id, pin_seq, pin_seq_confirmed, sort_key)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(id) DO UPDATE SET
        selector = excluded.selector,
        label = excluded.label,
@@ -3759,6 +3781,7 @@ export function upsertPreviewComment(
     now,
     anchoredVersion,
     authorMemberId,
+    authorNextoreMemberId,
     pinSeq,
     pinSeqConfirmed,
     sortKey,
@@ -4288,7 +4311,9 @@ export function getPreviewComment(db: SqliteDb, projectId: string, conversationI
               attachments_json AS attachmentsJson,
               slide_index AS slideIndex,
               anchor_state AS anchorState, anchored_version AS anchoredVersion,
-              author_member_id AS authorMemberId, last_good_position_json AS lastGoodPositionJson,
+              author_member_id AS authorMemberId,
+              author_nextore_member_id AS authorNextoreMemberId,
+              last_good_position_json AS lastGoodPositionJson,
               pin_seq AS pinSeq, sort_key AS sortKey,
               note, status, created_at AS createdAt, updated_at AS updatedAt
          FROM preview_comments
@@ -4310,7 +4335,9 @@ export function getProjectPreviewComment(db: SqliteDb, projectId: string, id: st
               attachments_json AS attachmentsJson,
               slide_index AS slideIndex,
               anchor_state AS anchorState, anchored_version AS anchoredVersion,
-              author_member_id AS authorMemberId, last_good_position_json AS lastGoodPositionJson,
+              author_member_id AS authorMemberId,
+              author_nextore_member_id AS authorNextoreMemberId,
+              last_good_position_json AS lastGoodPositionJson,
               pin_seq AS pinSeq, sort_key AS sortKey,
               note, status, created_at AS createdAt, updated_at AS updatedAt
          FROM preview_comments
@@ -4352,6 +4379,7 @@ function normalizePreviewComment(row: DbRow) {
     anchorState: typeof row.anchorState === 'string' ? row.anchorState : undefined,
     anchoredVersion: Number.isFinite(row.anchoredVersion) ? row.anchoredVersion : undefined,
     authorMemberId: typeof row.authorMemberId === 'string' ? row.authorMemberId : undefined,
+    authorNextoreMemberId: Number.isFinite(row.authorNextoreMemberId) ? row.authorNextoreMemberId : undefined,
     lastGoodPosition: parseJsonOrUndef(row.lastGoodPositionJson),
     pinSeq: Number.isFinite(row.pinSeq) ? row.pinSeq : undefined,
     sortKey: Number.isFinite(row.sortKey) ? row.sortKey : undefined,

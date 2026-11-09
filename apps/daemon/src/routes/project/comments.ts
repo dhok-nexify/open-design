@@ -6,7 +6,21 @@ import type {
 import { projectKindFromMetadataToTrackingOrLegacyDefault } from '@open-design/contracts/analytics';
 import type { RouteDeps } from '../../server-context.js';
 import type { BoundWorkspaceResourceMutationGate } from '../../collab/workspace-resource-mutation.js';
+import type { AuthorizeProjectRequest } from '../../collab/project-request-authority.js';
 import { getProject, isProjectCommentAnchorConversationId } from '../../db.js';
+
+/**
+ * The signed-in NexTore member id the edition gate attached to this request
+ * (NXD-D22), or null off the edition. Comment authorship reads this instead of
+ * the workspace identity, which the edition never has: members sign in through
+ * NexTore, not through the collab workspace.
+ */
+function nextoreMemberIdOf(res: unknown): number | null {
+  const session = (res as { locals?: { nextoreSession?: { memberId?: unknown } } })
+    .locals?.nextoreSession;
+  const id = session?.memberId;
+  return typeof id === 'number' && Number.isInteger(id) && id > 0 ? id : null;
+}
 
 export type ProjectCommentWorkspaceContextResolution =
   | { ok: true; context: WorkspaceCollabContext | null }
@@ -101,6 +115,14 @@ export interface RegisterProjectCommentRoutesDeps extends RouteDeps<'db' | 'proj
     projectId: string,
     context?: WorkspaceCollabContext | null,
   ) => Promise<boolean>;
+  /**
+   * Project-level authority used for the send-to-agent transition (NXD-D22):
+   * handing a note to the agent starts a run against the project, so it needs
+   * project edit rights rather than authorship alone. Optional so comment-CRUD
+   * fixtures keep compiling; production threads the NexTore-aware authorizer
+   * from the conversations context (a no-op off the edition).
+   */
+  authorizeProjectRequest?: AuthorizeProjectRequest;
   /**
    * Fired after a comment is created OR edited (body upsert), so the collab-cloud
    * service can push it to the cross-daemon relay (best-effort — a push failure
@@ -337,10 +359,20 @@ export function registerProjectCommentRoutes(app: Express, ctx: RegisterProjectC
    */
   async function callerMayMutate(
     req: Request,
+    res: unknown,
     projectId: string,
     comment: PreviewComment,
     context: WorkspaceCollabContext | null,
   ): Promise<boolean> {
+    // NEXTORE (NXD-D22): an edition comment belongs to exactly one NexTore
+    // member, so only that member may change or delete it. Project rights are
+    // enforced separately on the project routes; this is the per-comment half,
+    // and it fails closed when the session cannot be read.
+    const nextoreAuthor = comment.authorNextoreMemberId;
+    if (typeof nextoreAuthor === 'number') {
+      const caller = nextoreMemberIdOf(res);
+      return caller !== null && caller === nextoreAuthor;
+    }
     const author = comment.authorMemberId;
     if (!author) {
       if (!ctx.isSharedProject) return true;
@@ -423,6 +455,7 @@ export function registerProjectCommentRoutes(app: Express, ctx: RegisterProjectC
       // and is author-only.
       const body = { ...(req.body || {}) };
       const authorMemberId = await resolveCaller(req, workspaceContext);
+      const nextoreMemberId = nextoreMemberIdOf(res);
       const requestedId = typeof body.id === 'string' && body.id.trim() ? body.id.trim() : '';
       let existing: PreviewComment | null = null;
       if (requestedId) {
@@ -446,6 +479,19 @@ export function registerProjectCommentRoutes(app: Express, ctx: RegisterProjectC
         }
       } else if (authorMemberId) {
         body.authorMemberId = authorMemberId;
+      }
+      // NEXTORE (NXD-D22): the edition's author is the NexTore member id, in
+      // its own column. Editing is author-only — an existing author is
+      // preserved and a mismatched caller is refused; a legacy row with no
+      // author is claimed by whoever the session says is editing it.
+      const existingNextoreAuthor = existing?.authorNextoreMemberId ?? null;
+      if (existingNextoreAuthor !== null) {
+        if (nextoreMemberId === null || existingNextoreAuthor !== nextoreMemberId) {
+          return res.status(403).json({ error: 'not permitted' });
+        }
+        body.authorNextoreMemberId = existingNextoreAuthor;
+      } else if (nextoreMemberId !== null) {
+        body.authorNextoreMemberId = nextoreMemberId;
       }
       // Resolved BEFORE the upsert (not just before the push below) so a
       // genuinely new comment's pin_seq starts unconfirmed on a team-shared
@@ -558,12 +604,23 @@ export function registerProjectCommentRoutes(app: Express, ctx: RegisterProjectC
         // and the project owner, blocked for other members.
         if (!(await callerMayMutate(
           req,
+          res,
           req.params.id,
           existing,
           workspaceContext,
         ))) {
           return res.status(403).json({ error: 'not permitted' });
         }
+        // NEXTORE (NXD-D22): only a member who may edit the project can hand a
+        // note to the agent — that transition starts a run against the project.
+        if (
+          req.body?.status === 'applying'
+          && ctx.authorizeProjectRequest
+          && !await ctx.authorizeProjectRequest(req, res, req.params.id, {
+            mode: 'write',
+            capability: 'writeFiles',
+          })
+        ) return;
         const syncEnabled = isLocalTeamRelayCandidate(
           req.params.id,
           workspaceContext,
@@ -713,6 +770,7 @@ export function registerProjectCommentRoutes(app: Express, ctx: RegisterProjectC
       // Delete is allowed for the comment's author and the project owner.
       if (!(await callerMayMutate(
         req,
+        res,
         req.params.id,
         existing,
         workspaceContext,

@@ -149,6 +149,13 @@ export interface PreviewComment {
   /** Comment author's workspaceMemberId (for cross-member attribution/display). */
   authorMemberId?: string;
   /**
+   * NEXTORE: the edition's author, as a NexTore member id. Kept beside
+   * {@link authorMemberId} instead of inside it so the workspace and NexTore
+   * id spaces never mix. Stamped by the server from the request session; a
+   * client can never set it. Undefined on upstream (workspace) comments.
+   */
+  authorNextoreMemberId?: number;
+  /**
    * Bbox written back on each successful anchor. The `lost` ghost pin renders
    * here (last known-good position), NOT the creation-time `position`, which
    * may point somewhere unrelated after the author restructures the HTML.
@@ -170,6 +177,8 @@ export interface PreviewCommentUpsertRequest {
    * identity (B token → member context); clients do not supply it.
    */
   authorMemberId?: string;
+  /** NEXTORE: server-set NexTore member id, mirroring {@link authorMemberId}. */
+  authorNextoreMemberId?: number;
 }
 
 /**

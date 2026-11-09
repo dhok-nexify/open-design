@@ -4427,7 +4427,12 @@ export async function startServer({
   void backfillDesignSystemWorkspaceResources(db, USER_DESIGN_SYSTEMS_DIR).catch((error) => {
     console.warn('[od] design-system workspace-resource backfill failed:', error);
   });
-  const collabCloudClient = velaCliCollabClient ?? createCollabCloudClientFromEnv();
+  // NEXTORE (NXD-D22): the edition has no collab-cloud relay. Members are
+  // NexTore members and a comment never leaves this daemon, so the outbox is
+  // not constructed at all — a stray OD_COLLAB_CLOUD_URL in the environment
+  // must not be able to switch cross-daemon comment syncing back on.
+  const collabCloudClient =
+    edition === 'nextore' ? null : velaCliCollabClient ?? createCollabCloudClientFromEnv();
   const resolveBoundProjectWorkspaceContext = async (
     projectId: string,
     options: { fresh?: boolean } = {},
