@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import type { AppConfig } from '../types';
 import { useAnalytics } from '../analytics/provider';
@@ -14,8 +14,13 @@ import { McpClientSection } from './McpClientSection';
 import { SkillsSection } from './SkillsSection';
 import { UseEverywhereGuidePanel } from './UseEverywhereModal';
 import { useT } from '../i18n';
+import { NEXTORE_WEB_EDITION } from '../nextore/features';
+import {
+  visibleIntegrationTabIds,
+  type IntegrationTab,
+} from '../nextore/integration-tabs';
 
-export type IntegrationTab = 'mcp' | 'connectors' | 'skills' | 'use-everywhere';
+export type { IntegrationTab } from '../nextore/integration-tabs';
 
 interface Props {
   config: AppConfig;
@@ -61,12 +66,49 @@ export function IntegrationsView({
     trackPageView(analytics.track, { page_name: 'integrations' });
   }, [analytics.track]);
   const [activeTab, setActiveTab] = useState<IntegrationTab>(initialTab);
+  // The edition scopes MCP config to the member and requires DesignerManageMcp,
+  // so the tab only exists after that access probe says yes. Upstream has no
+  // such gate.
+  const [mcpAllowed, setMcpAllowed] = useState(
+    NEXTORE_WEB_EDITION !== 'nextore',
+  );
   const [localConfig, setLocalConfig] = useState<AppConfig>(config);
   const localConfigRef = useRef(localConfig);
 
   useEffect(() => {
     setActiveTab(initialTab);
   }, [initialTab]);
+
+  useEffect(() => {
+    if (NEXTORE_WEB_EDITION !== 'nextore') return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const response = await fetch('/api/nextore/mcp/access');
+        if (!response.ok) {
+          if (!cancelled) setMcpAllowed(false);
+          return;
+        }
+        const payload = (await response.json()) as { allowed?: unknown };
+        if (!cancelled) setMcpAllowed(payload.allowed === true);
+      } catch {
+        if (!cancelled) setMcpAllowed(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const visibleTabs = useMemo(() => {
+    const ids = new Set(visibleIntegrationTabIds(mcpAllowed));
+    return INTEGRATION_TABS.filter((tab) => ids.has(tab.id));
+  }, [mcpAllowed]);
+
+  useEffect(() => {
+    if (visibleTabs.some((tab) => tab.id === activeTab)) return;
+    setActiveTab(visibleTabs[0]?.id ?? 'skills');
+  }, [activeTab, visibleTabs]);
 
   useEffect(() => {
     setLocalConfig((current) => {
@@ -135,7 +177,7 @@ export function IntegrationsView({
         role="tablist"
         aria-label={t('integrations.areasAria')}
       >
-        {INTEGRATION_TABS.map((tab) => {
+        {visibleTabs.map((tab) => {
           const active = tab.id === activeTab;
           return (
             <button

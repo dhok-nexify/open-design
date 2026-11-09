@@ -38,6 +38,7 @@ import type { AgentInfo } from '../types';
 import { isVisibleLocalCliAgent } from '../utils/visibleAgents';
 import { Icon } from './Icon';
 import { useT } from '../i18n';
+import { isFeatureEnabled } from '../nextore/features';
 
 type Translate = ReturnType<typeof useT>;
 
@@ -102,7 +103,9 @@ function inferMcpAuthMode(url: string | undefined): NonNullable<McpServerConfig[
 
 function effectiveMcpAuthMode(
   row: Pick<McpServerConfig, 'transport' | 'url' | 'authMode'>,
+  remoteOnly = false,
 ): NonNullable<McpServerConfig['authMode']> {
+  if (remoteOnly) return 'none';
   if (row.transport !== 'http' && row.transport !== 'sse') return 'none';
   return row.authMode ?? inferMcpAuthMode(row.url);
 }
@@ -118,16 +121,18 @@ function authModeAfterUrlChange(
   return row.authMode;
 }
 
-function rowsFromServers(servers: McpServerConfig[]): DraftRow[] {
-  return servers.map((s) => ({
-    ...s,
-    ...(s.transport === 'http' || s.transport === 'sse'
-      ? { authMode: effectiveMcpAuthMode(s) }
-      : {}),
-    _envText: s.env ? mapToText(s.env) : '',
-    _headersText: s.headers ? mapToText(s.headers) : '',
-    _localId: genLocalId(),
-  }));
+function rowsFromServers(servers: McpServerConfig[], remoteOnly = false): DraftRow[] {
+  return servers
+    .filter((s) => !remoteOnly || s.transport !== 'stdio')
+    .map((s) => ({
+      ...s,
+      ...(s.transport === 'http' || s.transport === 'sse'
+        ? { authMode: effectiveMcpAuthMode(s, remoteOnly) }
+        : {}),
+      _envText: s.env ? mapToText(s.env) : '',
+      _headersText: s.headers ? mapToText(s.headers) : '',
+      _localId: genLocalId(),
+    }));
 }
 
 function mapToText(m: Record<string, string>): string {
@@ -152,7 +157,7 @@ function textToMap(text: string | undefined): Record<string, string> | undefined
   return Object.keys(out).length > 0 ? out : undefined;
 }
 
-function rowsToServers(rows: DraftRow[]): McpServerConfig[] {
+function rowsToServers(rows: DraftRow[], remoteOnly = false): McpServerConfig[] {
   return rows.map((r) => {
     const out: McpServerConfig = {
       id: r.id,
@@ -167,7 +172,7 @@ function rowsToServers(rows: DraftRow[]): McpServerConfig[] {
       const env = textToMap(r._envText);
       if (env) out.env = env;
     } else {
-      out.authMode = effectiveMcpAuthMode(r);
+      out.authMode = effectiveMcpAuthMode(r, remoteOnly);
       if (r.url) out.url = r.url;
       const headers = textToMap(r._headersText);
       if (headers) out.headers = headers;
@@ -179,6 +184,7 @@ function rowsToServers(rows: DraftRow[]): McpServerConfig[] {
 function rowFromTemplate(
   tpl: McpTemplate,
   taken: ReadonlySet<string>,
+  remoteOnly = false,
 ): DraftRow {
   const id = suggestMcpServerId(tpl.id, taken);
   const env: Record<string, string> = {};
@@ -192,7 +198,7 @@ function rowFromTemplate(
     transport: tpl.transport,
     enabled: true,
     ...(tpl.transport === 'http' || tpl.transport === 'sse'
-      ? { authMode: tpl.authMode ?? inferMcpAuthMode(tpl.url) }
+      ? { authMode: remoteOnly ? 'none' : (tpl.authMode ?? inferMcpAuthMode(tpl.url)) }
       : {}),
     command: tpl.command,
     args: tpl.args ? [...tpl.args] : undefined,
@@ -204,7 +210,21 @@ function rowFromTemplate(
   };
 }
 
-function rowFromBlank(taken: ReadonlySet<string>): DraftRow {
+function rowFromBlank(taken: ReadonlySet<string>, remoteOnly = false): DraftRow {
+  if (remoteOnly) {
+    return {
+      id: suggestMcpServerId('custom', taken),
+      label: '',
+      transport: 'http',
+      enabled: true,
+      authMode: 'none',
+      url: '',
+      _envText: '',
+      _headersText: '',
+      _isNew: true,
+      _localId: genLocalId(),
+    };
+  }
   return {
     id: suggestMcpServerId('custom', taken),
     label: '',
@@ -315,6 +335,8 @@ export const McpClientSection = forwardRef<McpClientSectionHandle, Props>(
   function McpClientSection({ onServersChanged, onDirtyChange, surface = 'integrations' }, ref) {
   const t = useT();
   const analytics = useAnalytics();
+  // The edition only supports remote HTTP/SSE servers and header credentials.
+  const remoteOnly = !isFeatureEnabled('stdio-mcp');
   // Single dispatch point for every click in this section: routes to the
   // payload matching the surface the section is rendered on.
   const trackMcpClick = (
@@ -365,10 +387,14 @@ export const McpClientSection = forwardRef<McpClientSectionHandle, Props>(
         setLoaded(true);
         return;
       }
-      const fresh = rowsFromServers(data.servers);
+      const fresh = rowsFromServers(data.servers, remoteOnly);
       setRows(fresh);
       setSavedSig(signature(fresh));
-      setTemplates(data.templates);
+      setTemplates(
+        remoteOnly
+          ? data.templates.filter((tpl) => tpl.transport !== 'stdio')
+          : data.templates,
+      );
       setLoaded(true);
     })();
     return () => {
@@ -415,13 +441,19 @@ export const McpClientSection = forwardRef<McpClientSectionHandle, Props>(
   const addFromTemplate = (tpl: McpTemplate) => {
     trackMcpClick('pick_template', { template_id: tpl.id.replace(/-/g, '_') });
     setPickerOpen(false);
-    setRows((curr) => [...curr, rowFromTemplate(tpl, new Set(curr.map((r) => r.id)))]);
+    setRows((curr) => [
+      ...curr,
+      rowFromTemplate(tpl, new Set(curr.map((r) => r.id)), remoteOnly),
+    ]);
   };
 
   const addBlank = () => {
     trackMcpClick('pick_blank');
     setPickerOpen(false);
-    setRows((curr) => [...curr, rowFromBlank(new Set(curr.map((r) => r.id)))]);
+    setRows((curr) => [
+      ...curr,
+      rowFromBlank(new Set(curr.map((r) => r.id)), remoteOnly),
+    ]);
   };
 
   const save = async (): Promise<boolean> => {
@@ -434,17 +466,21 @@ export const McpClientSection = forwardRef<McpClientSectionHandle, Props>(
     }
     setError(null);
     setSaving(true);
-    const payload = rowsToServers(rows);
+    const payload = rowsToServers(rows, remoteOnly);
     const data = await saveMcpServers(payload);
     setSaving(false);
     if (!data) {
       setError(t('mcpClient.saveFailed'));
       return false;
     }
-    const fresh = rowsFromServers(data.servers);
+    const fresh = rowsFromServers(data.servers, remoteOnly);
     setRows(fresh);
     setSavedSig(signature(fresh));
-    setTemplates(data.templates);
+    setTemplates(
+      remoteOnly
+        ? data.templates.filter((tpl) => tpl.transport !== 'stdio')
+        : data.templates,
+    );
     setSavedAt(Date.now());
     onServersChanged?.(data.servers);
     return true;
@@ -521,6 +557,7 @@ export const McpClientSection = forwardRef<McpClientSectionHandle, Props>(
               row={row}
               idx={idx}
               total={rows.length}
+              remoteOnly={remoteOnly}
               template={
                 row.templateId
                   ? templates.find((tpl) => tpl.id === row.templateId)
@@ -559,9 +596,11 @@ export const McpClientSection = forwardRef<McpClientSectionHandle, Props>(
           <span className="hint mcp-saved-msg">{t('settings.connectorsSaved')}.</span>
         ) : null}
         <span className="mcp-foot-spacer" />
-        <span className="hint">
-          {t('mcpClient.storedAt')} <code>.od/mcp-config.json</code>
-        </span>
+        {remoteOnly ? null : (
+          <span className="hint">
+            {t('mcpClient.storedAt')} <code>.od/mcp-config.json</code>
+          </span>
+        )}
       </div>
     </section>
   );
@@ -757,6 +796,8 @@ interface RowProps {
   row: DraftRow;
   idx: number;
   total: number;
+  /** Hide stdio and managed OAuth (NexTore edition, NXD-D21). */
+  remoteOnly?: boolean;
   // The original built-in template this row was instantiated from, when the
   // user picked a preset. Lets us surface description / homepage / example
   // hints inline so the saved row isn't a wall of opaque form fields.
@@ -767,10 +808,21 @@ interface RowProps {
   onMoveDown?: () => void;
 }
 
-function McpRow({ row, idx, total, template, onChange, onRemove, onMoveUp, onMoveDown }: RowProps) {
+function McpRow({
+  row,
+  idx,
+  total,
+  template,
+  remoteOnly = false,
+  onChange,
+  onRemove,
+  onMoveUp,
+  onMoveDown,
+}: RowProps) {
   const t = useT();
   const isHttpLike = row.transport === 'http' || row.transport === 'sse';
-  const usesManagedOAuth = isHttpLike && effectiveMcpAuthMode(row) === 'oauth';
+  const usesManagedOAuth =
+    isHttpLike && !remoteOnly && effectiveMcpAuthMode(row, remoteOnly) === 'oauth';
   const [expanded, setExpanded] = useState<boolean>(false);
   const summaryTitle = row.label?.trim() || row.id || t('mcp.unnamedServer');
   const [showMcpExample, setShowMcpExample] = useState<boolean>(false);
@@ -936,7 +988,7 @@ function McpRow({ row, idx, total, template, onChange, onRemove, onMoveUp, onMov
                   });
                 }}
               >
-                <option value="stdio">stdio</option>
+                {remoteOnly ? null : <option value="stdio">stdio</option>}
                 <option value="sse">SSE</option>
                 <option value="http">streamable HTTP</option>
               </select>
@@ -985,20 +1037,22 @@ function McpRow({ row, idx, total, template, onChange, onRemove, onMoveUp, onMov
             </>
           ) : (
             <>
-              <label className="mcp-row-field mcp-row-field-stack">
-                <span className="mcp-row-field-label">{t('mcp.fieldOAuthMode')}</span>
-                <select
-                  value={effectiveMcpAuthMode(row)}
-                  onChange={(e) =>
-                    onChange({
-                      authMode: e.target.value as NonNullable<McpServerConfig['authMode']>,
-                    })
-                  }
-                >
-                  <option value="none">{t('mcp.authModeNone')}</option>
-                  <option value="oauth">{t('mcp.authModeOAuth')}</option>
-                </select>
-              </label>
+              {remoteOnly ? null : (
+                <label className="mcp-row-field mcp-row-field-stack">
+                  <span className="mcp-row-field-label">{t('mcp.fieldOAuthMode')}</span>
+                  <select
+                    value={effectiveMcpAuthMode(row)}
+                    onChange={(e) =>
+                      onChange({
+                        authMode: e.target.value as NonNullable<McpServerConfig['authMode']>,
+                      })
+                    }
+                  >
+                    <option value="none">{t('mcp.authModeNone')}</option>
+                    <option value="oauth">{t('mcp.authModeOAuth')}</option>
+                  </select>
+                </label>
+              )}
               <label className="mcp-row-field mcp-row-field-stack">
                 <span className="mcp-row-field-label">{t('mcp.fieldUrl')}</span>
                 <input
@@ -1007,7 +1061,10 @@ function McpRow({ row, idx, total, template, onChange, onRemove, onMoveUp, onMov
                   placeholder="https://mcp.higgsfield.ai/mcp"
                   onChange={(e) => {
                     const url = e.target.value;
-                    onChange({ url, authMode: authModeAfterUrlChange(row, url) });
+                    onChange({
+                      url,
+                      authMode: remoteOnly ? 'none' : authModeAfterUrlChange(row, url),
+                    });
                   }}
                   spellCheck={false}
                 />

@@ -617,6 +617,9 @@ function durableRunState(run) {
     ...(typeof run.nextoreMemoryEnabled === 'boolean'
       ? { nextoreMemoryEnabled: run.nextoreMemoryEnabled }
       : {}),
+    ...(typeof run.nextoreMcpEnabled === 'boolean'
+      ? { nextoreMcpEnabled: run.nextoreMcpEnabled }
+      : {}),
     ...(run.workspaceScope !== undefined ? { workspaceScope: run.workspaceScope } : {}),
     ...(run.analyticsTelemetry ? { analyticsTelemetry: run.analyticsTelemetry } : {}),
     ...(run.promptTelemetry ? { promptTelemetry: run.promptTelemetry } : {}),
@@ -930,6 +933,10 @@ export function createChatRunService({
       nextoreMemoryEnabled:
         typeof meta.nextoreMemoryEnabled === 'boolean'
           ? meta.nextoreMemoryEnabled
+          : null,
+      nextoreMcpEnabled:
+        typeof meta.nextoreMcpEnabled === 'boolean'
+          ? meta.nextoreMcpEnabled
           : null,
       appVersionInfo,
       projectMetadata:

@@ -420,6 +420,8 @@ import { applyFrameDenyHeaders } from './nextore-frame-guard.js';
 import { previewScopeMemberMismatch } from './preview-scope-member.js';
 import { addDesignerOrigin } from './nextore-allowed-origin.js';
 import { createNextoreAuth } from './nextore/auth/routes.js';
+import { registerNextoreMcpRoutes } from './nextore/mcp/routes.js';
+import { listNextoreMcpServers } from './nextore/mcp/store.js';
 import { lazyNextoreSecrets } from './nextore/auth/secrets.js';
 import { createNextoreSessionStore } from './nextore/auth/session-store.js';
 import { migrateNextoreDatabase } from './nextore/db.js';
@@ -712,6 +714,7 @@ import {
   isManagedProjectCwd,
   readMcpConfig,
   writeMcpConfig,
+  type McpServerConfig,
 } from './mcp-config.js';
 import {
   resolveExternalMcpServersForRun,
@@ -3214,28 +3217,30 @@ export async function startServer({
   // NEXTORE: the edition signs the browser in through the site's
   // OAuthServerModule (code + PKCE) and keeps the resulting NexTore API key in
   // an encrypted session row. Upstream keeps its API-token gate untouched.
-  const nextoreAuth = nextoreConfig && nextoreClient
-    ? (() => {
-        const secrets = lazyNextoreSecrets(nextoreConfig.secretFile);
-        return createNextoreAuth({
-          config: nextoreConfig,
-          client: nextoreClient,
-          secrets,
-          store: createNextoreSessionStore(() => db, secrets),
-          allowRequest: (req) => {
-            // A run-scoped export tool authenticates with its own signed token.
-            // That request is not a browser session and must not be forced
-            // through an OAuth redirect.
-            return req.baseUrl === '/api'
-              && req.method === 'POST'
-              && PROJECT_RUN_SCOPED_EXPORT_PATH_RE.test(req.path)
-              && toolTokenRegistry.validate(bearerTokenFromRequest(req), {
-                endpoint: PROJECT_EXPORT_TOOL_ENDPOINT,
-                operation: 'project:export',
-              }).ok;
-          },
-        });
-      })()
+  // One lazy secret loader is shared by sessions, per-user MCP headers, and
+  // anything else that needs at-rest encryption in the edition.
+  const nextoreSecrets = nextoreConfig
+    ? lazyNextoreSecrets(nextoreConfig.secretFile)
+    : null;
+  const nextoreAuth = nextoreConfig && nextoreClient && nextoreSecrets
+    ? createNextoreAuth({
+        config: nextoreConfig,
+        client: nextoreClient,
+        secrets: nextoreSecrets,
+        store: createNextoreSessionStore(() => db, nextoreSecrets),
+        allowRequest: (req) => {
+          // A run-scoped export tool authenticates with its own signed token.
+          // That request is not a browser session and must not be forced
+          // through an OAuth redirect.
+          return req.baseUrl === '/api'
+            && req.method === 'POST'
+            && PROJECT_RUN_SCOPED_EXPORT_PATH_RE.test(req.path)
+            && toolTokenRegistry.validate(bearerTokenFromRequest(req), {
+              endpoint: PROJECT_EXPORT_TOOL_ENDPOINT,
+              operation: 'project:export',
+            }).ok;
+        },
+      })
     : null;
   // NEXTORE: disabled product surfaces fail closed before body parsers and
   // route registrars, while an unset OD_EDITION leaves upstream behavior intact.
@@ -8169,10 +8174,13 @@ export async function startServer({
     });
   });
 
-  if (nextoreClient) {
+  if (nextoreClient && nextoreSecrets) {
     registerNextoreRoutes(app, { client: nextoreClient });
     // Member directory for the transcript's author chips (NXD-D11).
     registerNextoreDirectoryRoutes(app);
+    // Per-user external MCP servers (NXD-D21). The upstream global
+    // `mcp-config.json` surface stays closed in the edition.
+    registerNextoreMcpRoutes(app, { db, secrets: nextoreSecrets });
   }
 
   app.get('/api/ready', async (_req, res) => {
@@ -8599,6 +8607,13 @@ export async function startServer({
   };
 
   // External services
+  // NXD-D21: the upstream global MCP config / OAuth / install-info surface is
+  // not part of the edition. Per-user servers live under /api/nextore/mcp.
+  if (edition === 'nextore') {
+    app.use('/api/mcp', (_req, res) => {
+      res.status(404).json({ error: 'feature_disabled', feature: 'od-mcp-server' });
+    });
+  }
   registerMcpRoutes(app, {
     http: httpDeps,
     paths: pathDeps,
@@ -11369,7 +11384,9 @@ export async function startServer({
     // values further down at .mcp.json write time — see the spawn block
     // below — instead of re-reading.
     let externalMcpConfig = { servers: [] };
-    if (!SANDBOX_RUNTIME.enabled) {
+    // NXD-D21: the edition never reads the upstream global config, even when a
+    // development host runs without the sandbox.
+    if (edition !== 'nextore' && !SANDBOX_RUNTIME.enabled) {
       try {
         externalMcpConfig = await readMcpConfig(RUNTIME_DATA_DIR);
       } catch (err) {
@@ -11379,9 +11396,37 @@ export async function startServer({
         );
       }
     }
-    const runScopedMcpServers = Array.isArray(run?.toolBundle?.mcpServers)
-      ? run.toolBundle.mcpServers
-      : [];
+    // The edition injects only the signed-in member's servers, and ignores any
+    // client-supplied toolBundle MCP list. A revoked MCP right or module switch
+    // turns the list off for the next run.
+    let nextoreMemberMcpServers: McpServerConfig[] = [];
+    if (
+      edition === 'nextore'
+      && run?.nextoreMcpEnabled === true
+      && typeof run.nextoreMemberId === 'number'
+      && run.nextoreMemberId > 0
+      && nextoreSecrets
+    ) {
+      try {
+        nextoreMemberMcpServers = listNextoreMcpServers(
+          db,
+          nextoreSecrets(),
+          run.nextoreMemberId,
+        );
+      } catch (err) {
+        console.warn(
+          '[nextore-mcp] member server read failed:',
+          err && err.message ? err.message : err,
+        );
+      }
+    }
+    const runScopedMcpServers = edition === 'nextore'
+      ? nextoreMemberMcpServers
+      : (
+          Array.isArray(run?.toolBundle?.mcpServers)
+            ? run.toolBundle.mcpServers
+            : []
+        );
     const {
       enabledServers: enabledExternalMcp,
       persistedTokenServerIds,

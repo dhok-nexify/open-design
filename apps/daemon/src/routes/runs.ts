@@ -379,6 +379,8 @@ interface RunCreateMeta extends InternalRunCreateInput, JsonRecord {
   nextoreMemberId?: number;
   /** Snapshot of the module's global MemoryEnabled switch at run creation. */
   nextoreMemoryEnabled?: boolean;
+  /** MCP feature + DesignerManageMcp right snapshot (NXD-D21). */
+  nextoreMcpEnabled?: boolean;
   projectId?: string;
   conversationId?: string;
   userMessageId?: string;
@@ -1012,22 +1014,42 @@ export function registerRunRoutes(app: Express, ctx: RegisterRunRoutesDeps) {
 
   /**
    * NEXTORE: carry the signed-in member into the run so prompt composition and
-   * post-turn extraction can read that member's memory store (NXD-D19). The
-   * module's global MemoryEnabled switch is snapshotted here as well; it is
-   * re-read from the session on the next run after revalidation.
+   * post-turn extraction can read that member's memory store (NXD-D19), and
+   * snapshot the module MCP switch plus the DesignerManageMcp right (NXD-D21).
+   * Both are re-read from the session on the next run after revalidation.
    */
-  const nextoreMemoryMeta = (res: ApiResponse) => {
+  const nextoreRunMeta = (res: ApiResponse) => {
     if (resolveEdition(process.env.OD_EDITION) !== 'nextore') return {};
     const session = (res.locals as { nextoreSession?: NextoreSession }).nextoreSession;
     if (!session) return {};
-    // Structural read so this compiles against a session-store build that has
-    // not yet been refreshed with the optional `features` field; absent means
-    // enabled, matching the module default.
-    const features = (session.member as { features?: { memory?: unknown } }).features;
+    // Structural reads keep this compiling against older session-store builds.
+    const features = (session.member as {
+      features?: { memory?: unknown; mcp?: unknown };
+    }).features;
+    const rights = (session.member as { rights?: { manageMcp?: unknown } }).rights;
     return {
       nextoreMemberId: session.memberId,
       nextoreMemoryEnabled: features?.memory !== false,
+      // Security-sensitive: an old session without cached rights keeps MCP off
+      // until the next bootstrap refresh fills them in.
+      nextoreMcpEnabled:
+        features?.mcp !== false && rights?.manageMcp === true,
     };
+  };
+
+  /**
+   * The edition reads MCP servers from SQLite per member; a client-supplied
+   * tool bundle must not become a second, unscoped injection path.
+   */
+  const stripClientMcpServersForEdition = (meta: RunCreateMeta): void => {
+    if (resolveEdition(process.env.OD_EDITION) !== 'nextore') return;
+    const bundle = meta.toolBundle;
+    if (bundle && typeof bundle === 'object' && !Array.isArray(bundle)) {
+      meta.toolBundle = {
+        ...(bundle as Record<string, unknown>),
+        mcpServers: [],
+      };
+    }
   };
 
   const nextoreProviderForRun = (res: ApiResponse, tier: unknown) => {
@@ -2340,7 +2362,7 @@ export function registerRunRoutes(app: Express, ctx: RegisterRunRoutesDeps) {
       ...withoutSensitiveRunInput(requestBody),
       mediaExecution: mediaExecution.policy,
       toolBundle: toolBundle.bundle,
-      ...nextoreMemoryMeta(res),
+      ...nextoreRunMeta(res),
       ...(effectiveAgentId ? { agentId: effectiveAgentId } : {}),
       // Always replace any untrusted request field, including with null for an
       // unbound project.
@@ -2350,6 +2372,7 @@ export function registerRunRoutes(app: Express, ctx: RegisterRunRoutesDeps) {
         ? { runtimeCapabilitySnapshot: rolloutCapabilitySnapshot }
         : {}),
     };
+    stripClientMcpServersForEdition(meta);
     if (resolvedSnapshot?.ok) {
       meta.appliedPluginSnapshotId = resolvedSnapshot.snapshotId;
       if (!meta.pluginId) meta.pluginId = resolvedSnapshot.snapshot.pluginId;
@@ -3954,10 +3977,11 @@ export function registerRunRoutes(app: Express, ctx: RegisterRunRoutesDeps) {
       ...withoutSensitiveRunInput(requestBody),
       mediaExecution: mediaExecution.policy,
       toolBundle: toolBundle.bundle,
-      ...nextoreMemoryMeta(res),
+      ...nextoreRunMeta(res),
       ...(chatProject?.metadata ? { projectMetadata: chatProject.metadata } : {}),
       workspaceScope: null,
     };
+    stripClientMcpServersForEdition(meta);
     if (clarificationContinuation) {
       applyClarificationContinuationMeta(meta, clarificationContinuation);
       meta.odNextTaskInputSnapshot = design.runs.get(

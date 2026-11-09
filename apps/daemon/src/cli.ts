@@ -18,7 +18,7 @@ import { splitResearchSubcommand } from './research/cli-args.js';
 import { resolveDaemonUrl } from './daemon-url.js';
 import { SidecarFactory } from '@open-design/sidecar';
 import { APP_KEYS, SIDECAR_MESSAGES } from '@open-design/sidecar-proto';
-import { EXPORT_FORMATS, EXPORT_IMAGE_FORMATS, mediaFailureNextStep } from '@open-design/contracts';
+import { EXPORT_FORMATS, EXPORT_IMAGE_FORMATS, mediaFailureNextStep, resolveEdition } from '@open-design/contracts';
 import type { ArtifactLintFinding, LintArtifactCliResultEnvelope, LintArtifactResponse, LintFailOn } from '@open-design/contracts';
 import { buildExportCliRequestBody, buildExportCliResultEnvelope, resolveExportCliDeckMode } from './export-cli-request.js';
 import { exportRoutePath } from './export-cli-routing.js';
@@ -821,7 +821,16 @@ async function runLint(args) {
   if (failed) process.exitCode = 1;
 }
 
+// NXD-D21: the edition does not expose the daemon as an MCP server.
+function blockMcpServerCliInEdition(): boolean {
+  if (resolveEdition(process.env.OD_EDITION) !== 'nextore') return false;
+  console.error('od mcp is disabled in the NexTore edition.');
+  process.exitCode = 2;
+  return true;
+}
+
 if (argv[0] === 'mcp' && argv[1] === 'live-artifacts') {
+  if (blockMcpServerCliInEdition()) process.exit(2);
   try {
     const { exitCode } = await runLiveArtifactsMcpServer();
     process.exit(exitCode);
@@ -2323,6 +2332,7 @@ files folder so the FileViewer can preview them immediately.`);
 // ---------------------------------------------------------------------------
 
 async function runMcp(args) {
+  if (blockMcpServerCliInEdition()) return;
   if (args[0] === 'install') {
     return runMcpInstall(args.slice(1));
   }

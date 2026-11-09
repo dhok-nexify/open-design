@@ -12,6 +12,11 @@ import type {
   McpTemplate,
   StartMcpOAuthResponse,
 } from '@open-design/contracts';
+import { NEXTORE_WEB_EDITION } from '../nextore/features';
+
+const MCP_SERVERS_ENDPOINT = NEXTORE_WEB_EDITION === 'nextore'
+  ? '/api/nextore/mcp/servers'
+  : '/api/mcp/servers';
 
 export type {
   McpOAuthStatusResponse,
@@ -22,7 +27,7 @@ export type {
 
 export async function fetchMcpServers(): Promise<McpServersResponse | null> {
   try {
-    const res = await fetch('/api/mcp/servers');
+    const res = await fetch(MCP_SERVERS_ENDPOINT);
     if (!res.ok) return null;
     const data = (await res.json()) as McpServersResponse;
     return {
@@ -38,7 +43,7 @@ export async function saveMcpServers(
   servers: McpServerConfig[],
 ): Promise<McpServersResponse | null> {
   try {
-    const res = await fetch('/api/mcp/servers', {
+    const res = await fetch(MCP_SERVERS_ENDPOINT, {
       method: 'PUT',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ servers }),
@@ -74,6 +79,13 @@ export type StartMcpOAuthResult =
 export async function startMcpOAuth(
   serverId: string,
 ): Promise<StartMcpOAuthResult> {
+  if (NEXTORE_WEB_EDITION === 'nextore') {
+    return {
+      ok: false,
+      status: null,
+      message: 'Managed MCP OAuth is disabled in the NexTore edition. Configure headers instead.',
+    };
+  }
   let res: Response;
   try {
     res = await fetch('/api/mcp/oauth/start', {
@@ -136,6 +148,7 @@ export async function startMcpOAuth(
 export async function fetchMcpOAuthStatus(
   serverId: string,
 ): Promise<McpOAuthStatusResponse | null> {
+  if (NEXTORE_WEB_EDITION === 'nextore') return null;
   try {
     const url = `/api/mcp/oauth/status?serverId=${encodeURIComponent(serverId)}`;
     const res = await fetch(url);
@@ -147,6 +160,7 @@ export async function fetchMcpOAuthStatus(
 }
 
 export async function disconnectMcpOAuth(serverId: string): Promise<boolean> {
+  if (NEXTORE_WEB_EDITION === 'nextore') return false;
   try {
     const res = await fetch('/api/mcp/oauth/disconnect', {
       method: 'POST',

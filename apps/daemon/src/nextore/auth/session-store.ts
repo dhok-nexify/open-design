@@ -39,6 +39,18 @@ export interface NextoreSessionMember {
    * next revalidation refreshes the member.
    */
   features?: NextoreSessionFeatures;
+  /**
+   * Effective DesignProject rights from the last bootstrap. Optional because
+   * rows written before NXD-D21 do not carry it; absent fails closed for MCP.
+   */
+  rights?: NextoreSessionRights;
+}
+
+export interface NextoreSessionRights {
+  access: boolean;
+  createProject: boolean;
+  admin: boolean;
+  manageMcp: boolean;
 }
 
 interface SessionRow {
@@ -100,6 +112,21 @@ function toFeatures(value: unknown): NextoreSessionFeatures {
   };
 }
 
+function toRights(value: unknown): NextoreSessionRights {
+  if (!value || typeof value !== 'object') {
+    // Security-sensitive: a session without cached rights must not inherit
+    // MCP access. The next bootstrap refresh fills the real values.
+    return { access: false, createProject: false, admin: false, manageMcp: false };
+  }
+  const raw = value as Partial<NextoreSessionRights>;
+  return {
+    access: raw.access === true,
+    createProject: raw.createProject === true,
+    admin: raw.admin === true,
+    manageMcp: raw.manageMcp === true,
+  };
+}
+
 function toMember(raw: string): NextoreSessionMember | null {
   try {
     const value = JSON.parse(raw) as Partial<NextoreSessionMember> | null;
@@ -113,6 +140,7 @@ function toMember(raw: string): NextoreSessionMember | null {
       language: typeof value.language === 'string' ? value.language : '',
       profileObjectId: typeof value.profileObjectId === 'number' ? value.profileObjectId : 0,
       features: toFeatures(value.features),
+      ...(value.rights ? { rights: toRights(value.rights) } : {}),
     };
   } catch {
     return null;

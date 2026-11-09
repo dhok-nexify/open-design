@@ -22,6 +22,7 @@ import type {
   NextoreSession,
   NextoreSessionFeatures,
   NextoreSessionMember,
+  NextoreSessionRights,
   NextoreSessionStore,
 } from './session-store.js';
 
@@ -104,11 +105,24 @@ interface BootstrapFeatures {
   ShareLinks?: unknown;
 }
 
+interface BootstrapRights {
+  access?: unknown;
+  Access?: unknown;
+  createProject?: unknown;
+  CreateProject?: unknown;
+  admin?: unknown;
+  Admin?: unknown;
+  manageMcp?: unknown;
+  ManageMcp?: unknown;
+}
+
 interface BootstrapPayload {
   member?: BootstrapMember;
   Member?: BootstrapMember;
   features?: BootstrapFeatures;
   Features?: BootstrapFeatures;
+  rights?: BootstrapRights;
+  Rights?: BootstrapRights;
 }
 
 function optionalFlag(value: unknown, fallback: boolean): boolean {
@@ -125,6 +139,21 @@ function featuresFrom(payload: BootstrapPayload): NextoreSessionFeatures {
     memory: optionalFlag(features?.memory ?? features?.Memory, true),
     mcp: optionalFlag(features?.mcp ?? features?.Mcp, true),
     shareLinks: optionalFlag(features?.shareLinks ?? features?.ShareLinks, true),
+  };
+}
+
+/**
+ * Effective DesignProject rights. Security-sensitive, so every missing or
+ * non-boolean value is false rather than the module default.
+ */
+function rightsFrom(payload: BootstrapPayload): NextoreSessionRights {
+  const rights = payload.rights ?? payload.Rights;
+  return {
+    access: rights?.access === true || rights?.Access === true,
+    createProject:
+      rights?.createProject === true || rights?.CreateProject === true,
+    admin: rights?.admin === true || rights?.Admin === true,
+    manageMcp: rights?.manageMcp === true || rights?.ManageMcp === true,
   };
 }
 
@@ -284,6 +313,7 @@ function memberFrom(payload: BootstrapPayload): NextoreSessionMember | null {
     language: textField(member.language ?? member.Language),
     profileObjectId: integerField(member.profileObjectId ?? member.ProfileObjectId) ?? 0,
     features: featuresFrom(payload),
+    rights: rightsFrom(payload),
   };
 }
 
@@ -481,7 +511,11 @@ export function createNextoreAuth(options: NextoreAuthOptions): NextoreAuth {
       return { kind: 'signed_out' };
     }
 
-    const validationDue = checkedAt - session.lastValidatedAt >= REVALIDATE_MS;
+    // A session written before the rights cache landed has no rights; refresh
+    // it immediately instead of leaving MCP off until the five-minute timer.
+    const validationDue =
+      checkedAt - session.lastValidatedAt >= REVALIDATE_MS
+      || !session.member.rights;
     const expiring = session.tokenExpiresAt !== null
       && session.tokenExpiresAt - checkedAt < REFRESH_LEAD_MS;
     let refreshed = false;

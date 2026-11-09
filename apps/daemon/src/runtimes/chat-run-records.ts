@@ -168,6 +168,8 @@ export interface ChatRun {
   nextoreMemberId?: number | null;
   /** Snapshot of the module's global MemoryEnabled switch at run creation. */
   nextoreMemoryEnabled?: boolean | null;
+  /** Snapshot of MCP feature + DesignerManageMcp access (NXD-D21). */
+  nextoreMcpEnabled?: boolean | null;
   status: ChatRunStatus;
   createdAt: number;
   updatedAt: number;

@@ -76,6 +76,23 @@ export function migrateNextoreDatabase(db: SqliteDb): void {
         updated_at INTEGER NOT NULL
       );
 
+      CREATE TABLE IF NOT EXISTS nextore_mcp_servers (
+        member_id INTEGER NOT NULL,
+        name TEXT NOT NULL,
+        label TEXT,
+        template_id TEXT,
+        transport TEXT NOT NULL CHECK (transport IN ('http', 'sse')),
+        url TEXT NOT NULL,
+        enabled INTEGER NOT NULL DEFAULT 1,
+        headers_enc BLOB,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        PRIMARY KEY (member_id, name)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_nextore_mcp_servers_member
+        ON nextore_mcp_servers(member_id, created_at);
+
       CREATE TABLE IF NOT EXISTS nextore_project_run_lock (
         project_id TEXT PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE,
         run_id TEXT NOT NULL,
