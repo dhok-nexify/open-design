@@ -1,5 +1,6 @@
 import type { NextoreClient } from '../client.js';
 import type { NextoreWorkspaceSummary } from './register-project.js';
+import { wireArray, wireNumber, wireString } from '../wire.js';
 
 export interface NextoreProjectSummary {
   id: number;
@@ -35,6 +36,30 @@ export interface ListedNextoreWorkspace {
   projectIds: string[];
 }
 
+function normalizeWorkspace(value: unknown): NextoreWorkspaceSummary | null {
+  const id = wireNumber(value, 'id', 'Id');
+  if (id === null || id === undefined) return null;
+  return {
+    id,
+    name: wireString(value, 'name', 'Name')?.trim() ?? '',
+    type: wireString(value, 'type', 'Type')?.trim() ?? '',
+  };
+}
+
+function normalizeProject(value: unknown): NextoreProjectSummary | null {
+  const id = wireNumber(value, 'id', 'Id');
+  if (id === null || id === undefined) return null;
+  return {
+    id,
+    name: wireString(value, 'name', 'Name')?.trim() ?? '',
+    designerProjectId:
+      wireString(value, 'designerProjectId', 'DesignerProjectId')?.trim() ?? '',
+    designSystemId: wireString(value, 'designSystemId', 'DesignSystemId') ?? null,
+    skillId: wireString(value, 'skillId', 'SkillId') ?? null,
+    status: wireString(value, 'status', 'Status') ?? null,
+  };
+}
+
 export interface NextoreProjectListing {
   projects: ListedNextoreProject[];
   /** Every visible workspace, in the order the module returned them. */
@@ -61,10 +86,10 @@ export async function listNextoreProjects(input: {
   accessToken: string;
   localProjectIds: readonly string[];
 }): Promise<NextoreProjectListing> {
-  const workspacesResponse = await input.client.workspaces<{
-    workspaces?: NextoreWorkspaceSummary[];
-  }>(input.accessToken);
-  const workspaces = workspacesResponse?.workspaces ?? [];
+  const workspacesResponse = await input.client.workspaces<unknown>(input.accessToken);
+  const workspaces = wireArray(workspacesResponse, 'workspaces', 'Workspaces')
+    .map(normalizeWorkspace)
+    .filter((workspace): workspace is NextoreWorkspaceSummary => workspace !== null);
 
   const listedWorkspaces: ListedNextoreWorkspace[] = workspaces.map((workspace) => ({
     id: workspace.id,
@@ -80,12 +105,14 @@ export async function listNextoreProjects(input: {
   }> = [];
   for (const [index, workspace] of workspaces.entries()) {
     try {
-      const response = await input.client.workspaceProjects<{
-        projects?: NextoreProjectSummary[];
-      }>(input.accessToken, workspace.id);
+      const response = await input.client.workspaceProjects<unknown>(
+        input.accessToken,
+        workspace.id,
+      );
       const entry = listedWorkspaces[index]!;
-      for (const summary of response?.projects ?? []) {
-        summaries.push({ summary, workspace: entry });
+      for (const summary of wireArray(response, 'projects', 'Projects')) {
+        const normalized = normalizeProject(summary);
+        if (normalized) summaries.push({ summary: normalized, workspace: entry });
       }
     } catch {
       // One workspace the member cannot read must not hide the others.

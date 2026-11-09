@@ -14,6 +14,7 @@ import { readNextoreConfig } from '../../nextore/config.js';
 import { registerNextoreProject } from '../../nextore/projects/register-project.js';
 import { listNextoreProjects } from '../../nextore/projects/list-projects.js';
 import { hasValidShareGrant } from '../../nextore/share/service.js';
+import { normalizeAccess, normalizePermissionUrl } from '../../nextore/wire.js';
 import {
   listGcCandidates,
   isGcCandidateEligible,
@@ -5394,10 +5395,10 @@ export function registerProjectRoutes(app: Express, ctx: RegisterProjectRoutesDe
     }
 
     try {
-      const access = await nextore.client.projectAccess<Record<string, unknown>>(
+      const access = normalizeAccess(await nextore.client.projectAccess<unknown>(
         accessToken,
         nextoreProjectId,
-      );
+      ));
       return res.json({ mapped: true, ...access, shareLinksEnabled });
     } catch (error) {
       return sendApiError(
@@ -5520,12 +5521,13 @@ export function registerProjectRoutes(app: Express, ctx: RegisterProjectRoutesDe
       : null;
 
     try {
-      const result = await nextore.client.projectPermissionUrl<{ url?: string }>(
+      const result = await nextore.client.projectPermissionUrl<unknown>(
         accessToken,
         nextoreProjectId,
         returnUrl,
       );
-      if (!result?.url) {
+      const permissionUrl = normalizePermissionUrl(result);
+      if (!permissionUrl) {
         return sendApiError(
           res,
           502,
@@ -5533,7 +5535,7 @@ export function registerProjectRoutes(app: Express, ctx: RegisterProjectRoutesDe
           'NexTore returned no permission URL.',
         );
       }
-      return res.json({ url: result.url });
+      return res.json({ url: permissionUrl });
     } catch (error) {
       if (error instanceof NextoreClientError && error.statusCode === 403) {
         return sendApiError(res, 403, 'PROJECT_FORBIDDEN', 'You cannot manage this project.');

@@ -2,6 +2,7 @@ import type { NextoreBrandingResponse } from '@open-design/contracts';
 
 import { NEXTORE_WEB_EDITION } from './features';
 import { setBrandName } from '../i18n';
+import { applyAccentToDocument } from '../state/appearance';
 
 let cached: NextoreBrandingResponse | null = null;
 
@@ -17,8 +18,8 @@ function faviconHref(value: string): string | null {
 
 /**
  * Applies the module's brand payload to the document (DESIGN §12.1): title, favicon, theme color
- * and a passive `--nexTore-brand-primary` custom property. The user's accent choice is left alone —
- * branding is identity, not a theme override.
+ * and `--nexTore-brand-primary`. The edition has no accent picker, so the brand colour also
+ * seeds the default accent; a user-saved non-default accent is preserved.
  */
 export function applyBranding(branding: NextoreBrandingResponse): void {
   if (branding.brandName?.trim()) setBrandName(branding.brandName);
@@ -31,6 +32,10 @@ export function applyBranding(branding: NextoreBrandingResponse): void {
   const primaryColor = branding.primaryColor?.trim();
   if (primaryColor) {
     document.documentElement.style.setProperty('--nexTore-brand-primary', primaryColor);
+    // The edition has no accent picker. Apply the module's brand colour as the
+    // default accent, while preserving a non-default accent a user saved before.
+    const currentAccent = document.documentElement.style.getPropertyValue('--accent').trim();
+    if (!currentAccent || currentAccent === '#353535') applyAccentToDocument(primaryColor);
     let meta = document.querySelector('meta[name="theme-color"]');
     if (!meta) {
       meta = document.createElement('meta');

@@ -3,6 +3,7 @@ import type { CSSProperties, Dispatch, SetStateAction } from 'react';
 import { Button, VisuallyHidden } from '@open-design/components';
 import type {
   AmrWalletSnapshot,
+  Edition,
   WorkspaceCollabContext,
 } from '@open-design/contracts';
 import { validateBaseUrl } from '@open-design/contracts/api/connectionTest';
@@ -278,6 +279,40 @@ function normalizeSettingsSection(section: SettingsSection): SettingsSection {
     default:
       return section;
   }
+}
+
+/**
+ * Resolve a requested settings section against the active edition. The dialog
+ * must never render a section whose feature is disabled: doing so leaves the
+ * content pane blank while the nav still says the section exists.
+ */
+export function resolveSettingsSectionForEdition(
+  section: SettingsSection,
+  edition: Edition,
+  odNextEnabled: boolean,
+): SettingsSection {
+  const normalized = normalizeSettingsSection(section);
+  if (!odNextEnabled && normalized === 'labs') return 'general';
+  if (edition === 'nextore') {
+    if (
+      normalized === 'execution'
+      || normalized === 'media'
+      || normalized === 'privacy'
+      || normalized === 'composio'
+      || normalized === 'integrations'
+    ) {
+      return 'general';
+    }
+  }
+  return normalized;
+}
+
+export function resolveSettingsSection(section: SettingsSection): SettingsSection {
+  return resolveSettingsSectionForEdition(
+    section,
+    NEXTORE_WEB_EDITION,
+    isFeatureEnabled('od-next'),
+  );
 }
 
 interface ByokProviderPreset {
@@ -1635,16 +1670,11 @@ export function SettingsDialog({
       ? { [initial.apiProtocol ?? 'anthropic']: byokProviderKeyForConfig(initial) }
       : {},
   );
-  const [activeSection, setActiveSection] = useState<SettingsSection>(() => normalizeSettingsSection(initialSection));
+  const [activeSection, setActiveSection] = useState<SettingsSection>(() => resolveSettingsSection(initialSection));
   // NexTore edition: Labs (OD Next) is not part of the first release (DESIGN §13.2).
   useEffect(() => {
-    if (!isFeatureEnabled('od-next') && activeSection === 'labs') setActiveSection('general');
-    if (
-      NEXTORE_WEB_EDITION === 'nextore' &&
-      (activeSection === 'execution' || activeSection === 'media' || activeSection === 'privacy' || activeSection === 'composio')
-    ) {
-      setActiveSection('general');
-    }
+    const resolved = resolveSettingsSection(activeSection);
+    if (resolved !== activeSection) setActiveSection(resolved);
   }, [activeSection]);
   // Workspace region gating (E-frontend, D4.3). One shared read of the workspace
   // context; the Workspace section only renders for a team workspace whose
@@ -2057,7 +2087,7 @@ export function SettingsDialog({
   // routes through this when the MCP tab is active so the user can press the
   // single Save button at the bottom instead of hunting for the inner one.
   useEffect(() => {
-    setActiveSection(normalizeSettingsSection(initialSection));
+    setActiveSection(resolveSettingsSection(initialSection));
   }, [initialSection]);
 
   // settings_view — fires whenever the active section changes (and once on
@@ -4442,17 +4472,19 @@ export function SettingsDialog({
                 </span>
               </button>
             ) : null}
-            <button
-              type="button"
-              className={`settings-nav-item${activeSection === 'integrations' ? ' active' : ''}`}
-              onClick={() => setActiveSection('integrations')}
-            >
-              <Icon name="puzzle" size={18} />
-              <span>
-                <strong>{t('settings.mcpServerTitle')}</strong>
-                <small>{t('settings.mcpServerHint')}</small>
-              </span>
-            </button>
+            {isFeatureEnabled('od-mcp-server') ? (
+              <button
+                type="button"
+                className={`settings-nav-item${activeSection === 'integrations' ? ' active' : ''}`}
+                onClick={() => setActiveSection('integrations')}
+              >
+                <Icon name="puzzle" size={18} />
+                <span>
+                  <strong>{t('settings.mcpServerTitle')}</strong>
+                  <small>{t('settings.mcpServerHint')}</small>
+                </span>
+              </button>
+            ) : null}
             {NEXTORE_WEB_EDITION !== 'nextore' ? (
               <button
                 type="button"
@@ -5908,7 +5940,7 @@ export function SettingsDialog({
               }}
             />
           ) : null}
-          {activeSection === 'integrations' ? <IntegrationsSection /> : null}
+          {activeSection === 'integrations' && isFeatureEnabled('od-mcp-server') ? <IntegrationsSection /> : null}
 
           {activeSection === 'mcpClient' ? <McpClientSection surface="settings" /> : null}
 
@@ -6002,19 +6034,23 @@ export function SettingsDialog({
                 <NotificationsSection cfg={cfg} setCfg={setCfg} />
               </div>
 
-              <div className="settings-general-block">
-                <div className="settings-general-block-head">
-                  <h3>{t('pet.navTitle')}</h3>
+              {isFeatureEnabled('pets') ? (
+                <div className="settings-general-block">
+                  <div className="settings-general-block-head">
+                    <h3>{t('pet.navTitle')}</h3>
+                  </div>
+                  <PetSettings cfg={cfg} setCfg={setCfg} />
                 </div>
-                <PetSettings cfg={cfg} setCfg={setCfg} />
-              </div>
+              ) : null}
 
-              <div className="settings-general-block">
-                <div className="settings-general-block-head">
-                  <h3>{t('settings.projectLocations')}</h3>
+              {NEXTORE_WEB_EDITION !== 'nextore' ? (
+                <div className="settings-general-block">
+                  <div className="settings-general-block-head">
+                    <h3>{t('settings.projectLocations')}</h3>
+                  </div>
+                  <ProjectLocationsSection cfg={cfg} setCfg={setCfg} onProjectsRefresh={onProjectsRefresh} />
                 </div>
-                <ProjectLocationsSection cfg={cfg} setCfg={setCfg} onProjectsRefresh={onProjectsRefresh} />
-              </div>
+              ) : null}
 
               <div className="settings-general-block">
                 <CritiqueTheaterSection
@@ -6087,14 +6123,17 @@ export function SettingsDialog({
                       <div className="settings-about-version-left">
                         <dt>{t('settings.appVersion')}</dt>
                         <span className="settings-about-version-num">{appVersionInfo.version}</span>
-                        <dd
-                          aria-live="polite"
-                          className={`settings-about-update-status settings-about-update-status--${aboutUpdateControl.statusTone}`}
-                        >
-                          {t(aboutUpdateControl.statusKey, aboutUpdateControl.statusVars)}
-                        </dd>
+                        {isFeatureEnabled('updater') ? (
+                          <dd
+                            aria-live="polite"
+                            className={`settings-about-update-status settings-about-update-status--${aboutUpdateControl.statusTone}`}
+                          >
+                            {t(aboutUpdateControl.statusKey, aboutUpdateControl.statusVars)}
+                          </dd>
+                        ) : null}
                       </div>
                     </div>
+                    {isFeatureEnabled('updater') ? (
                     <div className="settings-about-update-actions">
                       {aboutUpdateControl.primaryLabelKey ? (
                         <button
@@ -6128,6 +6167,7 @@ export function SettingsDialog({
                         </button>
                       ) : null}
                     </div>
+                    ) : null}
                   </div>
                   <div>
                     <dt>{t('settings.appChannel')}</dt>
@@ -6153,6 +6193,7 @@ export function SettingsDialog({
               ) : (
                 <div className="empty-card">{t('settings.versionUnavailable')}</div>
               )}
+              {isFeatureEnabled('updater') ? (
               <div className="settings-about-diagnostics settings-about-silent-updates">
                 <label className="settings-about-toggle">
                   <input
@@ -6222,7 +6263,8 @@ export function SettingsDialog({
                   </span>
                 </label>
               </div>
-              {aboutUpdaterModel.environment === 'desktop'
+              ) : null}
+              {isFeatureEnabled('updater') && aboutUpdaterModel.environment === 'desktop'
                 && aboutUpdaterModel.supported
                 && appVersionInfo?.packaged !== false ? (
                 <div className="settings-about-diagnostics">
@@ -6264,15 +6306,17 @@ export function SettingsDialog({
                 </div>
                 <ExportDiagnosticsRow />
               </div>
-              <div className="settings-about-diagnostics">
-                <div className="settings-about-diagnostics-text">
-                  <h4>{t('settings.resetOnboarding')}</h4>
-                  <p className="hint">{t('settings.resetOnboardingDesc')}</p>
+              {isFeatureEnabled('onboarding') ? (
+                <div className="settings-about-diagnostics">
+                  <div className="settings-about-diagnostics-text">
+                    <h4>{t('settings.resetOnboarding')}</h4>
+                    <p className="hint">{t('settings.resetOnboardingDesc')}</p>
+                  </div>
+                  <Button onClick={handleResetOnboarding}>
+                    {t('settings.resetOnboardingButton')}
+                  </Button>
                 </div>
-                <Button onClick={handleResetOnboarding}>
-                  {t('settings.resetOnboardingButton')}
-                </Button>
-              </div>
+              ) : null}
             </section>
           ) : null}
 

@@ -14,6 +14,7 @@
 
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
+import { resolveEdition } from '@open-design/contracts';
 
 export const PLUGIN_PREVIEWS_ROUTE = '/api/plugin-previews';
 
@@ -95,6 +96,18 @@ export function bakedPreviewBlock(id: string, dir: string): BakedPreviewBlock | 
   const envBase = process.env.OD_PLUGIN_PREVIEWS_BASE_URL?.replace(/\/+$/, '');
   const onDisk =
     existsSync(path.join(dir, entry.video)) && existsSync(path.join(dir, entry.poster));
+  // The edition must not request the public R2 asset host. Without an explicit
+  // local base or on-disk clips, drop the baked preview and let the gallery use
+  // its live local preview instead.
+  const publicOpenDesignBase = envBase != null
+    && /^https?:\/\/(?:[^/]+\.)?open-design\.ai(?:\/|$)/i.test(envBase);
+  if (
+    resolveEdition(process.env.OD_EDITION) === 'nextore'
+    && !onDisk
+    && (!envBase || publicOpenDesignBase)
+  ) {
+    return null;
+  }
   const base = envBase || (onDisk ? PLUGIN_PREVIEWS_ROUTE : DEFAULT_PUBLIC_BASE);
   return {
     poster: `${base}/${entry.poster}`,

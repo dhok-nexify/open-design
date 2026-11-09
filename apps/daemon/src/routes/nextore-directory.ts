@@ -2,6 +2,7 @@ import type { Express, Response } from 'express';
 import { resolveEdition } from '@open-design/contracts';
 
 import { readNextoreConfig } from '../nextore/config.js';
+import { normalizeMember, wireArray } from '../nextore/wire.js';
 
 export interface NextoreDirectoryDeps {
   /** Injected for tests; defaults to the global fetch. */
@@ -94,7 +95,10 @@ export function registerNextoreDirectoryRoutes(
         });
         return;
       }
-      res.json(payload ?? { members: [] });
+      const members = wireArray(payload, 'members', 'Members')
+        .map(normalizeMember)
+        .filter((member): member is NonNullable<ReturnType<typeof normalizeMember>> => member !== null);
+      res.json({ members });
     } catch (error) {
       res.status(503).json({
         error: {

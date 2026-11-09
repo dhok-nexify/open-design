@@ -11,6 +11,7 @@ import {
   trackProjectsMorePopoverClick,
 } from "../analytics/events";
 import { useT } from "../i18n";
+import { brandFaviconUrl } from "../runtime/brand-references";
 import { useWorkspaceContext } from "../collab/useWorkspaceContext";
 import { workspaceIdentityCacheKey } from "../collab/workspace-identity";
 import {
@@ -1447,9 +1448,8 @@ function ProjectBrandCover({
 		const list: string[] = [];
 		if (brandId) list.push(`/api/brands/${encodeURIComponent(brandId)}/logo`);
 		if (host) {
-			list.push(
-				`https://www.google.com/s2/favicons?domain=${encodeURIComponent(host)}&sz=128`,
-			);
+			const favicon = brandFaviconUrl(host, 128);
+			if (favicon) list.push(favicon);
 		}
 		return list;
 	}, [brandId, host]);

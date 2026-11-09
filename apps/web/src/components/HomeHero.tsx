@@ -35,6 +35,7 @@ import type {
   WorkspaceCollabContext,
   WorkspaceContextItem,
 } from '@open-design/contracts';
+import { brandFaviconUrl } from '../runtime/brand-references';
 import { DesignSystemPicker } from './DesignSystemPicker';
 import type { SkillSummary } from '../types';
 import { Icon, type IconName } from './Icon';
@@ -2328,7 +2329,7 @@ const FIRST_PARTY_WEB_CLONE_SITE_ICONS: Record<string, string> = {
 };
 
 function webCloneFaviconUrl(domain: string): string {
-  return `https://www.google.com/s2/favicons?sz=128&domain=${encodeURIComponent(domain)}`;
+  return brandFaviconUrl(domain, 128);
 }
 
 // A Website-clone text example ("Website URL to clone: https://open-design.ai") —

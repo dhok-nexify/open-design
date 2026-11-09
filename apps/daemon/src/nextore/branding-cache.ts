@@ -1,6 +1,7 @@
 import type { NextoreBrandingResponse } from '@open-design/contracts';
 
 import type { NextoreClient } from './client.js';
+import { normalizeBranding } from './wire.js';
 
 export interface BrandingCacheOptions {
   ttlMs?: number;
@@ -37,7 +38,7 @@ export function createBrandingCache(
   let inflight: Promise<NextoreBrandingResponse> | null = null;
 
   async function refresh(): Promise<NextoreBrandingResponse> {
-    const value = await client.branding();
+    const value = normalizeBranding(await client.branding());
     cached = { at: now(), value };
     return value;
   }

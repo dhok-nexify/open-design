@@ -70,6 +70,15 @@ export function resolveAppTheme(persisted?: AppTheme | null): AppTheme {
   return persisted === FORCED_APP_THEME ? persisted : FORCED_APP_THEME;
 }
 
+export function applyAccentToDocument(accentColor: string): void {
+  const root = document.documentElement;
+  const normalized = resolveAccentColor(accentColor);
+  const vars = accentVars(normalized);
+  for (const name of ACCENT_VARS) {
+    root.style.setProperty(name, vars[name]);
+  }
+}
+
 export function applyAppearanceToDocument({
   accentColor,
 }: {
@@ -84,9 +93,5 @@ export function applyAppearanceToDocument({
   // older host builds have no appearance capability.
   getOpenDesignHost()?.appearance?.setTheme(FORCED_APP_THEME);
 
-  const normalized = resolveAccentColor(accentColor);
-  const vars = accentVars(normalized);
-  for (const name of ACCENT_VARS) {
-    root.style.setProperty(name, vars[name]);
-  }
+  applyAccentToDocument(accentColor ?? DEFAULT_ACCENT_COLOR);
 }

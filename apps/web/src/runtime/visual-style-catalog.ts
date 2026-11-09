@@ -115,6 +115,8 @@ interface VisualStyleCatalogEntry {
   recommended?: boolean;
 }
 
+import { NEXTORE_WEB_EDITION } from '../nextore/features';
+
 const STYLE_CATALOG_ASSET_ORIGIN = 'https://repo-assets.open-design.ai';
 const STYLE_CATALOG_ASSET_PATH = '/style-catalog/v1';
 const STYLE_CATALOG_ASSET_BASE_URL = `${STYLE_CATALOG_ASSET_ORIGIN}${STYLE_CATALOG_ASSET_PATH}`;
@@ -127,6 +129,8 @@ const STYLE_CATALOG_ASSET_BASE_URL = `${STYLE_CATALOG_ASSET_ORIGIN}${STYLE_CATAL
  * stable original URL exposed by `src`.
  */
 const STYLE_CATALOG_THUMBNAIL_TRANSFORM = 'width=640,quality=75,format=auto';
+const LOCAL_STYLE_PLACEHOLDER =
+  'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="640" height="480"%3E%3Crect width="640" height="480" fill="%23eef2ff"/%3E%3C/svg%3E';
 
 function styleCatalogThumbnailUrl(filename: string): string {
   return `${STYLE_CATALOG_ASSET_ORIGIN}/cdn-cgi/image/${STYLE_CATALOG_THUMBNAIL_TRANSFORM}${STYLE_CATALOG_ASSET_PATH}/${filename}`;

@@ -40,6 +40,7 @@ import {
   localizeDesignSystemSummary,
 } from '../i18n/content';
 import { takeDesignSystemFocus } from '../runtime/brands';
+import { brandFaviconUrl } from '../runtime/brand-references';
 import {
   deleteDesignSystemDraft,
   DesignSystemDeleteError,
@@ -1364,7 +1365,10 @@ function SystemRowLogo({
   const candidates = useMemo(() => {
     const list: string[] = [];
     if (typeof projectLogo === 'string') list.push(projectLogo);
-    if (host) list.push(`https://www.google.com/s2/favicons?domain=${encodeURIComponent(host)}&sz=64`);
+    if (host) {
+      const favicon = brandFaviconUrl(host, 64);
+      if (favicon) list.push(favicon);
+    }
     return list;
   }, [projectLogo, host]);
 

@@ -1140,7 +1140,9 @@ export function mergeDaemonConfig(
     next.telemetry = { metrics: false, content: false, artifactManifest: false };
     // NexTore edition: the bundled NexTore design system is the default until the user
     // explicitly chooses another bundled system (NXD-D31).
-    if (next.designSystemId == null) next.designSystemId = 'nextore';
+    if (next.designSystemId == null || next.designSystemId === 'default') {
+      next.designSystemId = 'nextore';
+    }
   }
   if (daemonConfig.privacyDecisionAt !== undefined) {
     next.privacyDecisionAt = daemonConfig.privacyDecisionAt;

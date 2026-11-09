@@ -413,6 +413,7 @@ import {
 } from './edition/index.js';
 import { resolveSandboxProvider, SandboxUnavailableError } from './sandbox/index.js';
 import { createNextoreClient } from './nextore/client.js';
+import { normalizeAccess } from './nextore/wire.js';
 import { resolveProductBrandName } from './nextore/branding-state.js';
 import { readNextoreConfig } from './nextore/config.js';
 import { registerNextoreDirectoryRoutes } from './routes/nextore-directory.js';
@@ -987,10 +988,7 @@ import {
   createAuthorizeProjectRequest,
   type AuthorizeProjectRequest,
 } from './collab/project-request-authority.js';
-import {
-  createProjectAccessCache,
-  type NextoreProjectAccess,
-} from './nextore/acl/access-cache.js';
+import { createProjectAccessCache } from './nextore/acl/access-cache.js';
 import { createNextoreProjectAuthorizer } from './nextore/acl/authorize-project.js';
 import { withLastKnownWorkspaceContext } from './collab/workspace-context.js';
 import {
@@ -8370,8 +8368,8 @@ export async function startServer({
     ? createNextoreProjectAuthorizer(localAuthorizeProjectRequest, {
         edition,
         cache: nextoreProjectAccessCache,
-        load: (accessToken, projectId) =>
-          nextoreClient.projectAccess<NextoreProjectAccess>(accessToken, projectId),
+        load: async (accessToken, projectId) =>
+          normalizeAccess(await nextoreClient.projectAccess<unknown>(accessToken, projectId)),
         readSession: (res) => {
           const session = (res as {
             locals?: { nextoreSession?: { accessToken?: string; memberId?: number } };

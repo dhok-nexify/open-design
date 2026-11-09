@@ -1,4 +1,5 @@
 import type { NextoreClient } from '../client.js';
+import { wireArray, wireNumber, wireString } from '../wire.js';
 
 export interface NextoreWorkspaceSummary {
   id: number;
@@ -11,6 +12,16 @@ export interface NextoreProjectDescriptor {
   name: string;
   designSystemId?: string | null;
   skillId?: string | null;
+}
+
+function normalizeWorkspace(value: unknown): NextoreWorkspaceSummary | null {
+  const id = wireNumber(value, 'id', 'Id');
+  if (id === null || id === undefined) return null;
+  return {
+    id,
+    name: wireString(value, 'name', 'Name')?.trim() ?? '',
+    type: wireString(value, 'type', 'Type')?.trim() ?? '',
+  };
 }
 
 export type RegisterProjectResult =
@@ -47,10 +58,12 @@ export async function registerNextoreProject(input: {
   let workspaceId = input.workspaceId ?? null;
   try {
     if (workspaceId == null) {
-      const response = await input.client.workspaces<{ workspaces?: NextoreWorkspaceSummary[] }>(
-        input.accessToken,
+      const response = await input.client.workspaces<unknown>(input.accessToken);
+      workspaceId = pickWorkspaceId(
+        wireArray(response, 'workspaces', 'Workspaces')
+          .map(normalizeWorkspace)
+          .filter((workspace): workspace is NextoreWorkspaceSummary => workspace !== null),
       );
-      workspaceId = pickWorkspaceId(response?.workspaces ?? []);
     }
     if (workspaceId == null) {
       return {
@@ -60,7 +73,7 @@ export async function registerNextoreProject(input: {
       };
     }
 
-    const created = await input.client.createProject<{ id?: number | string }>(input.accessToken, {
+    const created = await input.client.createProject<unknown>(input.accessToken, {
       workspaceId,
       name: input.project.name,
       designerProjectId: input.project.id,
@@ -68,7 +81,7 @@ export async function registerNextoreProject(input: {
       skillId: input.project.skillId ?? null,
       designerUrl: input.designerUrl ?? null,
     });
-    const id = created?.id;
+    const id = wireNumber(created, 'id', 'Id') ?? wireString(created, 'id', 'Id');
     if (typeof id !== 'number' && typeof id !== 'string') {
       return {
         ok: false,

@@ -30,6 +30,7 @@ import {
   type SkillImportError,
 } from '../providers/registry';
 import { localizeSkillDescription, localizeSkillName } from '../i18n/content';
+import { NEXTORE_WEB_EDITION } from '../nextore/features';
 import type { Locale } from '../i18n/types';
 import { useAnalytics } from '../analytics/provider';
 import {
@@ -2764,11 +2765,14 @@ function MarketEmptyState({
     title = mode === 'plugins' ? t('pluginsView.emptyOfficialPluginsTitle') : t('pluginsView.emptyOfficialSkillsTitle');
     hint = t('pluginsView.emptyOfficialHint');
   }
+  // The edition has no remote marketplace. Keep the title, but do not invite
+  // the member to add a marketplace source they cannot use.
+  const showHint = NEXTORE_WEB_EDITION !== 'nextore' || filtered;
   return (
     <div className="plugin-marketplace__empty">
       <Icon name="search" size={18} />
       <strong>{title}</strong>
-      <span>{hint}</span>
+      {showHint ? <span>{hint}</span> : null}
     </div>
   );
 }

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import { Button } from '@open-design/components';
-import { useI18n, useT, type Locale } from '../i18n';
+import { interpolateMessage, useI18n, useT, type Locale } from '../i18n';
 import {
   localizeSkillDescription,
   localizeSkillName,
@@ -97,7 +97,7 @@ function parseTriggers(raw: string): string[] {
 
 function skillMatchesSearch(skill: SkillSummary, q: string, locale: Locale): boolean {
   if (!q) return true;
-  const hay = `${skill.name}\n${localizeSkillName(locale, skill)}\n${skill.description}\n${localizeSkillDescription(locale, skill)}\n${(skill.triggers ?? []).join(
+  const hay = `${skill.name}\n${localizeSkillName(locale, skill)}\n${interpolateMessage(skill.description)}\n${interpolateMessage(localizeSkillDescription(locale, skill))}\n${(skill.triggers ?? []).join(
     ' ',
   )}\n${skill.category ?? ''}`;
   return hay.toLowerCase().includes(q);
@@ -856,7 +856,7 @@ function SkillRow({
   const t = useT();
   const { locale } = useI18n();
   const summaryName = localizeSkillName(locale, skill) || skill.id;
-  const summaryDescription = localizeSkillDescription(locale, skill);
+  const summaryDescription = interpolateMessage(localizeSkillDescription(locale, skill));
   const isTeamMirror = skill.teamSynced === true;
   const canDelete = getSkillSource(skill) === 'user' && !isTeamMirror;
   // Editing a built-in skill does not modify it in place — it writes a
