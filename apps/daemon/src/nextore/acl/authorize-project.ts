@@ -27,10 +27,18 @@ function requiredRight(
   access: NextoreProjectAccess,
   options: AuthorizeProjectRequestOptions,
 ): boolean {
-  if (options.mode === 'read') return access.canRead;
+  if (options.mode === 'read') {
+    // Conversation surfaces are stricter than content reads: Q34 says only a
+    // member who may edit the project may read its history or run streams.
+    return options.readKind === 'conversation' ? access.canEdit : access.canRead;
+  }
   switch (options.capability) {
     case 'delete':
       return access.canDelete;
+    case 'download':
+      return access.canDownload;
+    case 'share':
+      return access.canManage;
     default:
       return access.canEdit;
   }
@@ -66,12 +74,14 @@ export function createNextoreProjectAuthorizer(
       return false;
     }
 
+    const loadAccess = () => deps.load(session.accessToken, nextoreProjectId);
     let access: NextoreProjectAccess;
     try {
-      access = await deps.cache.read(
-        session.memberId + ':' + nextoreProjectId,
-        () => deps.load(session.accessToken, nextoreProjectId),
-      );
+      // Writes must see the current ACL: a cached answer could let a
+      // revocation through for up to the TTL. Reads keep the cache.
+      access = options.mode === 'write'
+        ? await loadAccess()
+        : await deps.cache.read(session.memberId + ':' + nextoreProjectId, loadAccess);
     } catch {
       deps.deny(
         res,

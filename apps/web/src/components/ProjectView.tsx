@@ -6414,7 +6414,7 @@ export function ProjectView({
           )
         : [];
       const historicalRuns = missingRunIdMessages.length > 0
-        ? (await listProjectRuns(projectRunWorkspaceContext)).filter(
+        ? (await listProjectRuns(projectRunWorkspaceContext, project.id)).filter(
             (run) => run.projectId === project.id && run.conversationId === reattachConversationId,
           )
         : [];

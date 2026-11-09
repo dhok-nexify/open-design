@@ -1684,9 +1684,15 @@ export async function listActiveChatRuns(
 
 export async function listProjectRuns(
   workspaceContext?: WorkspaceCollabContext | null,
+  projectId?: string,
 ): Promise<ChatRunStatusResponse[]> {
   try {
-    const resp = await fetch('/api/runs', {
+    // The NexTore edition authorizes runs per project and rejects an
+    // unscoped list, so callers that already know the project pass it here.
+    const query = typeof projectId === 'string' && projectId
+      ? '?' + new URLSearchParams({ projectId }).toString()
+      : '';
+    const resp = await fetch('/api/runs' + query, {
       ...(workspaceContext
         ? { headers: workspaceProjectHeaders(workspaceContext) }
         : {}),

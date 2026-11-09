@@ -148,4 +148,50 @@ const localAllow: AuthorizeProjectRequest = vi.fn(async () => true);
     await expect(run(req, res, 'local-1', { mode: 'read' })).resolves.toBe(false);
     expect(deny).toHaveBeenCalledWith(res, 503, 'NEXTORE_UNAVAILABLE', expect.any(String));
   });
+
+  it('requires edit rights to read conversation surfaces', async () => {
+    const { authorizer: run, deny } = authorizer({
+      load: vi.fn().mockResolvedValue(READ_ONLY),
+    });
+    await expect(run(req, res, 'local-1', {
+      mode: 'read',
+      readKind: 'conversation',
+    })).resolves.toBe(false);
+    expect(deny).toHaveBeenCalledWith(res, 403, 'PROJECT_FORBIDDEN', expect.any(String));
+    await expect(run(req, res, 'local-1', {
+      mode: 'read',
+      readKind: 'content',
+    })).resolves.toBe(true);
+  });
+
+  it('maps download and share to their own rights', async () => {
+    const limited = { ...FULL, canDownload: false, canManage: false };
+    const { authorizer: run, deny } = authorizer({
+      load: vi.fn().mockResolvedValue(limited),
+    });
+    await expect(run(req, res, 'local-1', {
+      mode: 'write',
+      capability: 'download',
+    })).resolves.toBe(false);
+    await expect(run(req, res, 'local-1', {
+      mode: 'write',
+      capability: 'share',
+    })).resolves.toBe(false);
+    expect(deny).toHaveBeenCalledTimes(2);
+    await expect(run(req, res, 'local-1', {
+      mode: 'write',
+      capability: 'rename',
+    })).resolves.toBe(true);
+  });
+
+  it('does not serve writes from the access cache', async () => {
+    const load = vi.fn().mockResolvedValue(FULL);
+    const { authorizer: run } = authorizer({ load });
+    await run(req, res, 'local-1', { mode: 'write', capability: 'rename' });
+    await run(req, res, 'local-1', { mode: 'write', capability: 'rename' });
+    expect(load).toHaveBeenCalledTimes(2);
+    await run(req, res, 'local-1', { mode: 'read' });
+    await run(req, res, 'local-1', { mode: 'read' });
+    expect(load).toHaveBeenCalledTimes(3);
+  });
 });

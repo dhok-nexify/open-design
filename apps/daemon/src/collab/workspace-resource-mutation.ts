@@ -41,7 +41,9 @@ export type WorkspaceResourceMutationCapability =
   | 'delete'
   | 'duplicate'
   | 'writeFiles'
-  | 'comment';
+  | 'comment'
+  | 'download'
+  | 'share';
 
 export type WorkspaceRequestAuthorityResult =
   | { ok: true; context: WorkspaceCollabContext }

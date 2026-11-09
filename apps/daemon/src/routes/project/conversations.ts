@@ -159,7 +159,12 @@ export function registerProjectConversationRoutes(app: Express, ctx: RegisterPro
     if (!getProject(db, req.params.id)) {
       return res.status(404).json({ error: 'project not found' });
     }
-    if (!await authorizeProjectRequest(req, res, req.params.id, { mode: 'read' })) return;
+    if (!await authorizeProjectRequest(
+      req,
+      res,
+      req.params.id,
+      { mode: 'read', readKind: 'conversation' },
+    )) return;
     res.json({ conversations: listConversations(db, req.params.id) });
   });
 
@@ -383,7 +388,12 @@ export function registerProjectConversationRoutes(app: Express, ctx: RegisterPro
   // ---- Messages -------------------------------------------------------------
 
   app.get('/api/projects/:id/conversations/:cid/messages', async (req, res) => {
-    if (!await authorizeProjectRequest(req, res, req.params.id, { mode: 'read' })) return;
+    if (!await authorizeProjectRequest(
+      req,
+      res,
+      req.params.id,
+      { mode: 'read', readKind: 'conversation' },
+    )) return;
     const conv = getRoutableConversation(req.params.id, req.params.cid);
     if (!conv) {
       return res.status(404).json({ error: 'conversation not found' });

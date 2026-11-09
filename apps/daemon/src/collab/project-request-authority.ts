@@ -13,6 +13,11 @@ export type AuthorizeProjectRequestOptions =
       mode: 'read';
       /** EventSource, iframe, and direct asset navigation cannot set headers. */
       allowNavigationQuery?: boolean;
+      /**
+       * Content reads need CanRead; conversation surfaces (conversations,
+       * messages, run status and streams) are stricter and need CanEdit (Q34).
+       */
+      readKind?: 'content' | 'conversation';
     }
   | {
       mode: 'write';

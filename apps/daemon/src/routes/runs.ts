@@ -1442,7 +1442,13 @@ export function registerRunRoutes(app: Express, ctx: RegisterRunRoutesDeps) {
     if (!binding) return { ok: true, authorizedBoundMutation: false };
 
     const requestContext = workspaceResourceContextFromRequest(req);
-    const mustAuthorize = binding.visibility === 'team' || requestContext !== null;
+    // The NexTore edition has no upstream workspace identity headers, so the
+    // legacy headerless bypass would skip the module ACL for every run. In the
+    // edition every project mutation is authorized, mapped or not.
+    const nextoreEdition = resolveEdition(process.env.OD_EDITION) === 'nextore';
+    const mustAuthorize = nextoreEdition
+      || binding.visibility === 'team'
+      || requestContext !== null;
     if (!mustAuthorize) {
       // Headerless local CLI/BYOK calls keep the legacy Personal-project path.
       return { ok: true, authorizedBoundMutation: false };
@@ -1664,7 +1670,11 @@ export function registerRunRoutes(app: Express, ctx: RegisterRunRoutesDeps) {
     req: ApiRequest,
     res: ApiResponse,
     run: ChatRun,
-    options: { mode: 'read'; allowNavigationQuery?: boolean } | {
+    options: {
+      mode: 'read';
+      allowNavigationQuery?: boolean;
+      readKind?: 'content' | 'conversation';
+    } | {
       mode: 'write';
       capability: 'writeFiles';
     },
@@ -1686,9 +1696,13 @@ export function registerRunRoutes(app: Express, ctx: RegisterRunRoutesDeps) {
         || (typeof req.query?.workspaceMemberId === 'string'
           && req.query.workspaceMemberId.trim().length > 0)
       );
+    // Headerless CLI/BYOK callers keep the legacy path upstream. The NexTore
+    // edition must never take it: edition web requests carry no workspace
+    // identity headers, so this bypass would skip the project ACL entirely.
     if (
       requestContext === null
       && !carriesNavigationScope
+      && resolveEdition(process.env.OD_EDITION) !== 'nextore'
     ) {
       return true;
     }
@@ -3317,34 +3331,58 @@ export function registerRunRoutes(app: Express, ctx: RegisterRunRoutesDeps) {
     const runs = design.runs.list({ projectId, conversationId, status });
     let visibleRuns = runs;
     if (typeof projectId === 'string' && projectId) {
-      const binding =
-        ctx.projectStore?.getWorkspaceProjectByProjectId(db, projectId);
-      if (binding) {
-        const requestContext = workspaceResourceContextFromRequest(req);
-        if (requestContext === null) {
-          // Headerless local CLI/MCP callers may list only the runs whose
-          // persisted runtime is known not to use AMR's Workspace billing
-          // plane. Filtering the whole set avoids both insertion-order bugs:
-          // an AMR first row cannot block local runs, and a non-AMR first row
-          // cannot accidentally reveal AMR or unknown-runtime runs.
-          visibleRuns = runs.filter(
-            (run) =>
-              typeof run.agentId === 'string'
-              && run.agentId.length > 0
-              && run.agentId !== 'amr',
-          );
-        } else if (
+      if (resolveEdition(process.env.OD_EDITION) === 'nextore') {
+        // Conversation reads need CanEdit (Q34), and the edition has no
+        // identity headers to fall back on, so authorize unconditionally.
+        if (
           ctx.authorizeProjectRequest
           && !await ctx.authorizeProjectRequest(
             req,
             res,
             projectId,
-            { mode: 'read' },
+            { mode: 'read', readKind: 'conversation' },
           )
         ) {
           return;
         }
+      } else {
+        const binding =
+          ctx.projectStore?.getWorkspaceProjectByProjectId(db, projectId);
+        if (binding) {
+          const requestContext = workspaceResourceContextFromRequest(req);
+          if (requestContext === null) {
+            // Headerless local CLI/MCP callers may list only the runs whose
+            // persisted runtime is known not to use AMR's Workspace billing
+            // plane. Filtering the whole set avoids both insertion-order bugs:
+            // an AMR first row cannot block local runs, and a non-AMR first row
+            // cannot accidentally reveal AMR or unknown-runtime runs.
+            visibleRuns = runs.filter(
+              (run) =>
+                typeof run.agentId === 'string'
+                && run.agentId.length > 0
+                && run.agentId !== 'amr',
+            );
+          } else if (
+            ctx.authorizeProjectRequest
+            && !await ctx.authorizeProjectRequest(
+              req,
+              res,
+              projectId,
+              { mode: 'read' },
+            )
+          ) {
+            return;
+          }
+        }
       }
+    } else if (resolveEdition(process.env.OD_EDITION) === 'nextore') {
+      // Without a project scope this would list every run on the daemon.
+      return sendApiError(
+        res,
+        400,
+        'PROJECT_SCOPE_REQUIRED',
+        'projectId is required when listing runs',
+      );
     } else if (
       ctx.projectStore
       && runs.some(
@@ -3425,7 +3463,7 @@ export function registerRunRoutes(app: Express, ctx: RegisterRunRoutesDeps) {
     const resultRunId = task?.terminalRunId ?? task?.latestRunId ?? runId;
     const run = design.runs.get(resultRunId);
     if (!requestedRun || !run) return sendApiError(res, 404, 'NOT_FOUND', 'run not found');
-    if (!await authorizeRunProject(req, res, run, { mode: 'read' })) return;
+    if (!await authorizeRunProject(req, res, run, { mode: 'read', readKind: 'conversation' })) return;
     const status = statusWithStrategyTask(run);
     const project = run.projectId ? toProjectRecord(getProject(db, run.projectId)) : null;
     let files: ProjectFileEntry[] = [];
@@ -3513,7 +3551,7 @@ export function registerRunRoutes(app: Express, ctx: RegisterRunRoutesDeps) {
     if (!runId) return sendApiError(res, 400, 'BAD_REQUEST', 'run id missing');
     const run = design.runs.get(runId);
     if (!run) return sendApiError(res, 404, 'NOT_FOUND', 'run not found');
-    if (!await authorizeRunProject(req, res, run, { mode: 'read' })) return;
+    if (!await authorizeRunProject(req, res, run, { mode: 'read', readKind: 'conversation' })) return;
     const status = statusWithStrategyTask(run);
     if (!design.runs.isTerminal(run.status)) {
       res.json(status);
@@ -3574,7 +3612,7 @@ export function registerRunRoutes(app: Express, ctx: RegisterRunRoutesDeps) {
       req,
       res,
       run,
-      { mode: 'read', allowNavigationQuery: true },
+      { mode: 'read', allowNavigationQuery: true, readKind: 'conversation' },
     )) return;
     design.runs.stream(run, req, res);
   });
@@ -3588,7 +3626,7 @@ export function registerRunRoutes(app: Express, ctx: RegisterRunRoutesDeps) {
       req,
       res,
       run,
-      { mode: 'read', allowNavigationQuery: true },
+      { mode: 'read', allowNavigationQuery: true, readKind: 'conversation' },
     )) return;
     const { encodeOdEventForAgui } = await import('@open-design/agui-adapter');
     const sse = createSseResponse(res);
