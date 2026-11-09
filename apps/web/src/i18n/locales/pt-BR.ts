@@ -2771,6 +2771,7 @@ export const ptBR: Dict = {
   'workspace.deleteFileConfirm': 'Excluir "{name}" da pasta do projeto?',
   'workspace.readonlyNotice': 'Este é um projeto compartilhado — você pode visualizar e comentar, mas não alterar artefatos pelo Chat ou pelas ferramentas de edição.',
   'workspace.readonlyNoticeBy': 'Este é um projeto compartilhado criado por {owner} — você pode visualizar e comentar, mas não alterar artefatos pelo Chat ou pelas ferramentas de edição.',
+  'workspace.projectQuarantined': "This project is no longer in NexTore. Its files stay on this server and it is hidden automatically after 14 days unless it comes back.",
   'workspace.deleteSelectedFilesConfirm': 'Excluir {n} arquivo(s) selecionado(s) da pasta do projeto?',
   'workspace.deleteSelectedFilesPartial': 'Falha ao excluir {n} arquivo(s).',
   'workspace.openFromDesignFiles': 'Abra um arquivo em',

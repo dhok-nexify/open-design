@@ -2771,6 +2771,7 @@ export const hu: Dict = {
   'workspace.deleteFileConfirm': 'Törlöd a(z) „{name}" fájlt a projektmappából?',
   'workspace.readonlyNotice': 'Ez egy megosztott projekt — megtekintheted és kommentálhatod, de a műtermékeket nem módosíthatod Chaten vagy a szerkesztőeszközökön keresztül.',
   'workspace.readonlyNoticeBy': 'Ez egy {owner} által létrehozott megosztott projekt — megtekintheted és kommentálhatod, de a műtermékeket nem módosíthatod Chaten vagy a szerkesztőeszközökön keresztül.',
+  'workspace.projectQuarantined': "This project is no longer in NexTore. Its files stay on this server and it is hidden automatically after 14 days unless it comes back.",
   'workspace.deleteSelectedFilesConfirm': 'Törlöd a(z) {n} kijelölt fájlt a projektmappából?',
   'workspace.deleteSelectedFilesPartial': '{n} fájl törlése sikertelen.',
   'workspace.openFromDesignFiles': 'Nyiss meg egy fájlt innen:',

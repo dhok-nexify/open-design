@@ -2785,6 +2785,7 @@ export const en: Dict = {
   'workspace.deleteFileConfirm': 'Delete "{name}" from the project folder?',
   'workspace.readonlyNotice': 'This is a shared project — you can view and comment, but not change artifacts through Chat or the editing tools.',
   'workspace.readonlyNoticeBy': 'This is a shared project created by {owner} — you can view and comment, but not change artifacts through Chat or the editing tools.',
+  'workspace.projectQuarantined': "This project is no longer in NexTore. Its files stay on this server and it is hidden automatically after 14 days unless it comes back.",
   'workspace.deleteSelectedFilesConfirm': 'Delete {n} selected file(s) from the project folder?',
   'workspace.deleteSelectedFilesPartial': 'Failed to delete {n} file(s).',
   'workspace.openFromDesignFiles': 'Open a file from',

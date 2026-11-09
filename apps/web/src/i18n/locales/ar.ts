@@ -2771,6 +2771,7 @@ export const ar: Dict = {
   'workspace.deleteFileConfirm': 'حذف "{name}" من مجلد المشروع؟',
   'workspace.readonlyNotice': 'هذا مشروع مشترك — يمكنك عرضه والتعليق عليه، لكن لا يمكنك تعديل العناصر عبر الدردشة أو أدوات التحرير.',
   'workspace.readonlyNoticeBy': 'هذا مشروع مشترك أنشأه {owner} — يمكنك عرضه والتعليق عليه، لكن لا يمكنك تعديل العناصر عبر الدردشة أو أدوات التحرير.',
+  'workspace.projectQuarantined': "This project is no longer in NexTore. Its files stay on this server and it is hidden automatically after 14 days unless it comes back.",
   'workspace.deleteSelectedFilesConfirm': 'حذف {n} ملف(ات) محددة من مجلد المشروع؟',
   'workspace.deleteSelectedFilesPartial': 'فشل حذف {n} ملف(ات).',
   'workspace.openFromDesignFiles': 'فتح ملف من',

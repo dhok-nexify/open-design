@@ -2771,6 +2771,7 @@ export const id: Dict = {
   'workspace.deleteFileConfirm': 'Hapus "{name}" dari folder proyek?',
   'workspace.readonlyNotice': 'Ini proyek bersama — Anda dapat melihat dan mengomentari, tetapi tidak dapat mengubah artefak melalui Chat atau alat pengeditan.',
   'workspace.readonlyNoticeBy': 'Ini proyek bersama yang dibuat oleh {owner} — Anda dapat melihat dan mengomentari, tetapi tidak dapat mengubah artefak melalui Chat atau alat pengeditan.',
+  'workspace.projectQuarantined': "This project is no longer in NexTore. Its files stay on this server and it is hidden automatically after 14 days unless it comes back.",
   'workspace.deleteSelectedFilesConfirm': 'Hapus {n} file terpilih dari folder proyek?',
   'workspace.deleteSelectedFilesPartial': 'Gagal menghapus {n} file.',
   'workspace.openFromDesignFiles': 'Buka file dari',

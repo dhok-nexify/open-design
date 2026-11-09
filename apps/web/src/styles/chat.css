@@ -4237,6 +4237,23 @@ body.od-quick-switcher-open .chat-composer-fixed-layer .composer-att .msg-att-de
 }
 
 /* NexTore edition: jump to the site's permission editor from the project header. */
+/* NexTore quarantined project (NXD-D08): the row stays usable, but the
+   header has to say that NexTore no longer lists it. */
+.nextore-quarantine-badge {
+  display: inline-flex;
+  align-items: center;
+  max-width: 46ch;
+  padding: 1px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-subtle);
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.6;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .nextore-permissions-link {
   appearance: none;
   border: 0;

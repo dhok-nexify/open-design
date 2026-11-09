@@ -2771,6 +2771,7 @@ export const ja: Dict = {
   'workspace.deleteFileConfirm': 'プロジェクトフォルダーから "{name}" を削除しますか？',
   'workspace.readonlyNotice': 'これは共有プロジェクトです。閲覧とコメントはできますが、Chat や編集ツールで Artifact を変更することはできません。',
   'workspace.readonlyNoticeBy': 'これは {owner} が作成した共有プロジェクトです。閲覧とコメントはできますが、Chat や編集ツールで Artifact を変更することはできません。',
+  'workspace.projectQuarantined': "This project is no longer in NexTore. Its files stay on this server and it is hidden automatically after 14 days unless it comes back.",
   'workspace.deleteSelectedFilesConfirm': 'プロジェクトフォルダーから選択した {n} 個のファイルを削除しますか？',
   'workspace.deleteSelectedFilesPartial': '{n} 個のファイルの削除に失敗しました。',
   'workspace.openFromDesignFiles': 'ファイルを開く: ',

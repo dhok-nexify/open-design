@@ -3671,6 +3671,7 @@ export interface Dict {
   'workspace.deleteFileConfirm': string;
   'workspace.readonlyNotice': string;
   'workspace.readonlyNoticeBy': string;
+  'workspace.projectQuarantined': string;
   'workspace.fileSyncDownloading': string;
   'workspace.fileSyncUploading': string;
   'workspace.deleteSelectedFilesConfirm': string;

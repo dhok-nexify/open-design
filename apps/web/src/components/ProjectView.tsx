@@ -412,6 +412,7 @@ import {
 import type { CommentSendResult } from './comment-send-result';
 import { projectReadOnlyNotice } from './project-readonly-claim';
 import { resolveArtifactNetworkRules } from '../runtime/artifact-network';
+import { fetchQuarantinedProjectIds } from '../nextore/quarantine';
 
 type BrandBrowserSnapshot =
   | { status: 'ready'; html: string; css: string; baseUrl: string }
@@ -2542,6 +2543,26 @@ export function ProjectView({
     () => resolveArtifactNetworkRules(currentProject.metadata),
     [currentProject.metadata],
   );
+  // NEXTORE (NXD-D08): a project NexTore no longer lists is quarantined, not
+  // deleted — Designer holds the only copy. Say so on the open project; the
+  // 14-day grace and the explicit purge live daemon-side.
+  const [quarantinedProjectIds, setQuarantinedProjectIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  useEffect(() => {
+    if (NEXTORE_WEB_EDITION !== 'nextore') {
+      setQuarantinedProjectIds(new Set());
+      return;
+    }
+    let cancelled = false;
+    void fetchQuarantinedProjectIds().then((ids) => {
+      if (!cancelled) setQuarantinedProjectIds(ids);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [project.id]);
+  const projectQuarantined = quarantinedProjectIds.has(currentProject.id);
   let projectTitleTooltip = currentProject.name;
   if (readonlyNoticeText) projectTitleTooltip = readonlyNoticeText;
   if (projectCollab.materializationPending) projectTitleTooltip = t('designFiles.syncing');
@@ -13890,6 +13911,15 @@ export function ProjectView({
                   </span>
                   {projectTypeLabel ? (
                     <span className="meta" data-testid="project-meta">{projectTypeLabel}</span>
+                  ) : null}
+                  {projectQuarantined ? (
+                    <span
+                      className="nextore-quarantine-badge"
+                      data-testid="nextore-project-quarantined"
+                      title={t('workspace.projectQuarantined')}
+                    >
+                      {t('workspace.projectQuarantined')}
+                    </span>
                   ) : null}
                   {NEXTORE_WEB_EDITION === 'nextore' ? (
                     <button

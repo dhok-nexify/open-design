@@ -2771,6 +2771,7 @@ export const th: Dict = {
   'workspace.deleteFileConfirm': 'ลบ "{name}" ทิ้งไปเลยหรือไม่?',
   'workspace.readonlyNotice': 'นี่คือโปรเจกต์ที่แชร์ — คุณสามารถดูและแสดงความคิดเห็นได้ แต่ไม่สามารถแก้ไขอาร์ติแฟกต์ผ่าน Chat หรือเครื่องมือแก้ไข',
   'workspace.readonlyNoticeBy': 'นี่คือโปรเจกต์ที่แชร์ซึ่งสร้างโดย {owner} — คุณสามารถดูและแสดงความคิดเห็นได้ แต่ไม่สามารถแก้ไขอาร์ติแฟกต์ผ่าน Chat หรือเครื่องมือแก้ไข',
+  'workspace.projectQuarantined': "This project is no longer in NexTore. Its files stay on this server and it is hidden automatically after 14 days unless it comes back.",
   'workspace.deleteSelectedFilesConfirm': 'ลบไฟล์ {n} รายการที่เลือกออกจากโปรเจกต์?',
   'workspace.deleteSelectedFilesPartial': 'ลบ {n} รายการไม่ผ่าน',
   'workspace.openFromDesignFiles': 'เปิดไฟล์จาก',

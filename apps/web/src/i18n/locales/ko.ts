@@ -2771,6 +2771,7 @@ export const ko: Dict = {
   'workspace.deleteFileConfirm': '프로젝트 폴더에서 "{name}" 파일을 삭제하시겠습니까?',
   'workspace.readonlyNotice': '공유 프로젝트입니다. 보기와 댓글은 가능하지만 Chat이나 편집 도구로 Artifact를 수정할 수 없습니다.',
   'workspace.readonlyNoticeBy': '{owner}님이 만든 공유 프로젝트입니다. 보기와 댓글은 가능하지만 Chat이나 편집 도구로 Artifact를 수정할 수 없습니다.',
+  'workspace.projectQuarantined': "This project is no longer in NexTore. Its files stay on this server and it is hidden automatically after 14 days unless it comes back.",
   'workspace.deleteSelectedFilesConfirm': '프로젝트 폴더에서 선택한 {n}개 파일을 삭제하시겠습니까?',
   'workspace.deleteSelectedFilesPartial': '{n}개 파일을 삭제하지 못했습니다.',
   'workspace.openFromDesignFiles': '디자인 파일 열기',

@@ -2771,6 +2771,7 @@ export const ru: Dict = {
   'workspace.deleteFileConfirm': 'Удалить «{name}» из папки проекта?',
   'workspace.readonlyNotice': 'Это общий проект — вы можете просматривать и комментировать, но не можете изменять артефакты через Чат или инструменты редактирования.',
   'workspace.readonlyNoticeBy': 'Это общий проект, созданный {owner} — вы можете просматривать и комментировать, но не можете изменять артефакты через Чат или инструменты редактирования.',
+  'workspace.projectQuarantined': "This project is no longer in NexTore. Its files stay on this server and it is hidden automatically after 14 days unless it comes back.",
   'workspace.deleteSelectedFilesConfirm': 'Удалить {n} выбранных файла(ов) из папки проекта?',
   'workspace.deleteSelectedFilesPartial': 'Не удалось удалить {n} файл(ов).',
   'workspace.openFromDesignFiles': 'Открыть файл из',

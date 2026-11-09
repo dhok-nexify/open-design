@@ -2771,6 +2771,7 @@ export const tr: Dict = {
   'workspace.deleteFileConfirm': '"{name}"ı proje klasöründen sil?',
   'workspace.readonlyNotice': 'Bu paylaşılan bir proje — görüntüleyip yorum yapabilirsiniz, ancak Chat veya düzenleme araçlarıyla yapıtları değiştiremezsiniz.',
   'workspace.readonlyNoticeBy': 'Bu, {owner} tarafından oluşturulan paylaşılan bir proje — görüntüleyip yorum yapabilirsiniz, ancak Chat veya düzenleme araçlarıyla yapıtları değiştiremezsiniz.',
+  'workspace.projectQuarantined': "This project is no longer in NexTore. Its files stay on this server and it is hidden automatically after 14 days unless it comes back.",
   'workspace.deleteSelectedFilesConfirm': 'Seçili {n} dosya proje klasöründen silinsin mi?',
   'workspace.deleteSelectedFilesPartial': '{n} dosya silinemedi.',
   'workspace.openFromDesignFiles': 'bir dosya aç',

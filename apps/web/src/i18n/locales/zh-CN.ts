@@ -2976,6 +2976,7 @@ export const zhCN: Dict = {
   "workspace.deleteFileConfirm": "从项目文件夹中删除「{name}」？",
   "workspace.readonlyNotice": "这是共享项目，你可以查看和评论，但不能通过 Chat 或编辑工具修改 Artifact。",
   "workspace.readonlyNoticeBy": "这是 {owner} 创建的共享项目，你可以查看和评论，但不能通过 Chat 或编辑工具修改 Artifact。",
+  "workspace.projectQuarantined": "此專案已不在 NexTore 中。檔案仍保留在本伺服器，若未恢復，14 天後會自動隱藏。",
   "workspace.deleteSelectedFilesConfirm":
     "从项目文件夹中删除选中的 {n} 个文件？",
   "workspace.deleteSelectedFilesPartial": "有 {n} 个文件删除失败。",
