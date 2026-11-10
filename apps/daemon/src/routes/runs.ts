@@ -916,6 +916,20 @@ function hasCompleteByokOpenCodeConfig(meta: JsonRecord): boolean {
   ) !== null;
 }
 
+/**
+ * Whether an incoming run request must carry its own provider config.
+ *
+ * The NexTore edition derives the provider from the signed-in session, so the
+ * browser only names `byok-opencode`; requiring the provider on the request
+ * would reject every UI send. Upstream keeps the request-scoped contract.
+ */
+export function requiresClientProviderForRun(
+  edition: ReturnType<typeof resolveEdition>,
+  meta: JsonRecord,
+): boolean {
+  return edition !== 'nextore' && !hasCompleteByokOpenCodeConfig(meta);
+}
+
 function toOdNativeEvent(record: RunEventRecord): OdNativeEvent | null {
   if (!AGUI_NATIVE_EVENT_KINDS.has(record.event as OdNativeEvent['kind'])) return null;
   return { kind: record.event, ...toJsonRecord(record.data) } as OdNativeEvent;
@@ -1789,7 +1803,7 @@ export function registerRunRoutes(app: Express, ctx: RegisterRunRoutesDeps) {
     if (!toolBundle.ok) {
       return sendApiError(res, 400, 'BAD_REQUEST', toolBundle.message);
     }
-    if (!hasCompleteByokOpenCodeConfig(requestBody)) {
+    if (requiresClientProviderForRun(resolveEdition(process.env.OD_EDITION), requestBody)) {
       return sendApiError(
         res,
         400,

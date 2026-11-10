@@ -5932,7 +5932,11 @@ export function SettingsDialog({
               }}
             />
           ) : null}
-          {activeSection === 'integrations' ? <IntegrationsSection /> : null}
+          {activeSection === 'integrations' ? (
+            NEXTORE_WEB_EDITION === 'nextore'
+              ? <McpClientSection surface="settings" />
+              : <IntegrationsSection />
+          ) : null}
 
           {activeSection === 'mcpClient' ? <McpClientSection surface="settings" /> : null}
 

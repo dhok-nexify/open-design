@@ -5375,12 +5375,10 @@ export function registerProjectRoutes(app: Express, ctx: RegisterProjectRoutesDe
     if (!project) {
       return sendApiError(res, 404, 'PROJECT_NOT_FOUND', 'not found');
     }
-    if (!await authorizeProjectRequest(
-      req,
-      res,
-      req.params.id,
-      { mode: 'read', capability: 'share' },
-    )) return;
+    // This endpoint reports the caller’s effective rights, so a read-only
+    // member must receive 200 with canEdit=false — requiring the manage right
+    // here would 403 the very members the read-only UI needs to describe.
+    if (!await authorizeProjectRequest(req, res, req.params.id, { mode: 'read' })) return;
 
     const metadata = project.metadata as { nextoreProjectId?: string } | null | undefined;
     const nextoreProjectId = metadata?.nextoreProjectId?.trim();
@@ -5550,7 +5548,13 @@ export function registerProjectRoutes(app: Express, ctx: RegisterProjectRoutesDe
     if (!project) {
       return sendApiError(res, 404, 'PROJECT_NOT_FOUND', 'not found');
     }
-    if (!await authorizeProjectRequest(req, res, req.params.id, { mode: 'read' })) return;
+    // Opening the permission editor is a management action, not a read.
+    if (!await authorizeProjectRequest(
+      req,
+      res,
+      req.params.id,
+      { mode: 'read', capability: 'share' },
+    )) return;
 
     const metadata = project.metadata as { nextoreProjectId?: string } | null | undefined;
     const nextoreProjectId = metadata?.nextoreProjectId?.trim();

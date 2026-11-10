@@ -8,6 +8,7 @@ import { installWebObservability } from '../../src/observability/install';
 import { installChatScrollExperiments } from '../../src/runtime/chat-scroll-experiments';
 import { installChatScrollTakeover } from '../../src/runtime/chat-scroll-takeover';
 import { installNextoreSessionRedirect } from '../../src/nextore/session';
+import { installNextoreAccessRequiredGuard } from '../../src/nextore/access-required';
 
 // Install browser exception handlers at module-load time, before any other
 // client code can throw. The hooks buffer events until AnalyticsProvider
@@ -40,6 +41,11 @@ installChatScrollExperiments();
 // `SESSION_REQUIRED` answer from the daemon means that session is gone, so send
 // the browser to /auth/start before the individual callers report errors.
 installNextoreSessionRedirect();
+
+// A 403 DESIGNER_ACCESS_REQUIRED is a signed-in member without the Designer
+// right. Classify it here so the shell renders one dedicated refusal page
+// instead of letting each feature report its own error.
+installNextoreAccessRequiredGuard();
 
 // The product is a fully client-driven SPA — every component reads
 // localStorage, window.location, etc. — so we opt out of static-time

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   __forTestHasCompleteByokOpenCodeConfig,
   __forTestWithoutSensitiveRunInput,
+  requiresClientProviderForRun,
 } from '../../src/routes/runs.js';
 
 describe('BYOK run input boundary', () => {
@@ -16,6 +17,23 @@ describe('BYOK run input boundary', () => {
         baseUrl: 'https://api.openai.com/v1',
       },
     })).toBe(true);
+  });
+
+  it('defers provider validation to the edition session for NexTore', () => {
+    expect(requiresClientProviderForRun('nextore', { agentId: 'byok-opencode' })).toBe(false);
+  });
+
+  it('still requires the request-scoped provider upstream', () => {
+    expect(requiresClientProviderForRun('upstream', { agentId: 'byok-opencode' })).toBe(true);
+    expect(requiresClientProviderForRun('upstream', {
+      agentId: 'byok-opencode',
+      model: 'gpt-5.4-mini',
+      byokProvider: {
+        protocol: 'openai',
+        apiKey: 'local-only-secret',
+        baseUrl: 'https://api.openai.com/v1',
+      },
+    })).toBe(false);
   });
 
   it('rejects a BYOK run without a run-scoped provider', () => {

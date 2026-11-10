@@ -39,6 +39,8 @@ export const hu: Dict = {
   'invite.error.invite_unavailable': "This invitation is no longer available.",
   'invite.error.generic': "Something went wrong. Please try again.",
   'invite.error.retry': "Try again",
+  "accessRequired.title": "Designer-hozzáférés szükséges",
+  "accessRequired.body": "A NexTore-fiókja nem rendelkezik Designer-hozzáféréssel. Kérje meg a NexTore rendszergazdáját a Designer-hozzáférési jog megadására, majd töltse újra az oldalt.",
   "workspaceInvite.dialogAria": "Invite members",
   "workspaceInvite.title": "Invite members to your team",
   "workspaceInvite.freePlanBody": "The free plan includes 1 seat. Inviting teammates will guide you to upgrade to Teams.",

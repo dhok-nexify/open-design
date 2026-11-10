@@ -39,6 +39,8 @@ export const ja: Dict = {
   'invite.error.invite_unavailable': "This invitation is no longer available.",
   'invite.error.generic': "Something went wrong. Please try again.",
   'invite.error.retry': "Try again",
+  "accessRequired.title": "Designer へのアクセス権限が必要です",
+  "accessRequired.body": "お使いの NexTore アカウントには Designer へのアクセス権限がありません。NexTore 管理者に権限の付与を依頼してから、このページを再読み込みしてください。",
   "workspaceInvite.dialogAria": "Invite members",
   "workspaceInvite.title": "Invite members to your team",
   "workspaceInvite.freePlanBody": "The free plan includes 1 seat. Inviting teammates will guide you to upgrade to Teams.",

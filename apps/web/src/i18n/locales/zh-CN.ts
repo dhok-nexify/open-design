@@ -39,6 +39,8 @@ export const zhCN: Dict = {
   'invite.error.invite_unavailable': "该邀请已不可用。",
   'invite.error.generic': "出了点问题，请重试。",
   'invite.error.retry': "重试",
+  "accessRequired.title": "需要 Designer 访问权限",
+  "accessRequired.body": "你的 NexTore 账号没有 Designer 访问权限。请联系 NexTore 管理员授予权限，然后刷新此页面。",
   "workspaceInvite.dialogAria": "邀请成员",
   "workspaceInvite.title": "邀请成员加入你的团队",
   "workspaceInvite.freePlanBody": "免费版含 1 个席位，邀请同事后将引导你升级到团队版。",

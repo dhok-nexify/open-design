@@ -63,6 +63,11 @@ import { AmrArtifactUpgradeGate } from './components/AmrArtifactUpgradeGate';
 import { AmrArtifactUpgradeHomeCard } from './components/AmrArtifactUpgradeHomeCard';
 import { ExperienceSurvey } from './components/ExperienceSurvey';
 import { isFeatureEnabled } from './nextore/features';
+import { DesignerAccessRequired } from './nextore/DesignerAccessRequired';
+import {
+  DESIGNER_ACCESS_REQUIRED_EVENT,
+  isDesignerAccessRequired,
+} from './nextore/access-required';
 import { bootstrapBranding } from './nextore/branding';
 import { TooltipLayer } from './components/TooltipLayer';
 import { UpdateDialog } from './components/UpdateDialog';
@@ -1999,7 +2004,30 @@ function AppInner() {
     if (status) applyAmrLoginStatus(status, { restartOnSignIn: true });
   }, [applyAmrLoginStatus]);
 
+  // NexTore edition: a signed-in member can lack the Designer access right.
+  // The daemon then refuses every API call with DESIGNER_ACCESS_REQUIRED, so
+  // the shell must show one refusal page rather than letting feature errors
+  // and the first-run router strand the member on the upstream onboarding.
+  const [designerAccessRequired, setDesignerAccessRequired] = useState(
+    () => isDesignerAccessRequired(),
+  );
   useEffect(() => {
+    const onRequired = () => setDesignerAccessRequired(true);
+    window.addEventListener(DESIGNER_ACCESS_REQUIRED_EVENT, onRequired);
+    setDesignerAccessRequired(isDesignerAccessRequired());
+    return () => window.removeEventListener(DESIGNER_ACCESS_REQUIRED_EVENT, onRequired);
+  }, []);
+
+  // The upstream onboarding flow is not part of this edition. A deep link or
+  // a stale redirect must not render a cloud/BYOK sign-in page.
+  useEffect(() => {
+    if (isFeatureEnabled('onboarding')) return;
+    if (route.kind === 'home' && route.view === 'onboarding') {
+      navigate({ kind: 'home', view: 'home' }, { replace: true });
+    }
+  }, [navigate, route]);
+  useEffect(() => {
+    if (!isFeatureEnabled('cloud-amr')) return;
     const usesOpenDesignCloud =
       config.mode === 'daemon'
       && config.agentId === AMR_AGENT_ID;
@@ -5439,6 +5467,8 @@ function AppInner() {
       />
     );
   }
+  if (designerAccessRequired) return <DesignerAccessRequired />;
+
   return (
     <>
       <div

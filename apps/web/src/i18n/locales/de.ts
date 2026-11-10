@@ -39,6 +39,8 @@ export const de: Dict = {
   'invite.error.invite_unavailable': "This invitation is no longer available.",
   'invite.error.generic': "Something went wrong. Please try again.",
   'invite.error.retry': "Try again",
+  "accessRequired.title": "Designer-Zugriff erforderlich",
+  "accessRequired.body": "Ihr NexTore-Konto hat keinen Zugriff auf Designer. Bitten Sie einen NexTore-Administrator, das Designer-Zugriffsrecht zu erteilen, und laden Sie diese Seite dann neu.",
   "workspaceInvite.dialogAria": "Invite members",
   "workspaceInvite.title": "Invite members to your team",
   "workspaceInvite.freePlanBody": "The free plan includes 1 seat. Inviting teammates will guide you to upgrade to Teams.",

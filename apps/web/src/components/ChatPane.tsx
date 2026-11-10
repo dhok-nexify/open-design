@@ -176,6 +176,7 @@ import {
 } from './ChatComposer';
 import type { PendingUpload } from '../runtime/chat/staged-attachment';
 import type { PlaceholderScenario } from './home-hero/placeholderScenarios';
+import { isFeatureEnabled } from '../nextore/features';
 import { listDesignArtifactCandidates } from './design-files/designArtifacts';
 import type { PluginFolderAgentAction } from './design-files/pluginFolderActions';
 import { Icon, type IconName } from './Icon';
@@ -2571,7 +2572,9 @@ export function ChatPane({
    */
   const cloudSwitchCtaCannotTakeTheHandoff = !onSwitchToAmrAndRetry && !onOpenAmrSettings;
   const showCloudSwitchCta =
-    Boolean(cloudSwitchTracking) && !cloudSwitchCtaCannotTakeTheHandoff;
+    isFeatureEnabled('cloud-amr')
+    && Boolean(cloudSwitchTracking)
+    && !cloudSwitchCtaCannotTakeTheHandoff;
   /**
    * 一张卡只有一颗主按钮。
    *

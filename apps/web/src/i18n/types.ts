@@ -69,6 +69,10 @@ export interface Dict {
   'invite.error.invite_unavailable': string;
   'invite.error.generic': string;
   'invite.error.retry': string;
+
+  /** NexTore edition: a signed-in member without the Designer access right. */
+  'accessRequired.title': string;
+  'accessRequired.body': string;
   'workspaceInvite.dialogAria': string;
   'workspaceInvite.title': string;
   'workspaceInvite.freePlanBody': string;

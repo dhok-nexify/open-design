@@ -39,6 +39,8 @@ export const zhTW: Dict = {
   'invite.error.invite_unavailable': "此邀請已不可用。",
   'invite.error.generic': "發生錯誤，請重試。",
   'invite.error.retry': "重試",
+  "accessRequired.title": "需要 Designer 存取權限",
+  "accessRequired.body": "你的 NexTore 帳號沒有 Designer 存取權限。請聯絡 NexTore 管理員授予權限，然後重新整理此頁面。",
   "workspaceInvite.dialogAria": "Invite members",
   "workspaceInvite.title": "Invite members to your team",
   "workspaceInvite.freePlanBody": "The free plan includes 1 seat. Inviting teammates will guide you to upgrade to Teams.",
