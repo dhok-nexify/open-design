@@ -7157,7 +7157,17 @@ export function registerProjectFileRoutes(app: Express, ctx: RegisterProjectFile
         project.id,
         relPath,
         project.metadata,
-        () => setProjectPreviewHeaders(res),
+        () => {
+          setProjectPreviewHeaders(res);
+          // NEXTORE: the scoped preview document is iframed by the shell, so
+          // the edition middleware's `X-Frame-Options: DENY` must not survive.
+          // `projectPreviewCsp` deliberately has no frame-ancestors directive
+          // (the sandbox CSP governs the document), so only the deny header
+          // needs clearing — not the CSP.
+          if (resolveEdition(process.env.OD_EDITION) === 'nextore') {
+            res.removeHeader('X-Frame-Options');
+          }
+        },
         async (file) => maybeResolveVitePreviewHtml({
           file,
           projectId: project.id,
@@ -7232,7 +7242,20 @@ export function registerProjectFileRoutes(app: Express, ctx: RegisterProjectFile
         projectId,
         relPath,
         project?.metadata,
-        undefined,
+        (mime) => {
+          // The shell embeds raw HTML previews in an iframe (URL-load mode in
+          // FileViewer). The global edition frame-deny middleware stamps
+          // `frame-ancestors 'none'` + `X-Frame-Options: DENY` on every
+          // non-embeddable path including this one, which would block the
+          // shell's own same-origin preview. Only document responses need the
+          // override; plain byte reads (code view, download) are untouched.
+          if (
+            resolveEdition(process.env.OD_EDITION) === 'nextore'
+            && /^text\/html(?:;|$)/i.test(mime)
+          ) {
+            applySameOriginPreviewFrameHeaders('nextore', res);
+          }
+        },
         skipHtmlPreviewBridge ? undefined : async (file) => {
           const transformed = await maybeResolveVitePreviewHtml({
             file,
