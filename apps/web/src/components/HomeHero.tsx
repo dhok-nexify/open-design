@@ -2326,13 +2326,15 @@ function PluginPromptPresets({
 
 const FIRST_PARTY_WEB_CLONE_SITE_ICONS: Record<string, string> = {
   'open-design.ai': '/logo.svg',
+  'nexify.com.hk': '/logo.svg',
+  'www.nexify.com.hk': '/logo.svg',
 };
 
 function webCloneFaviconUrl(domain: string): string {
   return brandFaviconUrl(domain, 128);
 }
 
-// A Website-clone text example ("Website URL to clone: https://open-design.ai") —
+// A Website-clone text example ("Website URL to clone: http://www.nexify.com.hk/") —
 // pull the site out so the card can show the site's own mark + bare domain
 // instead of the raw prompt line. First-party bundled examples use local assets
 // so the first screen is stable without waiting on a remote favicon service.
@@ -4257,7 +4259,7 @@ function fallbackPluginPresetPrompt(
 const HOME_PROMPT_EXAMPLES: Record<Locale, Record<string, string[]>> = {
   "en": {
     "web-clone": [
-      "Website URL to clone: https://open-design.ai",
+      "Website URL to clone: http://www.nexify.com.hk/",
     ],
     prototype: [
       "Design a high-converting website for an AI CRM with a clear hero, feature story, proof points, and trial CTA",
@@ -4392,7 +4394,7 @@ const HOME_PROMPT_EXAMPLES: Record<Locale, Record<string, string[]>> = {
   },
   "zh-CN": {
     "web-clone": [
-      "想要复刻的网站链接：https://open-design.ai",
+      "想要复刻的网站链接：http://www.nexify.com.hk/",
     ],
     prototype: [
       "为 AI CRM 设计一个高转化官网，包含首屏、功能卖点、客户案例和清晰的试用入口",

@@ -1,4 +1,10 @@
-const FIRST_PARTY_HOSTS = new Set(['open-design.ai', 'www.open-design.ai', 'staging.open-design.ai']);
+const FIRST_PARTY_HOSTS = new Set([
+  'open-design.ai',
+  'www.open-design.ai',
+  'staging.open-design.ai',
+  'nexify.com.hk',
+  'www.nexify.com.hk',
+]);
 
 export function openFirstPartyExternalLinkFromClick(event: MouseEvent, openExternal: (url: string) => void): void {
   if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;

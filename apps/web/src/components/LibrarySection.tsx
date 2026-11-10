@@ -1143,9 +1143,9 @@ export function LibrarySection({ active, onOpenProject }: Props) {
           <p className={styles.headerHint}>{t('library.headerHint')}</p>
           <a
             className={styles.clipperDownload}
-            href="https://open-design.ai/clipper"
+            href="http://www.nexify.com.hk/"
             target="_blank"
-            rel="noreferrer"
+            rel="noreferrer noopener"
           >
             <Icon name="download" size={15} />
             {t('library.getClipper')}

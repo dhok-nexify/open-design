@@ -10,10 +10,15 @@ import { LOCALES, LOCALE_LABEL, type Dict, type Locale } from '../../src/i18n/ty
 
 const EXPECTED_LOCALES = ['en', 'id', 'de', 'zh-CN', 'zh-TW', 'pt-BR', 'es-ES', 'ru', 'fa', 'ar', 'ja', 'ko', 'pl', 'hu', 'fr', 'uk', 'tr', 'th', 'it'];
 
-function placeholders(value: string): string[] {
+// `{brandName}` is an always-available product-name slot that the i18n layer
+// interpolates globally, so a translation may legitimately include it zero or
+// more times. Data-bearing slots ({agent}, {version}, {title}, …) must still
+// match English exactly so a locale can never render a literal placeholder or
+// silently drop data.
+function dataPlaceholders(value: string): string[] {
   const names: string[] = [];
   for (const match of value.matchAll(/\{(\w+)\}/g)) {
-    if (match[1]) {
+    if (match[1] && match[1] !== 'brandName') {
       names.push(match[1]);
     }
   }
@@ -127,7 +132,7 @@ describe('i18n locales', () => {
     }
   });
 
-  it('keeps locale dictionaries aligned with English keys and placeholders', async () => {
+  it('keeps locale dictionaries aligned with English keys and data placeholders', async () => {
     const englishKeys = Object.keys(en).sort();
 
     for (const locale of LOCALES) {
@@ -136,8 +141,8 @@ describe('i18n locales', () => {
 
       for (const key of englishKeys) {
         const dictKey = key as keyof Dict;
-        expect(placeholders(dict[dictKey]), `${locale}.${key}`).toEqual(
-          placeholders(en[dictKey]),
+        expect(dataPlaceholders(dict[dictKey]), `${locale}.${key}`).toEqual(
+          dataPlaceholders(en[dictKey]),
         );
       }
     }

@@ -3653,7 +3653,7 @@ function OnboardingView({
           <footer className="onboarding-cloud__footer">
             <LanguageMenu placement="up" align="start" />
             <span>
-              © {new Date().getFullYear()} OpenDesign · {t('settings.onboardingCloudRights')}
+              © {new Date().getFullYear()} {t('app.brand')} · {t('settings.onboardingCloudRights')}
             </span>
           </footer>
         </div>
@@ -3781,7 +3781,7 @@ function OnboardingView({
           <footer className="onboarding-cloud__footer">
             <LanguageMenu placement="up" align="start" />
             <span>
-              © {new Date().getFullYear()} OpenDesign ·{' '}
+              © {new Date().getFullYear()} {t('app.brand')} ·{' '}
               {t('settings.onboardingCloudRights')}
             </span>
           </footer>
