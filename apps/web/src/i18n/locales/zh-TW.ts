@@ -294,7 +294,7 @@ export const zhTW: Dict = {
   "plugins.actions.openSource": "開啟原始碼",
   "plugins.actions.openHomepage": "開啟專案首頁",
   "plugins.actions.openMarketplace": "在外掛市場開啟",
-  "app.brand": "OpenDesign",
+  "app.brand": "{brandName}",
   "app.brandPill": "研究預覽版",
   "app.brandSubtitle": "由 Nexu Labs 出品",
   "app.welcomeLoading": "正在載入工作區…",
@@ -3049,12 +3049,12 @@ export const zhTW: Dict = {
   "designFiles.documentTemplate.titleFallback": "文件",
   "designFiles.documentTemplate.goalHeading": "目標",
   "designFiles.documentTemplate.goalBody":
-    "說明希望 OpenDesign 基於這份文件生成、修改或判斷什麼。",
+    "說明希望 {brandName} 基於這份文件生成、修改或判斷什麼。",
   "designFiles.documentTemplate.capabilitiesHeading": "如何使用這份文件",
   "designFiles.documentTemplate.capabilityMarkdown":
     "可以自由使用 Markdown：標題、表格、清單、連結、引用、程式碼區塊和圖片。",
   "designFiles.documentTemplate.capabilityAgent":
-    "OpenDesign agent 可以讀取、編輯這份檔案，並把它作為專案上下文。",
+    "{brandName} agent 可以讀取、編輯這份檔案，並把它作為專案上下文。",
   "designFiles.documentTemplate.capabilityImages":
     "可以貼上圖片，或把圖片拖到編輯器裡；上傳後的圖片會插入到目前游標位置。",
   "designFiles.documentTemplate.scenarioHeading": "場景說明",
@@ -3084,7 +3084,7 @@ export const zhTW: Dict = {
     "描述受眾、交付物、必要內容、參考、約束，以及什麼狀態算完成。",
   "designFiles.documentTemplate.nextHeading": "下一步",
   "designFiles.documentTemplate.nextBody":
-    "檢查並編輯這份文件，然後讓 OpenDesign 基於它生成、修改或執行操作。",
+    "檢查並編輯這份文件，然後讓 {brandName} 基於它生成、修改或執行操作。",
   "designFiles.previewOpen": "開啟",
   "designFiles.previewClose": "關閉預覽",
   "designFiles.modified": "修改於 {time} · {size}",

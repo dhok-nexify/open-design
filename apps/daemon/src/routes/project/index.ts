@@ -17,6 +17,8 @@ import { hasValidShareGrant } from '../../nextore/share/service.js';
 import { normalizeAccess, normalizePermissionUrl } from '../../nextore/wire.js';
 import { applySameOriginPreviewFrameHeaders } from '../../nextore-frame-guard.js';
 import { resolveNextorePermissionUrl } from '../../nextore/authorization.js';
+import { resolveProductBrandName } from '../../nextore/branding-state.js';
+import { replaceLegacyDocumentTemplateBrand } from '../../nextore/legacy-document-brand.js';
 import {
   listGcCandidates,
   isGcCandidateEligible,
@@ -6401,6 +6403,7 @@ export function registerProjectFileRoutes(app: Express, ctx: RegisterProjectFile
     beforeSend?.(meta.mime);
 
     const isStreamed = meta.mime.startsWith('video/') || meta.mime.startsWith('audio/');
+    const isMarkdownFile = /\.mdx?$/i.test(relPath);
     const shouldStreamBody = isStreamed || !transformFile;
     // A transform (the Vite dev-entry -> dist/index.html substitution, or preview
     // bridge injection) can replace the response bytes — but only for HTML. For
@@ -6409,7 +6412,7 @@ export function registerProjectFileRoutes(app: Express, ctx: RegisterProjectFile
     // (assets, fonts, images, streamed media — where the transform is a no-op)
     // keeps the fast mtime ETag with an early 304.
     const willSubstitute =
-      !isStreamed && !!transformFile && /^text\/html(?:;|$)/i.test(meta.mime);
+      !isStreamed && !!transformFile && (/^text\/html(?:;|$)/i.test(meta.mime) || isMarkdownFile);
 
     let currentEtag: string | null = null;
     if (revalidate && !willSubstitute) {
@@ -7042,6 +7045,7 @@ export function registerProjectFileRoutes(app: Express, ctx: RegisterProjectFile
       const params = req.params as unknown as { 0?: string; 1?: string };
       const projectId = String(params[0] ?? '');
       const relPath = String(params[1] ?? '');
+      const isMarkdown = /\.mdx?$/i.test(relPath);
       if (rejectInternalVersionPath(res, relPath)) return;
       const requestedLimit = Number(req.query.limit);
       const limit = Math.max(
@@ -7077,7 +7081,10 @@ export function registerProjectFileRoutes(app: Express, ctx: RegisterProjectFile
       const result = bytesToRead > 0
         ? await opened.read(buffer, 0, bytesToRead, 0)
         : { bytesRead: 0 };
-      const text = buffer.subarray(0, result.bytesRead).toString('utf8');
+      const rawText = buffer.subarray(0, result.bytesRead).toString('utf8');
+      const text = isMarkdown
+        ? replaceLegacyDocumentTemplateBrand(rawText, await resolveProductBrandName())
+        : rawText;
       const poweredPreview = await detectPoweredPreviewHint(meta);
       const body: ProjectFileTextPreviewResponse = {
         text,
@@ -7206,6 +7213,7 @@ export function registerProjectFileRoutes(app: Express, ctx: RegisterProjectFile
       const params = req.params as unknown as { 0?: string; 1?: string };
       const projectId = String(params[0] ?? '');
       const relPath = String(params[1] ?? '');
+      const isMarkdown = /\.mdx?$/i.test(relPath);
       if (rejectInternalVersionPath(res, relPath)) return;
       const project = getProject(db, projectId);
       if (!project) {
@@ -7257,6 +7265,12 @@ export function registerProjectFileRoutes(app: Express, ctx: RegisterProjectFile
           }
         },
         skipHtmlPreviewBridge ? undefined : async (file) => {
+          if (isMarkdown) {
+            return replaceLegacyDocumentTemplateBrand(
+              file.buffer.toString('utf8'),
+              await resolveProductBrandName(),
+            );
+          }
           const transformed = await maybeResolveVitePreviewHtml({
             file,
             projectId,
