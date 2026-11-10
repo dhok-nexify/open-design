@@ -324,7 +324,7 @@ export const esES: Dict = {
   'plugins.actions.openMarketplace': 'Abrir en el marketplace',
   'app.brand': '{brandName}',
   'app.brandPill': 'Vista previa de investigación',
-  'app.brandSubtitle': 'por Nexu Labs',
+  'app.brandSubtitle': 'por Nexify',
   'app.welcomeLoading': 'Cargando espacio de trabajo…',
   'settings.welcomeKicker': '',
   'settings.welcomeTitle': 'Te damos la bienvenida a {brandName}',

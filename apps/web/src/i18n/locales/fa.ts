@@ -324,7 +324,7 @@ export const fa: Dict = {
   'plugins.actions.openMarketplace': 'باز کردن در بازارچه',
   'app.brand': '{brandName}',
   'app.brandPill': 'پیش‌نمایش تحقیقاتی',
-  'app.brandSubtitle': 'توسط Nexu Labs',
+  'app.brandSubtitle': 'توسط Nexify',
   'app.welcomeLoading': 'در حال بارگذاری فضای کاری…',
   'settings.welcomeKicker': '',
   'settings.welcomeTitle': 'به {brandName} خوش آمدید',

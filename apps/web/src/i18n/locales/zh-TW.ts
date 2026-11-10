@@ -64,28 +64,28 @@ export const zhTW: Dict = {
   "workspaceInvite.errorUnreachable": "邀請未能送達，請稍後重試。",
   "chat.amrCard.switchTitle": "模型呼叫失敗，目前任務已暫停",
   "chat.amrCard.switchBody":
-    "可切換到 OpenDesign Cloud 官方模型服務，無需設定 API Key。完成登入、授權與儲值後，將自動重試目前任務。",
+    "可切換到 {brandName} Cloud 官方模型服務，無需設定 API Key。完成登入、授權與儲值後，將自動重試目前任務。",
   "chat.amrCard.chipOfficial": "官方代管",
   "chat.amrCard.chipNoKey": "無需 API Key",
   "chat.amrCard.chipAutoRetry": "授權後自動重試",
   "chat.amrCard.switchCta": "切換到 Cloud",
   "chat.amrError.authMessage":
-    "OpenDesign Cloud 帳號尚未授權。完成授權後將自動重試目前任務。",
+    "{brandName} Cloud 帳號尚未授權。完成授權後將自動重試目前任務。",
   "chat.amrError.balanceMessage":
-    "OpenDesign Cloud 額度不足。儲值後即可繼續執行目前任務。",
+    "{brandName} Cloud 額度不足。儲值後即可繼續執行目前任務。",
   "chat.amrError.authorizeCta": "授權並重試",
   "chat.amrError.rechargeCta": "儲值",
   "chat.amrBalanceGate.title": "升級方案，繼續創作",
   "chat.amrBalanceGate.message": "額度不足（目前 {balance}），升級方案或儲值後，任務馬上就能開始。",
-  "chat.amrBalanceGate.benefitsTitle": "OpenDesign Cloud 為你提供",
+  "chat.amrBalanceGate.benefitsTitle": "{brandName} Cloud 為你提供",
   "chat.amrBalanceGate.benefit1": "無需 API Key，海量模型任選",
   "chat.amrBalanceGate.benefit2": "自帶 SOTA Design Agent，零設定",
   "chat.amrBalanceGate.benefit3": "官方服務，穩定有保障",
   "chat.amrBalanceGate.benefit4": "持續升級：一鍵部署、多模態、團隊版等",
   "chat.amrBalanceGate.laterCta": "暫不需要",
   "chat.amrBalanceGate.plansCta": "升級方案",
-  "chat.amrBalanceGate.signedOutTitle": "登入 OpenDesign Cloud，開始創作",
-  "chat.amrBalanceGate.signedOutMessage": "目前使用的是 OpenDesign Cloud 智能體，登入後這個任務馬上就能開始。",
+  "chat.amrBalanceGate.signedOutTitle": "登入 {brandName} Cloud，開始創作",
+  "chat.amrBalanceGate.signedOutMessage": "目前使用的是 {brandName} Cloud 智能體，登入後這個任務馬上就能開始。",
   "chat.amrBalanceGate.signInCta": "立即登入",
   "chat.amrBalanceGate.watchingWallet": "額度更新後將自動繼續。",
   "chat.amrArtifactUpgrade.title": "用更強模型繼續完善作品",
@@ -110,7 +110,7 @@ export const zhTW: Dict = {
   "chat.runError.title.balance": "額度不足",
   "chat.runError.title.connectionDropped": "目前網路中斷",
   "chat.runError.title.signInRequired.other": "{agent} 尚未登入",
-  "chat.runError.title.signInRequired.amr": "Open Design 尚未登入",
+  "chat.runError.title.signInRequired.amr": "{brandName} 尚未登入",
   "chat.runError.title.rateLimited": "模型服務請求繁忙",
   "chat.runError.title.modelWindowLimit": "高峰期繁忙",
   "chat.runError.title.membershipConcurrencyLimit": "並行任務已達上限",
@@ -137,7 +137,7 @@ export const zhTW: Dict = {
   "chat.runError.title.upstreamUnavailable": "模型服務暫不可用",
   "chat.runError.title.toolLoop": "操作陷入循環",
   "chat.runError.title.outputInvalid": "未能產生有效回覆",
-  "chat.runError.title.runtimeConfig": "Open Design 執行異常",
+  "chat.runError.title.runtimeConfig": "{brandName} 執行異常",
   "chat.runError.title.apiKeyInvalid": "模型設定不完整",
   "chat.runError.cliMissingMessage": "請確認這台電腦已安裝 {agent}，安裝完成後再試。",
   "chat.runError.promptTooLargeMessage": "目前對話和附件超過了 AI 可處理的長度，請減少附件或另開對話後再試。",
@@ -167,16 +167,16 @@ export const zhTW: Dict = {
   "chat.runError.emptyOutputMessage": "智能體本次結束時沒有產生任何輸出。這通常是暫時的，重試即可再次執行。",
   "chat.runError.sessionExpiredMessage": "要恢復的工作階段已過期，已為你重置。重試即可開始一次全新執行。",
   "chat.runError.gitBashMissingMessage": "在 Windows 上執行此智能體需要 Git Bash，但找不到。請安裝 Git for Windows 後重試。",
-  "chat.runError.cpuUnsupportedMessage": "此智能體的執行時需要此裝置處理器不支援的指令集（AVX2），因此無法啟動。請將 OpenDesign 更新到最新版本，新版本附帶相容的執行時。",
+  "chat.runError.cpuUnsupportedMessage": "此智能體的執行時需要此裝置處理器不支援的指令集（AVX2），因此無法啟動。請將 {brandName} 更新到最新版本，新版本附帶相容的執行時。",
   "chat.runError.title.agentCrashed": "任務意外中斷",
   "chat.runError.agentCrashedMessage": "請嘗試重新產生，或更換模型後重試。如果問題持續出現，請聯絡支援。",
   "chat.runError.title.accountSuspended": "帳號已停用",
   "chat.runError.accountSuspendedMessage": "如需了解原因或申請恢復，請聯絡支援。",
   "chat.runError.fallbackMessage": "這次沒能順利完成。反覆出現的話，把日誌傳給我們。",
   "chat.runError.cliSessionRefusedMessage":
-    "{agent} 拒絕開始工作階段。通常是目前版本與 Open Design 不相容，換一個版本後重試。",
+    "{agent} 拒絕開始工作階段。通常是目前版本與 {brandName} 不相容，換一個版本後重試。",
   "chat.runError.strategyTaskStateMismatchMessage": "該任務已被策略品質門攔下，本輪表單無法繼續提交。請重試請求或重新發起一次任務。",
-  "chat.runError.agentReplyIncompleteMessage": "智慧體的回覆裡缺少 Open Design 記錄這一步所需的標記，任務因此沒能繼續。你提交的內容沒有遺失；這屬於偶發情況，重試一次通常就好了。",
+  "chat.runError.agentReplyIncompleteMessage": "智慧體的回覆裡缺少 {brandName} 記錄這一步所需的標記，任務因此沒能繼續。你提交的內容沒有遺失；這屬於偶發情況，重試一次通常就好了。",
   "chat.runError.noDeliverableMessage": "智能體跑完了，但專案裡還沒有可以打開的成品，任務因此沒能記成已交付。你提交的內容沒有遺失——直接重試，或者補一句你想要什麼再發一次。",
   "chat.runError.clarificationRepeatedMessage": "智慧體還想再確認一些資訊，於是又問了一次；但一個任務只允許一輪提問，所以停在了這裡。你的回答仍然保留在對話裡——重試會把請求重新跑一遍，把要補充的資訊一起寫進去，通常一輪就能問清楚。",
   "chat.runError.clientEnvironmentMessage": "看起來走了代理或公司網路，{agent} 拒絕了請求（{cause}）。換一個網路出口，或在設定裡調整代理。",
@@ -296,20 +296,20 @@ export const zhTW: Dict = {
   "plugins.actions.openMarketplace": "在外掛市場開啟",
   "app.brand": "{brandName}",
   "app.brandPill": "研究預覽版",
-  "app.brandSubtitle": "由 Nexu Labs 出品",
+  "app.brandSubtitle": "由 Nexify 出品",
   "app.welcomeLoading": "正在載入工作區…",
   "settings.welcomeKicker": "",
-  "settings.welcomeTitle": "歡迎使用 OpenDesign",
+  "settings.welcomeTitle": "歡迎使用 {brandName}",
   "settings.welcomeSubtitle": "",
   "settings.onboardingCreateTitle": "從一句需求開始",
   "settings.onboardingCreateBody":
-    "描述你想做的網站、應用、Deck、圖片或影片，OpenDesign 會建立專案，並保留可繼續編輯的產出。",
+    "描述你想做的網站、應用、Deck、圖片或影片，{brandName} 會建立專案，並保留可繼續編輯的產出。",
   "settings.onboardingMemoryTitle": "保存工作上下文",
   "settings.onboardingMemoryBody":
     "把偏好、專案事實和長期規則寫入 Memory，後續對話會自動帶上正確背景。",
   "settings.onboardingMemoryCalloutTitle": "已儲存到你的記憶",
   "settings.onboardingMemoryCalloutBody":
-    "這些回答會構成你的記憶檔案。OpenDesign 會在每個任務中重複使用它，並在你工作時持續學習。",
+    "這些回答會構成你的記憶檔案。{brandName} 會在每個任務中重複使用它，並在你工作時持續學習。",
   "settings.onboardingMemoryBenefitIntent": "從一句簡短需求就能理解你的意圖",
   "settings.onboardingMemoryBenefitFewerQuestions": "跳過重複的設定提問",
   "settings.onboardingMemoryBenefitPersonalized":
@@ -319,7 +319,7 @@ export const zhTW: Dict = {
     "選擇或建立品牌系統，讓生成結果跟隨真實的顏色、字體和產品語言。",
   "settings.onboardingExecutionTitle": "選擇模型來源",
   "settings.onboardingExecutionBody":
-    "使用 OpenDesign 託管服務、連接本機 Agent，或使用你自己的模型 Key。",
+    "使用 {brandName} 託管服務、連接本機 Agent，或使用你自己的模型 Key。",
   "settings.onboardingAmrCloudBenefitOfficial": "官方推薦",
   "settings.onboardingAmrCloudBenefitReady": "免部署即用",
   "settings.onboardingAmrCloudBenefitModels":
@@ -329,7 +329,7 @@ export const zhTW: Dict = {
   "settings.onboardingAmrCloudUpcomingImageVideo": "生圖/影片",
   "settings.onboardingAmrCloudUpcomingSkills": "海量 Skills",
   "settings.onboardingAmrCloudUpcomingRouting": "智慧路由",
-  "settings.onboardingAmrModelSourceLabel": "OpenDesign 託管",
+  "settings.onboardingAmrModelSourceLabel": "{brandName} 託管",
   "settings.onboardingAmrCloudAuthorizeAction": "授權使用",
   "settings.onboardingAmrCloudAuthorizedAction": "已授權",
   "settings.onboardingStepConnect": "連接",
@@ -341,10 +341,10 @@ export const zhTW: Dict = {
     "在信箱裡收到產品更新、新模版、設計系統與大使活動。選填——可以跳過。",
   "settings.onboardingConnectTitle": "選擇執行方式",
   "settings.onboardingConnectBody": "",
-  "settings.onboardingCloudTitle": "登入 OpenDesign",
+  "settings.onboardingCloudTitle": "登入 {brandName}",
   "settings.onboardingCloudBody":
     "登入後可直接用雲端 AI 開始設計，無需任何複雜設定。",
-  "settings.onboardingCloudSignIn": "登入 OpenDesign 雲端",
+  "settings.onboardingCloudSignIn": "登入 {brandName} 雲端",
   "settings.onboardingCloudContinue": "繼續（已登入）",
   "settings.onboardingCloudAlternative": "使用本機 CLI 或自己的 API Key",
   "settings.onboardingCloudRights": "保留所有權利。",
@@ -352,7 +352,7 @@ export const zhTW: Dict = {
   "settings.onboardingGateTooltipNoRuntime":
     "後續流程由 AI 執行，請先選擇一種執行方式。",
   "settings.onboardingGateTooltipAmr":
-    "後續流程由 AI 執行，請先登入 OpenDesign Cloud。",
+    "後續流程由 AI 執行，請先登入 {brandName} Cloud。",
   "settings.onboardingGateTooltipLocal":
     "後續流程由 AI 執行，請先選擇一個可用的本機 CLI。",
   "settings.onboardingGateTooltipByok":
@@ -450,7 +450,7 @@ export const zhTW: Dict = {
   "settings.modeDaemonOfflineMeta": "守護程序未執行",
   "settings.modeDaemonInstalledMeta": "已安裝 {count} 個",
   "settings.modeApi": "API 提供方",
-  "settings.cloudCalloutTitle": "使用 OpenDesign Cloud",
+  "settings.cloudCalloutTitle": "使用 {brandName} Cloud",
   "settings.cloudCalloutBody": "登入雲端版本後可啟用團隊空間、共享專案、成員權限和稽核儀表板。",
   "settings.cloudCalloutButton": "登入 / 註冊",
   "settings.modeApiMeta": "API 供應商",
@@ -492,11 +492,11 @@ export const zhTW: Dict = {
   "settings.agentInstall.install": "安裝",
   "settings.agentInstall.docs": "查看文件",
   "settings.agentInstall.pathHint":
-    "如果你透過 npm 或 Homebrew 安裝了 CLI，但仍顯示為未安裝，請確認該工具的 bin 目錄已加入 OpenDesign daemon 繼承的 PATH（在 macOS 上，Terminal 與 GUI 應用的 PATH 可能不同）。請參閱 QUICKSTART.md（「Local agent CLI and PATH」章節）。",
+    "如果你透過 npm 或 Homebrew 安裝了 CLI，但仍顯示為未安裝，請確認該工具的 bin 目錄已加入 {brandName} daemon 繼承的 PATH（在 macOS 上，Terminal 與 GUI 應用的 PATH 可能不同）。請參閱 QUICKSTART.md（「Local agent CLI and PATH」章節）。",
   "settings.agentInstall.stepOpenLinks":
     "在目標代理卡片上開啟「安裝」或「文件」連結。",
   "settings.agentInstall.stepAuth":
-    "返回 OpenDesign 前，請先在對應 CLI 完成驗證（登入或新增 API 憑證）。",
+    "返回 {brandName} 前，請先在對應 CLI 完成驗證（登入或新增 API 憑證）。",
   "settings.agentInstall.stepRescan": "在此區域點擊「重新掃描」。",
   "settings.agentInstall.stepSelect": "當代理顯示為已安裝後，選擇該代理卡片。",
   "settings.noAgentsDetected":
@@ -505,7 +505,7 @@ export const zhTW: Dict = {
   "settings.agentInstallGroup": "可安裝（{count}）",
   "settings.agentAuthRequired": "需要認證",
   "settings.agentAuthUnknown": "認證狀態未知",
-  "settings.amrCloud": "OpenDesign Cloud",
+  "settings.amrCloud": "{brandName} Cloud",
   "settings.amrAuthorize": "授權",
   "settings.amrBenefitOfficial": "官方維護",
   "settings.amrBenefitLowerPrice": "價格更低",
@@ -519,7 +519,7 @@ export const zhTW: Dict = {
   "settings.amrWalletUpdatedAt": "更新於 {time}",
   "settings.amrWalletCached": "快取",
   "settings.amrWalletRefresh": "重新整理",
-  "settings.amrWalletRefreshTitle": "重新整理 OpenDesign Cloud 錢包餘額",
+  "settings.amrWalletRefreshTitle": "重新整理 {brandName} Cloud 錢包餘額",
   "settings.amrNotSignedIn": "未授權",
   "settings.amrSigningIn": "登入中…",
   "settings.amrActivationHint": "沒有彈出登入頁?點擊下方按鈕重新喚起",
@@ -527,9 +527,9 @@ export const zhTW: Dict = {
     "無法自動開啟瀏覽器,請開啟下方的登入頁繼續。",
   "settings.amrActivationOpen": "開啟登入頁",
   "settings.amrCancelSignIn": "取消登入",
-  "settings.amrAccountStatus": "OpenDesign Cloud 帳戶狀態",
+  "settings.amrAccountStatus": "{brandName} Cloud 帳戶狀態",
   "settings.amrConsole": "管理",
-  "settings.amrLoginErrorCompact": "OpenDesign Cloud 登入失敗。",
+  "settings.amrLoginErrorCompact": "{brandName} Cloud 登入失敗。",
   "settings.advanced": "進階",
   "settings.amrLogin": "登入",
   "settings.amrLogout": "登出",
@@ -612,8 +612,8 @@ export const zhTW: Dict = {
   "settings.envConfigure": "模型與供應商",
   "settings.localCli": "本機 CLI",
   "settings.dshSetupTitle": "連接 DeepSeek Harness",
-  "settings.dshSetupDescription": "OpenDesign 將透過這台電腦上的 dsh CLI 安裝連接元件。",
-  "settings.dshSetupNote": "只安裝 OpenDesign 的 profile 元件。DeepSeek Harness 仍由你自行安裝和管理。",
+  "settings.dshSetupDescription": "{brandName} 將透過這台電腦上的 dsh CLI 安裝連接元件。",
+  "settings.dshSetupNote": "只安裝 {brandName} 的 profile 元件。DeepSeek Harness 仍由你自行安裝和管理。",
   "settings.dshSetupConfirm": "安裝並選擇",
   "settings.dshSetupInstalling": "正在安裝…",
   "settings.dshSetupRequired": "需要安裝連接元件",
@@ -671,10 +671,10 @@ export const zhTW: Dict = {
   "settings.mediaProviderLoadError": "無法載入供應商設定，暫時使用本機儲存的設定。",
   "settings.mediaProviderComingSoonHint": "這些供應商已在規劃中，但目前尚無法設定。",
   "settings.privacy": "隱私",
-  "settings.privacyHint": "與 OpenDesign 團隊共享哪些資料",
-  "settings.privacyConsentKicker": "協助我們改進 OpenDesign",
+  "settings.privacyHint": "與 {brandName} 團隊共享哪些資料",
+  "settings.privacyConsentKicker": "協助我們改進 {brandName}",
   "settings.privacyConsentLead":
-    "分享使用資料後，我們能更了解 OpenDesign 在真實工作流裡的表現，並優先改進真正影響體驗的地方。",
+    "分享使用資料後，我們能更了解 {brandName} 在真實工作流裡的表現，並優先改進真正影響體驗的地方。",
   "settings.privacyConsentFooter": "你可以隨時在 設定 → 隱私 中修改這些選項。",
   "settings.privacyConsentShare": "分享",
   "settings.privacyConsentDecline": "不分享",
@@ -767,7 +767,7 @@ export const zhTW: Dict = {
   "entry.openSettingsAria": "開啟設定",
   "entry.discordLabel": "加入 Discord",
   "entry.discordAria": "加入 Discord 社群，領取使用額度",
-  "entry.discordAriaWithOnline": "加入 OpenDesign Discord - {online}",
+  "entry.discordAriaWithOnline": "加入 {brandName} Discord - {online}",
   "entry.discordOnlineLabel": "{count} 在線",
   "entry.xAria": "追蹤 @OpenDesignHQ，掌握新功能",
   "entry.mailAria": "有問題？寫信給我們",
@@ -789,11 +789,11 @@ export const zhTW: Dict = {
   "collabPresence.viewingProjectSelf": "你正在查看此專案",
   "collabPresence.viewingProjectOther": "正在查看此專案",
   "entry.followXLabel": "在 X 上追蹤 @OpenDesignHQ",
-  "entry.followThreadsLabel": "Follow OpenDesign on Threads",
+  "entry.followThreadsLabel": "Follow {brandName} on Threads",
   "entry.followInstagramLabel": "在 Instagram 上追蹤 @opendesign.ai",
-  "entry.followLinkedinLabel": "在 LinkedIn 上追蹤 OpenDesign",
-  "entry.followXiaohongshuLabel": "在小紅書上追蹤 OpenDesign",
-  "entry.youtubeLabel": "OpenDesign on YouTube",
+  "entry.followLinkedinLabel": "在 LinkedIn 上追蹤 {brandName}",
+  "entry.followXiaohongshuLabel": "在小紅書上追蹤 {brandName}",
+  "entry.youtubeLabel": "{brandName} on YouTube",
   "entry.resizeAria": "調整側邊欄寬度",
   "entry.loadingWorkspace": "正在載入工作區…",
   "entry.useEverywhereTitle": "隨處使用",
@@ -857,14 +857,14 @@ export const zhTW: Dict = {
   "entry.navBoard": "看板",
   "entry.navTeamSection": "團隊",
   "entry.teamSlotNote": "此檢視由團隊服務提供，接入中。",
-  "entry.cloudCalloutTitle": "OpenDesign Cloud 版",
+  "entry.cloudCalloutTitle": "{brandName} Cloud 版",
   'entry.cloudRecovering': '帳號連線中斷，正在自動恢復…',
   'entry.authExpiredBody': '登入狀態已過期。登入後即可繼續使用 {brandName} Cloud。',
   'home.createFailed': '啟動任務失敗，請再試一次。',
   'home.daemonRecovering': '本機服務連線中斷，正在自動恢復…',
   'home.bundledScenarioMissing': '內建場景「{scenarioId}」未安裝。請重新安裝 {brandName}，以還原預設外掛。',
   "entry.cloudCalloutBody": "登入即可享受雲端協作",
-  "entry.cloudCalloutDismissAria": "關閉 OpenDesign Cloud 版說明",
+  "entry.cloudCalloutDismissAria": "關閉 {brandName} Cloud 版說明",
   "entry.workspaceLockedNote": "工作區已鎖定，恢復帳單後可繼續編輯共享專案。",
   "entry.workspaceLockedRecover": "恢復存取",
   "messageCenter.openAria": "開啟消息中心",
@@ -992,7 +992,7 @@ export const zhTW: Dict = {
   "homeHero.chip.createBrandKitHint":
     "從網站擷取一個品牌套件，然後在任意對話中套用它。",
   "homeHero.chip.createPluginHint":
-    "編寫可重複使用的 OpenDesign 外掛並將其加入「我的外掛」。",
+    "編寫可重複使用的 {brandName} 外掛並將其加入「我的外掛」。",
   "homeHero.chip.figmaHint": "將 Figma 畫格遷移至使用中的設計系統。",
   "homeHero.chip.folderHint": "匯入現有的本機資料夾並繼續編輯。",
   "homeHero.chip.templateHint": "從內建範本開始。",
@@ -1070,7 +1070,7 @@ export const zhTW: Dict = {
   "handoff.frameworkPrompt.solid": "SolidJS",
   "handoff.frameworkPrompt.next": "Next.js / React",
   "handoff.frameworkPrompt.vanilla": "原生 JavaScript、HTML 和 CSS",
-  "handoff.amrWebsite": "開啟 OpenDesign Cloud 官網",
+  "handoff.amrWebsite": "開啟 {brandName} Cloud 官網",
   "handoff.copyPrompt": "複製提示詞",
   "handoff.copyPromptForTarget": "複製給 {target} 的提示詞",
   "handoff.copied": "已複製",
@@ -1153,12 +1153,12 @@ export const zhTW: Dict = {
   "recentProjects.clearFilters": "清除篩選條件",
   "pluginsHome.title": "社群",
   "pluginsHome.subtitle":
-    "隨附於此執行環境、可立即使用的 OpenDesign 工作流程。挑選一個以載入起始提示，或瀏覽登錄檔取得更多。",
+    "隨附於此執行環境、可立即使用的 {brandName} 工作流程。挑選一個以載入起始提示，或瀏覽登錄檔取得更多。",
   "pluginsHome.browseRegistry": "瀏覽登錄檔",
   "pluginsHome.count": "{total} 個中的 {filtered} 個",
   "pluginsHome.loadingCatalog": "正在載入目錄…",
   "pluginsHome.emptyCatalog":
-    "目錄是空的。內建外掛隨 OpenDesign 一同提供，應會自動出現在此處 — 若問題持續發生，請嘗試重新啟動 daemon。",
+    "目錄是空的。內建外掛隨 {brandName} 一同提供，應會自動出現在此處 — 若問題持續發生，請嘗試重新啟動 daemon。",
   "pluginsHome.emptyFiltered": "沒有符合目前篩選條件的外掛程式。",
   "pluginsHome.clearFilters": "清除篩選條件",
   "pluginsHome.modeAria": "外掛程式模式",
@@ -1304,7 +1304,7 @@ export const zhTW: Dict = {
   "pluginsView.createClose": "Close add panel",
   "pluginsView.createTypeAria": "Create type",
   "pluginsView.importFromUrl": "Import from link",
-  "pluginsView.importUrlBody": "Paste a public link for a {kind}. OpenDesign will fetch the manifest, validate capabilities, and upload it to the team space.",
+  "pluginsView.importUrlBody": "Paste a public link for a {kind}. {brandName} will fetch the manifest, validate capabilities, and upload it to the team space.",
   "pluginsView.uploadFolder": "Upload local folder",
   "pluginsView.uploadFolderBody": "Choose a local folder containing {manifest}. After validation, it will upload as a team {kind}.",
   "pluginsView.importing": "Importing…",
@@ -1383,11 +1383,11 @@ export const zhTW: Dict = {
   "pluginCard.shareAria": "分享 {title}",
   "pluginCard.publishAria": "將 {title} 發布為 GitHub 儲存庫",
   "pluginCard.publishTitle": "將外掛發布為 GitHub 儲存庫",
-  "pluginCard.contributeAria": "將 {title} 貢獻至 OpenDesign",
-  "pluginCard.contributeTitle": "透過 pull request 將外掛貢獻至 OpenDesign",
+  "pluginCard.contributeAria": "將 {title} 貢獻至 {brandName}",
+  "pluginCard.contributeTitle": "透過 pull request 將外掛貢獻至 {brandName}",
   "integrations.kicker": "整合",
   "integrations.lede":
-    "連接外部系統，把 MCP 工具帶入智能體迴圈，並在其他 IDE、腳本與自動化流程中使用 OpenDesign。",
+    "連接外部系統，把 MCP 工具帶入智能體迴圈，並在其他 IDE、腳本與自動化流程中使用 {brandName}。",
   "integrations.agentReady": "智能體就緒",
   "integrations.areasAria": "整合區域",
   "integrations.tabLabel.mcp": "MCP 伺服器",
@@ -1407,12 +1407,12 @@ export const zhTW: Dict = {
   "mcpClient.saveChanges": "儲存變更",
   "mcpClient.storedAt": "儲存於",
   "mcpClient.daemonError":
-    "無法連線到本機 daemon。請確認 OpenDesign 正在執行，然後重新開啟此面板。",
+    "無法連線到本機 daemon。請確認 {brandName} 正在執行，然後重新開啟此面板。",
   "mcpClient.saveFailed": "儲存失敗。請確認 daemon 正在執行後再試一次。",
-  "useEverywhere.modalAria": "隨處使用 OpenDesign",
-  "useEverywhere.modalTitle": "隨處使用 OpenDesign",
+  "useEverywhere.modalAria": "隨處使用 {brandName}",
+  "useEverywhere.modalTitle": "隨處使用 {brandName}",
   "useEverywhere.modalSubtitle":
-    "將 OpenDesign 接入任何 IDE、Agent 或指令碼 — CLI、HTTP、MCP 及 Skills。使用「複製 Agent 指南」並貼到 Claude Code、Codex、Cursor、openclaw 或 hermes 中，即可設定一切。",
+    "將 {brandName} 接入任何 IDE、Agent 或指令碼 — CLI、HTTP、MCP 及 Skills。使用「複製 Agent 指南」並貼到 Claude Code、Codex、Cursor、openclaw 或 hermes 中，即可設定一切。",
   "useEverywhere.closeAria": "關閉隨處使用",
   "useEverywhere.closeTitle": "關閉 (Esc)",
   "useEverywhere.tabsAria": "整合介面",
@@ -1427,17 +1427,17 @@ export const zhTW: Dict = {
   "useEverywhere.copySnippetAria": "複製程式碼片段：{label}",
   "useEverywhere.section.overview.tab": "總覽",
   "useEverywhere.section.overview.heading":
-    "你的 Agent 在哪裡運作，OpenDesign 就在哪裡運作",
+    "你的 Agent 在哪裡運作，{brandName} 就在哪裡運作",
   "useEverywhere.section.overview.intro":
-    "OpenDesign 不只是一個視窗 — 它是一個本機特權 daemon（`od`），外加一個 Skills + Design-Systems + Atoms 登錄。一旦它在您的機器上執行，任何程式碼 Agent（Claude Code、Codex、Cursor、OpenCode/openclaw、Hermes、您自己的指令碼）都能透過四個可互換的介面來驅動產生作業、檢視專案並產出設計成品。",
+    "{brandName} 不只是一個視窗 — 它是一個本機特權 daemon（`od`），外加一個 Skills + Design-Systems + Atoms 登錄。一旦它在您的機器上執行，任何程式碼 Agent（Claude Code、Codex、Cursor、OpenCode/openclaw、Hermes、您自己的指令碼）都能透過四個可互換的介面來驅動產生作業、檢視專案並產出設計成品。",
   "useEverywhere.section.overview.bullet1":
     "CLI — 以 `od <command>` 用於無頭指令碼、CI 及 shell 自動化。",
   "useEverywhere.section.overview.bullet2":
-    "MCP server — 將 OpenDesign 接成 Model Context Protocol 伺服器，讓任何支援 MCP 的 Agent 都能列出技能、執行情境並讀取成品。",
+    "MCP server — 將 {brandName} 接成 Model Context Protocol 伺服器，讓任何支援 MCP 的 Agent 都能列出技能、執行情境並讀取成品。",
   "useEverywhere.section.overview.bullet3":
     "HTTP API — `http://127.0.0.1:7456/api/*` REST + SSE 端點；與網頁 UI 使用的介面相同。",
   "useEverywhere.section.overview.bullet4":
-    "Skills — 隨插即用的 `SKILL.md` 套件（相容於 Claude），任何已在您 PATH 上的 Agent 完全無需 OpenDesign 即可調用。",
+    "Skills — 隨插即用的 `SKILL.md` 套件（相容於 Claude），任何已在您 PATH 上的 Agent 完全無需 {brandName} 即可調用。",
   "useEverywhere.section.overview.bullet5":
     "標準成品 — 在 daemon 啟動前，從 Skills、內建預設外掛及社群外掛範例中產生真實的 HTML 專案。",
   "useEverywhere.section.overview.snippet1": "在本機啟動 daemon（與 web UI）",
@@ -1446,7 +1446,7 @@ export const zhTW: Dict = {
   "useEverywhere.section.overview.footer":
     "daemon 預設會寫入 `./.od/`（專案本機）。設定 `OD_DATA_DIR=~/.open-design` 即可在多個專案間共用資料。",
   "useEverywhere.section.cli.tab": "CLI · od",
-  "useEverywhere.section.cli.heading": "從任何 shell 操作 OpenDesign",
+  "useEverywhere.section.cli.heading": "從任何 shell 操作 {brandName}",
   "useEverywhere.section.cli.intro":
     "`od` 執行檔隨 daemon 一起發佈，與 Claude Code / Codex 執行產生作業時所用的是同一個二進位檔。多數子指令都是精簡的用戶端，會 POST 至本機 daemon，因此無論你是透過 `pnpm tools-dev` 啟動，還是以打包後的應用程式執行，運作方式都相同。",
   "useEverywhere.section.cli.bullet1":
@@ -1472,9 +1472,9 @@ export const zhTW: Dict = {
     "所有子指令都接受 `--daemon-url http://127.0.0.1:<port>`，以指定某個正在執行的 daemon — 在執行沙箱化的第二個執行個體進行測試時很有用。",
   "useEverywhere.section.mcp.tab": "MCP 伺服器",
   "useEverywhere.section.mcp.heading":
-    "將 OpenDesign 以 MCP 伺服器形式開放給任何程式設計 Agent",
+    "將 {brandName} 以 MCP 伺服器形式開放給任何程式設計 Agent",
   "useEverywhere.section.mcp.intro":
-    "OpenDesign 隨附一個 Model Context Protocol 伺服器（`od mcp`），讓任何支援 MCP 的用戶端 — Cursor、Claude Code、Antigravity、VS Code Copilot Chat、openclaw、hermes — 都能探索 OpenDesign 工具（列出技能、算繪預覽、產生媒體、執行外掛），而無需手動使用 shell。daemon 透過 `GET /api/mcp/install-info` 為每個主要用戶端發布可直接貼上的安裝程式碼片段。",
+    "{brandName} 隨附一個 Model Context Protocol 伺服器（`od mcp`），讓任何支援 MCP 的用戶端 — Cursor、Claude Code、Antigravity、VS Code Copilot Chat、openclaw、hermes — 都能探索 {brandName} 工具（列出技能、算繪預覽、產生媒體、執行外掛），而無需手動使用 shell。daemon 透過 `GET /api/mcp/install-info` 為每個主要用戶端發布可直接貼上的安裝程式碼片段。",
   "useEverywhere.section.mcp.bullet1":
     "Stdio 傳輸 — 不需額外連接埠，用戶端直接產生 `od mcp` 程序。",
   "useEverywhere.section.mcp.bullet2":
@@ -1490,7 +1490,7 @@ export const zhTW: Dict = {
   "useEverywhere.section.mcp.snippet3":
     "即時看板 MCP 變體（讀取並重新整理儀表板）",
   "useEverywhere.section.mcp.footer":
-    "在 OpenDesign 應用程式中，開啟「設定 → 整合」即可複製特定用戶端的安裝指令（Cursor、Claude Code、Antigravity、VS Code），而無需手動編輯 JSON。",
+    "在 {brandName} 應用程式中，開啟「設定 → 整合」即可複製特定用戶端的安裝指令（Cursor、Claude Code、Antigravity、VS Code），而無需手動編輯 JSON。",
   "useEverywhere.section.http.tab": "HTTP API",
   "useEverywhere.section.http.heading": "與 web UI 所用相同的 REST + SSE 介面",
   "useEverywhere.section.http.intro":
@@ -1516,9 +1516,9 @@ export const zhTW: Dict = {
     "每個請求／回應的純 TypeScript 型別都位於 `@open-design/contracts` 中 — 在您的指令碼中匯入它們，即可享有完整的自動完成，而無需接上產生器。",
   "useEverywhere.section.skills.tab": "技能與無頭模式",
   "useEverywhere.section.skills.heading":
-    "適用於任何 Agent 的隨插即用 Skills — 即使 OpenDesign 未在執行也行",
+    "適用於任何 Agent 的隨插即用 Skills — 即使 {brandName} 未在執行也行",
   "useEverywhere.section.skills.intro":
-    "Skill 是一個包含相容於 Claude 的 `SKILL.md`（YAML 前置資料 + 內文）的目錄。OpenDesign 以 `od:` 命名空間（`mode`、`preview`、`design_system`、`inputs`、…）擴充此格式，因此同一個成品既能在 OpenDesign 內使用，也能被像 Claude Code、Codex、openclaw 或 hermes 這類原生 Agent 使用。探索作業遵循一條優先順序鏈，因此專案可覆寫自己的技能。",
+    "Skill 是一個包含相容於 Claude 的 `SKILL.md`（YAML 前置資料 + 內文）的目錄。{brandName} 以 `od:` 命名空間（`mode`、`preview`、`design_system`、`inputs`、…）擴充此格式，因此同一個成品既能在 {brandName} 內使用，也能被像 Claude Code、Codex、openclaw 或 hermes 這類原生 Agent 使用。探索作業遵循一條優先順序鏈，因此專案可覆寫自己的技能。",
   "useEverywhere.section.skills.bullet1":
     "探索：`./.claude/skills/` → `./skills/` → `~/.claude/skills/`（專案優先）。",
   "useEverywhere.section.skills.bullet2":
@@ -1530,7 +1530,7 @@ export const zhTW: Dict = {
   "useEverywhere.section.skills.bullet5":
     "`pnpm seed:test-projects` 會以預設外掛範例與社群外掛範例演練相同的成品結構，接著將產生的 `index.html` 專案儲存為可重複使用的測試資料。",
   "useEverywhere.section.skills.snippet1":
-    "最精簡的 SKILL.md（Claude 相容的前置資料 + OpenDesign 額外設定）",
+    "最精簡的 SKILL.md（Claude 相容的前置資料 + {brandName} 額外設定）",
   "useEverywhere.section.skills.snippet2":
     "將共用 skill 以符號連結方式加入專案（cc-switch 風格）",
   "useEverywhere.section.skills.snippet3":
@@ -1740,7 +1740,7 @@ export const zhTW: Dict = {
     "代理已完成執行但未產生任何輸出。模型或提供商可能返回了空回應，請檢查代理日誌中的上游錯誤。",
   "entry.githubStarLabel": "星標",
   "entry.githubStarTitle": "在 GitHub 為我們點亮 Star",
-  "entry.githubStarAria": "在 GitHub 為 OpenDesign 點亮 Star",
+  "entry.githubStarAria": "在 GitHub 為 {brandName} 點亮 Star",
   "entry.tabImageTemplates": "圖片範本",
   "entry.tabVideoTemplates": "影片範本",
   "promptTemplates.emptyNoMatch": "沒有符合的範本。",
@@ -2112,7 +2112,7 @@ export const zhTW: Dict = {
   "avatar.useApi": "使用 API · BYOK",
   "avatar.codeAgent": "程式碼代理",
   "avatar.rescan": "重新掃描 PATH",
-  "avatar.amrConsole": "OpenDesign Cloud 帳戶",
+  "avatar.amrConsole": "{brandName} Cloud 帳戶",
   "avatar.amrConsoleMeta": "餘額與儲值",
   "avatar.settings": "設定",
   "avatar.backToProjects": "返回專案列表",
@@ -2125,19 +2125,19 @@ export const zhTW: Dict = {
   "avatar.reasoningLabel": "推理",
   "avatar.serviceTierLabel": "服務層級",
   "avatar.customSuffix": "（自訂）",
-  "socialShare.openDesignSection": "分享 OpenDesign",
-  "socialShare.openDesignTitle": "GitHub 上的 OpenDesign",
+  "socialShare.openDesignSection": "分享 {brandName}",
+  "socialShare.openDesignTitle": "GitHub 上的 {brandName}",
   "socialShare.openDesignText":
-    "OpenDesign 是原始碼可用的設計智慧工作區，可以生成、編輯、部署並交付設計產物。",
+    "{brandName} 是原始碼可用的設計智慧工作區，可以生成、編輯、部署並交付設計產物。",
   "socialShare.openDesignCopyText": "{text}\n{url}",
   "socialShare.projectSection": "社群分享",
   "socialShare.publishPageTitle": "發布分享頁",
   "socialShare.publishPageSubtitle": "發布目前預覽，以便分享到社群平台。",
-  "socialShare.projectTitle": "{title} · OpenDesign",
+  "socialShare.projectTitle": "{title} · {brandName}",
   "socialShare.projectText":
-    "我用 OpenDesign 做了 {title}。查看已部署產物，也推薦收藏倉庫：{repo}",
+    "我用 {brandName} 做了 {title}。查看已部署產物，也推薦收藏倉庫：{repo}",
   "socialShare.projectCopyText":
-    "我用 OpenDesign 做了 {title}\n{url}\nOpenDesign 倉庫：{repo}",
+    "我用 {brandName} 做了 {title}\n{url}\n{brandName} 倉庫：{repo}",
   "socialShare.deployFirst": "先部署，再分享到社群…",
   "socialShare.copied": "已複製",
   "socialShare.platform.x": "X",
@@ -2260,15 +2260,15 @@ export const zhTW: Dict = {
   "chat.startTitle": "開始一個對話",
   "chat.startHint": "描述你想生成的內容，或從下面的範例開始：",
   "chat.brandBrowserAssistDesktopOnly":
-    "瀏覽器輔助需要桌面應用，OpenDesign 才能讀取即時瀏覽器頁面。",
+    "瀏覽器輔助需要桌面應用，{brandName} 才能讀取即時瀏覽器頁面。",
   "chat.brandBrowserAssistReadFailed":
     "無法讀取瀏覽器頁面。請確認品牌網站已開啟並完整載入。",
   "chat.memoryWrittenSummary": "已記住 {count} 條偏好",
   "chat.brandBrowserAssistMessage":
-    "OpenDesign 需要瀏覽器輔助才能完成這次品牌擷取。請先在 Browser 分頁清除頁面攔截，然後在下方確認。",
+    "{brandName} 需要瀏覽器輔助才能完成這次品牌擷取。請先在 Browser 分頁清除頁面攔截，然後在下方確認。",
   "brandEnrichment.title": "AI 優化",
   "brandEnrichment.body":
-    "OpenDesign 會在背景執行更深度的抽取，自動套用合適的設計系統 skills，並就地更新這個系統。通常需要 10-20 分鐘，你可以繼續做其他事。",
+    "{brandName} 會在背景執行更深度的抽取，自動套用合適的設計系統 skills，並就地更新這個系統。通常需要 10-20 分鐘，你可以繼續做其他事。",
   "brandEnrichment.cta": "AI 優化",
   "brandEnrichment.busy": "正在啟動 AI 優化...",
   "brandExtractionTranscript.sourceDesignMd": "貼上的 DESIGN.md",
@@ -2306,7 +2306,7 @@ export const zhTW: Dict = {
   "chat.inspect.commentHint": "在預覽中選擇文字或區域進行評論。",
   "chat.composerPlaceholder": "描述你想生成的內容…",
   "chat.activeFileEditingLabel": "編輯中",
-  "chat.activeFilePlaceholder": "讓 OpenDesign 修改 {file}...",
+  "chat.activeFilePlaceholder": "讓 {brandName} 修改 {file}...",
   "chat.designArtifactsShowMore": "再顯示 {count} 個設計檔案",
   "chat.mode.chat.label": "詢問",
   "chat.mode.chat.title": "Ask 模式",
@@ -2331,7 +2331,7 @@ export const zhTW: Dict = {
   "chat.mode.design.summary":
     "適合建立或修改具體設計產物，例如網頁、原型、即時看板、投影片、圖片、影片、HyperFrames、音訊、資料看板和專案檔案。",
   "chat.mode.design.solves":
-    "當你希望 OpenDesign 產生檔案、更新 workspace，或把需求變成多模態可交付結果時使用。",
+    "當你希望 {brandName} 產生檔案、更新 workspace，或把需求變成多模態可交付結果時使用。",
   "chat.mode.design.query1":
     "根據這段需求做一個產品發布落地頁和 HyperFrames 原型。",
   "chat.mode.design.query2": "做一份 10 頁投資人 Deck，並附上講稿備註。",
@@ -2469,7 +2469,7 @@ export const zhTW: Dict = {
   "designBrowser.inspect.saving": "正在保存...",
   "designBrowser.inspect.saveHtml": "保存 HTML",
   "designBrowser.inspect.liveOnly": "仅实时预览",
-  "designBrowser.reference.kicker": "OpenDesign 浏览器",
+  "designBrowser.reference.kicker": "{brandName} 浏览器",
   "designBrowser.reference.title": "参考看板",
   "designBrowser.reference.subtitle": "精选灵感、真实产品 UI、动效、色彩、字体、素材和设计系统参考。打开任意站点即可边浏览边收集下一个产物所需的设计语言。",
   "designBrowser.reference.categoryAria": "参考分类",
@@ -2956,7 +2956,7 @@ export const zhTW: Dict = {
   "preview.shareExportGroup": "匯出檔案",
   "preview.shareCopied": "已複製",
   "preview.shareCopyFailed": "複製失敗",
-  "preview.shareTextDefault": "OpenDesign 模板：{title}",
+  "preview.shareTextDefault": "{brandName} 模板：{title}",
   "preview.openInNewTab": "在新分頁中開啟",
   "preview.exit": "⤓ 離開",
   "preview.fullscreen": "⤢ 全螢幕",
@@ -2964,7 +2964,7 @@ export const zhTW: Dict = {
   "preview.loading": "正在載入{label}…",
   "preview.errorTitle": "無法載入此範例。",
   "preview.errorBody":
-    "範例 HTML 載入失敗。請確認 OpenDesign 正在執行後重試。",
+    "範例 HTML 載入失敗。請確認 {brandName} 正在執行後重試。",
   "preview.retry": "重試",
   "preview.unavailableTitle": "{noun}尚未附帶預覽範例。",
   "preview.unavailableBody": "請在對話中執行此 Prompt 來產生 {kind} 產物。",
@@ -3159,7 +3159,7 @@ export const zhTW: Dict = {
   "designFiles.usefulInfoTip5":
     "沒有想法？試試首頁「社群」的外掛模板，一鍵生成同款。",
   "designFiles.usefulInfoTip6": "遇到問題或有建議？加入 Discord 和我們聊聊。",
-  "designFiles.usefulInfoTip7": "覺得好用？在 GitHub 給我們點個 Star。",
+  "designFiles.usefulInfoTip7": "覺得 {brandName} 好用？在 GitHub 給我們點個 Star。",
   "designFiles.usefulInfoTip8":
     "在 X 上關注 @OpenDesignHQ，第一時間了解新功能。",
   "designFiles.usefulInfoTip9":
@@ -3178,11 +3178,11 @@ export const zhTW: Dict = {
   "designFiles.usefulInfoTip17":
     "在 Instagram 上追蹤 @opendesign.ai，獲取設計靈感。",
   "designFiles.usefulInfoTip18":
-    "在 YouTube 上訂閱 OpenDesign，觀看教學和示範。",
+    "在 YouTube 上訂閱 {brandName}，觀看教學和示範。",
   "designFiles.usefulInfoTip19":
-    "在 LinkedIn 上追蹤 OpenDesign，了解產品動態。",
+    "在 LinkedIn 上追蹤 {brandName}，了解產品動態。",
   "designFiles.usefulInfoTip20":
-    "在小紅書上追蹤 OpenDesign，獲取技巧和靈感。",
+    "在小紅書上追蹤 {brandName}，獲取技巧和靈感。",
   "quickSwitcher.placeholder": "開啟分頁或檔案…",
   "quickSwitcher.empty": "此專案中沒有檔案",
   "quickSwitcher.noMatches": "無符合項目",
@@ -3379,7 +3379,7 @@ export const zhTW: Dict = {
   "fileViewer.shareMenuPresentation": "簡報",
   "fileViewer.shareMenuSourceFiles": "原始檔案",
   "fileViewer.shareMenuSave": "儲存",
-  "fileViewer.shareMenuPublishViaOd": "快速分享（OpenDesign 託管）",
+  "fileViewer.shareMenuPublishViaOd": "快速分享（{brandName} 託管）",
   "fileViewer.unifiedShareAria": "分享和匯出操作",
   "fileViewer.unifiedShareTab": "分享",
   "fileViewer.unifiedExportTab": "匯出",
@@ -3402,7 +3402,7 @@ export const zhTW: Dict = {
   "fileViewer.shareTeamMissingTitle": "還沒有團隊可以分享",
 
   "fileViewer.publishFileRequiresTeam": "發布公開連結需要團隊工作區。請切換到團隊工作區，或使用「部署」發布此檔案。",
-  "fileViewer.publishFileRequiresWorkspace": "產生分享連結需要登入工作區。請登入 OpenDesign Cloud，或改用「部署」分享此檔案。",
+  "fileViewer.publishFileRequiresWorkspace": "產生分享連結需要登入工作區。請登入 {brandName} Cloud，或改用「部署」分享此檔案。",
   "fileViewer.publishFileFailed": "產生分享連結失敗，請稍後重試，或改用下方的部署方式。",
   "fileViewer.workspaceShareSuccess": "已分享給工作空間成員",
   "fileViewer.workspaceShareFailed": "分享到工作空間失敗",
@@ -3661,7 +3661,7 @@ export const zhTW: Dict = {
   "assistant.forkConversation": "新會話",
   "assistant.forkingConversation": "正在開始新會話…",
   "assistant.forkNote": "從上一個會話繼續",
-  "assistant.shareToOpenDesign": "分享到 OpenDesign",
+  "assistant.shareToOpenDesign": "分享到 {brandName}",
   "assistant.shareToOpenDesignBusy": "正在準備投稿…",
   "assistant.feedbackPrompt": "意見回饋",
   "assistant.feedbackPositive": "有幫助",
@@ -3894,7 +3894,7 @@ export const zhTW: Dict = {
   "pet.navTitle": "寵物",
   "pet.navHint": "領養與自訂",
   "pet.tabBuiltIn": "內建",
-  "pet.tabBuiltInHint": "OpenDesign 內建的精選寵物 — 一鍵領養。",
+  "pet.tabBuiltInHint": "{brandName} 內建的精選寵物 — 一鍵領養。",
   "pet.builtInEmpty":
     "目前無法載入內建寵物。等本地服務恢復後,重新整理「社群」頁籤再試。",
   "pet.tabCustom": "自訂",
@@ -4023,7 +4023,7 @@ export const zhTW: Dict = {
   "pet.communitySyncDone": "已同步 {wrote} 個新寵物（共 {total} 個）。",
   "pet.communitySyncFailed": "同步失敗：{error}",
   "pet.codexBundled": "內建",
-  "pet.codexBundledTitle": "OpenDesign 內建寵物，無需下載。",
+  "pet.codexBundledTitle": "{brandName} 內建寵物，無需下載。",
   "settings.systemPrefsTitle": "系統偏好",
   "settings.systemPrefsHint": "完成提示音、瀏覽器通知和任務狀態提醒。",
   "settings.notifications": "通知",
@@ -4101,7 +4101,7 @@ export const zhTW: Dict = {
   "settings.projectLocations": "專案位置",
   "settings.projectLocationsHint": "工作區儲存根目錄",
   "settings.projectLocationsDescription":
-    "新增可包含多個 OpenDesign 專案資料夾的工作基目錄。新專案會儲存為所選基目錄中的一個資料夾。",
+    "新增可包含多個 {brandName} 專案資料夾的工作基目錄。新專案會儲存為所選基目錄中的一個資料夾。",
   "settings.projectLocationsSaveError":
     "無法儲存專案位置。請確認每個路徑都是可存取的資料夾。",
   "settings.projectLocationsSaved": "專案位置已儲存。",
@@ -4167,7 +4167,7 @@ export const zhTW: Dict = {
   "settings.memoryHint": "從對話中自動沉澱的個人化資訊",
   "settings.customInstructionsTitle": "全域規則",
   "settings.customInstructionsHint":
-    "OpenDesign 在每次聊天中都應遵循的固定指示。將事實、偏好與專案脈絡儲存為記憶。",
+    "{brandName} 在每次聊天中都應遵循的固定指示。將事實、偏好與專案脈絡儲存為記憶。",
   "settings.customInstructionsPlaceholder":
     "例如「一律使用 TypeScript。優先採用函式型元件。回覆保持簡潔。」",
   "settings.memoryDescription":
@@ -4199,7 +4199,7 @@ export const zhTW: Dict = {
     "- 主題：預設深色\n- 正文字號：≥ 18px\n- 資訊密度：留白多一些，一屏不要塞太多東西\n\n為什麼：長時間使用眼睛不容易累。\n何時適用：讓你畫 UI、網頁、PPT 時都按這個走。",
   "settings.memoryStarterProjectName": "當前專案",
   "settings.memoryStarterProjectDesc":
-    "OpenDesign v0.5 — 聊天驅動的設計編輯器",
+    "{brandName} v0.5 — 聊天驅動的設計編輯器",
   "settings.memoryStarterProjectBody":
     "- 目標：本季交付聊天驅動的編輯體驗\n- 優先級：串流渲染、本地多模態、離線優先\n- 技術棧：Next.js 16、Express daemon、SQLite\n\n何時適用：與本專案相關的所有對話。",
   "settings.memorySaveHint": "不會自動儲存 — 點擊「建立」/「儲存」才會生效。",
@@ -4324,11 +4324,11 @@ export const zhTW: Dict = {
   "notify.successBody": "一輪回答已經寫完。",
   "notify.failureBody": "本輪任務出錯，請查看錯誤訊息。",
   "updater.available": "有可用更新",
-  "updater.activeRunsTitle": "OpenDesign 仍在執行任務",
+  "updater.activeRunsTitle": "{brandName} 仍在執行任務",
   "updater.activeRunsBody": "仍有 {count} 個任務正在執行。現在重新啟動會中斷這些任務。",
-  "updater.activeRunsUnknownBody": "OpenDesign 無法確認是否仍有任務執行。現在重新啟動可能會中斷進行中的工作。",
+  "updater.activeRunsUnknownBody": "{brandName} 無法確認是否仍有任務執行。現在重新啟動可能會中斷進行中的工作。",
   "updater.availableBody":
-    "OpenDesign {version} 可用。下載完成後即可開啟安裝器。",
+    "{brandName} {version} 可用。下載完成後即可開啟安裝器。",
   "updater.checking": "正在檢查更新",
   "updater.download": "下載更新",
   "updater.downloading": "正在下載更新",
@@ -4336,7 +4336,7 @@ export const zhTW: Dict = {
   "updater.done": "完成",
   "updater.failed": "更新失敗",
   "updater.installerOpenBody":
-    "安裝器已開啟。OpenDesign 正在結束，以便你完成更新。",
+    "安裝器已開啟。{brandName} 正在結束，以便你完成更新。",
   "updater.installerOpened": "安裝器已開啟",
   "updater.later": "稍後",
   "updater.allowSilentUpdates": "允許以後自動安裝應用內更新",
@@ -4355,27 +4355,27 @@ export const zhTW: Dict = {
   "updater.dialogUnsupported":
     "目前環境不支援應用程式內更新。\n可前往發布頁面手動下載。",
   "updater.payloadReadyGeneric":
-    "A new OpenDesign update is ready. OpenDesign will close and restart automatically.",
+    "A new {brandName} update is ready. {brandName} will close and restart automatically.",
   "updater.payloadReadyVersion":
-    "OpenDesign {version} is ready. OpenDesign will close and restart automatically.",
-  "updater.quitButton": "結束 OpenDesign",
+    "{brandName} {version} is ready. {brandName} will close and restart automatically.",
+  "updater.quitButton": "結束 {brandName}",
   "updater.quitFailedBody":
-    "安裝器已開啟，但 OpenDesign 無法結束。替換應用程式前請先結束 OpenDesign。",
+    "安裝器已開啟，但 {brandName} 無法結束。替換應用程式前請先結束 {brandName}。",
   "updater.quitFailedTitle": "無法結束",
   "updater.quitting": "正在結束…",
   "updater.ready": "更新已就緒",
-  "updater.readyGeneric": "新版本已就緒。OpenDesign 會關閉並開啟安裝器。",
+  "updater.readyGeneric": "新版本已就緒。{brandName} 會關閉並開啟安裝器。",
   "updater.readyVersion":
-    "OpenDesign {version} 已就緒。OpenDesign 會關閉並開啟安裝器。",
+    "{brandName} {version} 已就緒。{brandName} 會關閉並開啟安裝器。",
   "updater.upToDate": "您已經是最新版本啦",
   "updater.viewVersionFeatures": "查看新版本特色",
   "updater.manualDownload": "手動下載",
   "updater.reinstallLearnMore": "了解詳情",
-  "updater.reinstallReadyGeneric": "此更新需要完整重新安裝。OpenDesign 將關閉並開啟安裝程式。",
-  "updater.reinstallReadyVersion": "OpenDesign {version} 需要完整重新安裝。OpenDesign 將關閉並開啟安裝程式。",
+  "updater.reinstallReadyGeneric": "此更新需要完整重新安裝。{brandName} 將關閉並開啟安裝程式。",
+  "updater.reinstallReadyVersion": "{brandName} {version} 需要完整重新安裝。{brandName} 將關閉並開啟安裝程式。",
   "updater.restartAnyway": "仍然重新啟動",
 
-  "whatsNew.updatedTitle": "OpenDesign {version} 已更新",
+  "whatsNew.updatedTitle": "{brandName} {version} 已更新",
   "whatsNew.cta": "查看更新說明",
 
   'designBrowser.copyScreenshot': '複製截圖',
@@ -4720,7 +4720,7 @@ export const zhTW: Dict = {
   "dsManager.filterDraft": "草稿",
   "dsManager.createTitle": "新增設計體系",
   "dsManager.createBody":
-    "把你的品牌、產品、程式碼、素材與設計參考教給 OpenDesign。",
+    "把你的品牌、產品、程式碼、素材與設計參考教給 {brandName}。",
   "dsManager.createAction": "建立",
   "dsManager.emptyMine":
     "還沒有設計體系。從真實的產品脈絡建立一個，審閱草稿後再發佈，供日後的專案使用。",
@@ -4767,7 +4767,7 @@ export const zhTW: Dict = {
   // Brands library + extraction
   "brand.libraryTitle": "品牌套件",
   "brand.librarySubtitle":
-    "把你的品牌套件教給 OpenDesign——從網站擷取一個品牌套件，然後在任意對話中套用它。",
+    "把你的品牌套件教給 {brandName}——從網站擷取一個品牌套件，然後在任意對話中套用它。",
   "brand.newBrand": "新增品牌套件",
   "brand.searchPlaceholder": "搜尋你的品牌套件…",
   "brand.empty": "還沒有品牌套件。從一個網站擷取一個品牌套件即可開始。",
@@ -4840,7 +4840,7 @@ export const zhTW: Dict = {
   "onboarding.brandDone": "設計系統已擷取",
   "onboarding.buildTitle": "一次建立,處處沿用",
   "onboarding.buildBody":
-    "OpenDesign 將你的品牌沉澱為可重用的設計系統,讓你之後打造的一切都保持品牌一致。",
+    "{brandName} 將你的品牌沉澱為可重用的設計系統,讓你之後打造的一切都保持品牌一致。",
   "onboarding.buildBenefitMemoryTitle": "一份品牌記憶",
   "onboarding.buildBenefitMemoryBody":
     "色彩、字體、間距、元件和語氣會沉澱成可重用的 DESIGN.md。",
@@ -4868,7 +4868,7 @@ export const zhTW: Dict = {
   "dsCreate.embeddedBody": "先加入網站或品牌參考，再補充你已有的來源檔案。",
   "dsCreate.sourceSectionTitle": "從 GitHub、網站或來源素材擷取",
   "dsCreate.sourceSectionBody":
-    "從 GitHub repo、網站、DESIGN.md 或能體現風格的檔案開始。OpenDesign 會先快速建立一套可用系統，之後 AI 可在專案中繼續細化。",
+    "從 GitHub repo、網站、DESIGN.md 或能體現風格的檔案開始。{brandName} 會先快速建立一套可用系統，之後 AI 可在專案中繼續細化。",
   "dsCreate.githubWebsiteLabel": "GitHub 或網站",
   "dsCreate.add": "加入",
   "dsCreate.startFromBrand": "從品牌開始",
@@ -5029,7 +5029,7 @@ export const zhTW: Dict = {
   "ds.publish": "发布",
   "ds.extractionRunningTitle": "正在擷取設計體系",
   "ds.extractionCompleteTitle": "擷取完成",
-  "ds.extractionRunningBody": "OpenDesign 正在就地更新此體系。",
+  "ds.extractionRunningBody": "{brandName} 正在就地更新此體系。",
   "ds.extractionCompleteBody": "已擷取的模組如下所示；空段落會保持為空。",
   "ds.publishCardPublished": "團隊的新專案預設可以使用此設計體系作為上下文。",
   "ds.publishCardDraft":
@@ -5082,7 +5082,7 @@ export const zhTW: Dict = {
   "ds.sectionActivityReadFiles": "已讀取 {files}",
   "ds.sectionActivityPhaseFiles": "{phase}：{files}",
   "ds.sectionRunningReadingContext":
-    "OpenDesign 正在讀取 {title} 的段落上下文。",
+    "{brandName} 正在讀取 {title} 的段落上下文。",
   "ds.sectionRunningNow": "{phase}中。",
   "ds.reviewLastReviewed": "上次審閱 {time}",
   "ds.agentFeedbackQueued": "回饋已儲存。當前執行結束後，agent 會繼續處理。",
@@ -5099,7 +5099,7 @@ export const zhTW: Dict = {
   "ds.repoConnectedBody": "重新匯入此儲存庫，把檔案拉入你的設計體系。",
   "ds.repoImportButton": "匯入儲存庫",
   "ds.repoConnectBannerBody":
-    "連接 GitHub 後，OpenDesign 可以讀取你的儲存庫，並把顏色、字體和元件擷取到此設計體系中。",
+    "連接 GitHub 後，{brandName} 可以讀取你的儲存庫，並把顏色、字體和元件擷取到此設計體系中。",
   "ds.repoConnectCardBody": "從儲存庫中擷取顏色、字體和元件到此設計體系。",
   "ds.repoConnectButton": "連接 GitHub",
   // Settings > Workspace region (E-frontend, D4.3): role-gated shell for
@@ -5705,10 +5705,10 @@ export const zhTW: Dict = {
   'campaign.deepseekV4Flash.description': '落地頁、網站、簡報、圖片，無限做，做到滿意',
   'campaign.deepseekV4Flash.benefit': 'DeepSeek V4 Pro 與 V4 Flash 無限使用',
   'campaign.deepseekV4Flash.timing': '8 月 13 日至 8 月 27 日，活動期間免費使用',
-  'campaign.deepseekV4Flash.ruleSummary': '8 月 13 日至 8 月 27 日，付費用戶可在產品內免費使用 DeepSeek V4 Pro 與 V4 Flash；大規模盜刷等違規行為將暫停活動權益。',
+  'campaign.deepseekV4Flash.ruleSummary': '8 月 13 日至 8 月 27 日，付費用戶可在 {brandName} 內免費使用 DeepSeek V4 Pro 與 V4 Flash；大規模盜刷等違規行為將暫停活動權益。',
   'campaign.deepseekV4Flash.windowLabel': '8 月 13 日—8 月 27 日',
   'campaign.deepseekV4Flash.weekFreeSuffix': '兩週免費用',
-  'campaign.deepseekV4Flash.boundary': '方案內的無限制模型額度與免費生成次數，僅可透過 {brandName} 使用；無法在 MCP/CLI/API 及其他場景使用。解釋權歸官方所有。部分模型尖峰時段需要排隊。',
+  'campaign.deepseekV4Flash.boundary': '方案內的無限制模型額度與免費生成次數，僅可透過 {brandName} 使用；無法在 MCP/CLI/API 及其他場景使用。解釋權歸 {brandName} 所有。部分模型尖峰時段需要排隊。',
   'campaign.deepseekV4Flash.countdownLabel': '活動倒數',
   'campaign.deepseekV4Flash.countdownEnded': '活動已結束',
   'campaign.deepseekV4Flash.countdownRemaining': '{days}天 {hms}',

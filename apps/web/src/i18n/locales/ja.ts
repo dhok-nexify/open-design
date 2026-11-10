@@ -324,7 +324,7 @@ export const ja: Dict = {
   'plugins.actions.openMarketplace': 'マーケットプレイスで開く',
   'app.brand': '{brandName}',
   'app.brandPill': 'リサーチプレビュー',
-  'app.brandSubtitle': 'by Nexu Labs',
+  'app.brandSubtitle': 'by Nexify',
   'app.welcomeLoading': 'ワークスペースを読み込み中…',
   'settings.welcomeKicker': '',
   'settings.welcomeTitle': '{brandName} へようこそ',

@@ -324,7 +324,7 @@ export const hu: Dict = {
   'plugins.actions.openMarketplace': 'Megnyitás a piactéren',
   'app.brand': '{brandName}',
   'app.brandPill': 'Kutatási előzetes',
-  'app.brandSubtitle': 'a Nexu Labs-tól',
+  'app.brandSubtitle': 'a Nexify-tól',
   'app.welcomeLoading': 'Munkaterület betöltése…',
   'settings.welcomeKicker': '',
   'settings.welcomeTitle': 'Üdvözöljük az OpenDesignban',

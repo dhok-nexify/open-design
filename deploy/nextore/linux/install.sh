@@ -85,6 +85,9 @@ fi
 
 echo "installing to $PREFIX"
 install -d -m 0755 "$PREFIX"
+for entry in LICENSE NOTICE; do
+  if [ -f "$PAYLOAD_DIR/$entry" ]; then cp -a "$PAYLOAD_DIR/$entry" "$PREFIX/"; fi
+done
 cp -a "$PAYLOAD_DIR/apps" "$PREFIX/"
 for entry in skills design-systems craft prompt-templates data assets plugins; do
   if [ -d "$PAYLOAD_DIR/$entry" ]; then cp -a "$PAYLOAD_DIR/$entry" "$PREFIX/"; fi

@@ -324,7 +324,7 @@ export const uk: Dict = {
   'plugins.actions.openMarketplace': 'Відкрити в маркетплейсі',
   'app.brand': '{brandName}',
   'app.brandPill': 'Попередній перегляд',
-  'app.brandSubtitle': 'від Nexu Labs',
+  'app.brandSubtitle': 'від Nexify',
   'app.welcomeLoading': 'Завантаження робочого простору…',
   'settings.welcomeKicker': '',
   'settings.welcomeTitle': 'Ласкаво просимо до {brandName}',

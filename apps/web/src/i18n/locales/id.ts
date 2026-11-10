@@ -324,7 +324,7 @@ export const id: Dict = {
   'plugins.actions.openMarketplace': 'Buka di marketplace',
   'app.brand': '{brandName}',
   'app.brandPill': 'Pratinjau Riset',
-  'app.brandSubtitle': 'oleh Nexu Labs',
+  'app.brandSubtitle': 'oleh Nexify',
   'app.welcomeLoading': 'Memuat workspace...',
   'settings.welcomeKicker': '',
   'settings.welcomeTitle': 'Selamat datang di {brandName}',

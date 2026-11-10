@@ -26,6 +26,7 @@ pnpm --filter @open-design/daemon deploy --legacy --prod "$STAGE/apps/daemon"
 cp -R apps/daemon/vendor "$STAGE/apps/daemon/vendor"
 mkdir -p "$STAGE/apps/web"
 cp -R apps/web/out "$STAGE/apps/web/out"
+cp LICENSE NOTICE "$STAGE/"
 
 for entry in skills design-systems craft prompt-templates data assets/frames assets/community-pets plugins/_official; do
   mkdir -p "$STAGE/$(dirname "$entry")"

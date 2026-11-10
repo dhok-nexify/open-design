@@ -324,7 +324,7 @@ export const ko: Dict = {
   'plugins.actions.openMarketplace': '마켓플레이스에서 열기',
   'app.brand': '{brandName}',
   'app.brandPill': '리서치 프리뷰',
-  'app.brandSubtitle': 'by Nexu Labs',
+  'app.brandSubtitle': 'by Nexify',
   'app.welcomeLoading': '워크스페이스를 불러오는 중…',
   'settings.welcomeKicker': '',
   'settings.welcomeTitle': '{brandName}에 오신 것을 환영합니다',

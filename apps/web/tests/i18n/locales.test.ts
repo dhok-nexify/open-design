@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
+import { DEFAULT_PRODUCT_BRAND_NAME } from '@open-design/contracts';
 import { resolveSystemLocale } from '../../src/i18n';
 import { en } from '../../src/i18n/locales/en';
 import { id } from '../../src/i18n/locales/id';
@@ -92,7 +93,11 @@ describe('i18n locales', () => {
   it('localizes the ACP CLI session refusal card', async () => {
     const zh = await loadDict('zh-CN');
     expect(zh['chat.runError.title.cliSessionRefused']).toBe('智能体版本不兼容');
-    expect(zh['chat.runError.cliSessionRefusedMessage']).toBe(
+    const refusalMessage = zh['chat.runError.cliSessionRefusedMessage'];
+    expect(refusalMessage).toBe(
+      '{agent} 拒绝开始会话。通常是当前版本与 {brandName} 不兼容，换一个版本后重试。',
+    );
+    expect(refusalMessage.replace('{brandName}', DEFAULT_PRODUCT_BRAND_NAME)).toBe(
       '{agent} 拒绝开始会话。通常是当前版本与 NexTore Designer 不兼容，换一个版本后重试。',
     );
 

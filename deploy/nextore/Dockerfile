@@ -106,6 +106,7 @@ RUN apt-get update && \
     useradd --system --uid 10001 --gid designer --create-home --home-dir /home/designer designer
 
 WORKDIR /app
+COPY --from=build --chown=designer:designer /app/LICENSE /app/NOTICE ./
 COPY --from=build --chown=designer:designer /app/deploy/daemon ./apps/daemon
 COPY --from=build --chown=designer:designer /app/apps/daemon/vendor ./apps/daemon/vendor
 COPY --from=build --chown=designer:designer /app/apps/web/out ./apps/web/out

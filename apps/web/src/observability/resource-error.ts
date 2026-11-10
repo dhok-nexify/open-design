@@ -56,7 +56,6 @@ const PRODUCT_ROOT_FILES = new Set([
   'logo-mark.svg',
   'logo-scan.svg',
   'logo-tiles.svg',
-  'logo.png',
   'logo.svg',
   'od-notifications-sw.js',
   'official_badge.svg',
