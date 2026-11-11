@@ -3124,6 +3124,11 @@ function AppInner() {
             navigate({ kind: 'home', view: 'home' });
           }
           setProjectCreateError(errorCode);
+          // The Home composer also renders a thrown error verbatim right above the
+          // send button, which is where the user is looking after the optimistic
+          // frame bounces back. Throwing keeps the daemon reason (for example a
+          // taken NexTore project name) instead of the generic create banner.
+          if (input.autoSendFirstMessage) throw err;
           return false;
         }
         throw err;

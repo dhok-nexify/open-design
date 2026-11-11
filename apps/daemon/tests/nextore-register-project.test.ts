@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import type { NextoreClient } from '../src/nextore/client.js';
+import { NextoreClientError, type NextoreClient } from '../src/nextore/client.js';
 import {
   pickWorkspaceId,
   registerNextoreProject,
@@ -90,6 +90,30 @@ describe('registerNextoreProject', () => {
       workspaceId: 1,
     });
     expect(result).toMatchObject({ ok: false, code: 'NEXTORE_ERROR' });
+  });
+
+  it('names a taken project name as a conflict, not an outage', async () => {
+    const createProject = vi.fn().mockRejectedValue(
+      new NextoreClientError(
+        'nextore_http_error',
+        'A project named "Landing page" already exists in this workspace.',
+        409,
+        'project_name_conflict',
+      ),
+    );
+
+    const result = await registerNextoreProject({
+      client: client({ createProject }),
+      accessToken: 'token',
+      project,
+      workspaceId: 1,
+    });
+
+    expect(result).toMatchObject({
+      ok: false,
+      code: 'PROJECT_NAME_CONFLICT',
+      message: expect.stringContaining('already exists'),
+    });
   });
 
   it('rejects a created record with no id', async () => {

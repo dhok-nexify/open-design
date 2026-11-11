@@ -1,4 +1,4 @@
-import type { NextoreClient } from '../client.js';
+import { NextoreClientError, type NextoreClient } from '../client.js';
 import { wireArray, wireNumber, wireString } from '../wire.js';
 
 export interface NextoreWorkspaceSummary {
@@ -26,7 +26,7 @@ function normalizeWorkspace(value: unknown): NextoreWorkspaceSummary | null {
 
 export type RegisterProjectResult =
   | { ok: true; nextoreProjectId: string; workspaceId: number }
-  | { ok: false; code: 'NO_WORKSPACE' | 'NEXTORE_ERROR'; message: string };
+  | { ok: false; code: 'NO_WORKSPACE' | 'NEXTORE_ERROR' | 'PROJECT_NAME_CONFLICT'; message: string };
 
 /**
  * Picks the workspace a new project belongs to (NXD-D08).
@@ -91,9 +91,12 @@ export async function registerNextoreProject(input: {
     }
     return { ok: true, nextoreProjectId: String(id), workspaceId };
   } catch (error) {
+    // A taken project name is a user-fixable conflict, not an outage. Keep the
+    // distinction so the create route can answer 409 instead of 503.
+    const upstreamCode = error instanceof NextoreClientError ? error.upstreamCode : undefined;
     return {
       ok: false,
-      code: 'NEXTORE_ERROR',
+      code: upstreamCode === 'project_name_conflict' ? 'PROJECT_NAME_CONFLICT' : 'NEXTORE_ERROR',
       message: error instanceof Error ? error.message : String(error),
     };
   }

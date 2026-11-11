@@ -74,6 +74,10 @@ export const API_ERROR_CODES = [
   // than silently disabling the agent-specific watchdog.
   'AGENT_RUNTIME_DEF_INVALID',
   'PROJECT_NOT_FOUND',
+  // A create or rename collided with a project that already owns the name in the
+  // same NexTore workspace. NexTore keeps sibling names unique, so retrying with the
+  // same name cannot succeed: the client must tell the user which name collided.
+  'PROJECT_NAME_CONFLICT',
   'PROJECT_MATERIALIZATION_PENDING',
   // Handoff (`POST /api/projects/:id/handoff`): the requested conversation
   // is not in the project, or has no messages to synthesize a handoff from.

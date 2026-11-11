@@ -86,6 +86,23 @@ function upstreamErrorCode(payload: unknown): string | undefined {
   return typeof code === 'string' ? code : undefined;
 }
 
+/**
+ * The human sentence the module attached to a rejected call. The Designer client
+ * shows this verbatim for a rejected create, so dropping it reduces every failure
+ * to the transport-shaped fallback below.
+ */
+function upstreamErrorMessage(payload: unknown): string | undefined {
+  if (!payload || typeof payload !== 'object') return undefined;
+  const message = (payload as { message?: unknown }).message;
+  if (typeof message === 'string' && message.trim()) return message.trim();
+  const error = (payload as { error?: unknown }).error;
+  if (error && typeof error === 'object') {
+    const nested = (error as { message?: unknown }).message;
+    if (typeof nested === 'string' && nested.trim()) return nested.trim();
+  }
+  return undefined;
+}
+
 export function createNextoreClient(options: NextoreClientOptions): NextoreClient {
   const fetchImpl = options.fetch ?? fetch;
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
@@ -118,7 +135,8 @@ export function createNextoreClient(options: NextoreClientOptions): NextoreClien
         const code = upstreamErrorCode(payload);
         throw new NextoreClientError(
           'nextore_http_error',
-          `NexTore rejected ${path} with HTTP ${response.status}.`,
+          upstreamErrorMessage(payload)
+            ?? `NexTore rejected ${path} with HTTP ${response.status}.`,
           response.status,
           code,
         );

@@ -46,6 +46,33 @@ describe('createNextoreClient', () => {
     expect(String(error)).not.toContain('secret-token');
   });
 
+  it('keeps the message the module attached to a rejected call', async () => {
+    const fetchMock = async () => new Response(
+      JSON.stringify({
+        error: 'project_name_conflict',
+        message: 'A project named "Landing page" already exists in this workspace.',
+      }),
+      { status: 409 },
+    );
+    const client = createNextoreClient({ config, fetch: fetchMock });
+
+    const error = await client
+      .createProject('token', {
+        workspaceId: 1,
+        name: 'Landing page',
+        designerProjectId: 'local-1',
+      })
+      .catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(NextoreClientError);
+    expect(error).toMatchObject({
+      code: 'nextore_http_error',
+      statusCode: 409,
+      upstreamCode: 'project_name_conflict',
+    });
+    expect(String(error)).toContain('already exists');
+  });
+
   it('maps malformed JSON to a stable client error', async () => {
     const client = createNextoreClient({
       config,

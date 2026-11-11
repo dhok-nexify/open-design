@@ -3777,7 +3777,11 @@ export function registerProjectRoutes(app: Express, ctx: RegisterProjectRoutesDe
     const session = (res.locals as { nextoreSession?: { accessToken?: string } }).nextoreSession;
     const accessToken = typeof session?.accessToken === 'string' ? session.accessToken.trim() : '';
     if (!accessToken) {
-      return { ok: false as const, message: 'A NexTore session is required to create a project.' };
+      return {
+        ok: false as const,
+        code: 'NEXTORE_ERROR' as const,
+        message: 'A NexTore session is required to create a project.',
+      };
     }
     const result = await registerNextoreProject({ client: nextore.client, accessToken, project });
     if (!result.ok) return result;
@@ -4382,7 +4386,16 @@ export function registerProjectRoutes(app: Express, ctx: RegisterProjectRoutesDe
         await cancelRunsOwnedBy(design.runs, { projectId: id }).catch(() => {});
         dbDeleteProject(db, id);
         await removeProjectDir(PROJECTS_DIR, id).catch(() => {});
-        return sendApiError(res, 503, 'NEXTORE_UNAVAILABLE', nextoreRegistration.message);
+        // A name already taken in the workspace is a conflict the user can fix,
+        // not an outage: 409 lets the client name the colliding project instead of
+        // rendering a generic create failure after the optimistic frame bounces.
+        const nameConflict = nextoreRegistration.code === 'PROJECT_NAME_CONFLICT';
+        return sendApiError(
+          res,
+          nameConflict ? 409 : 503,
+          nameConflict ? 'PROJECT_NAME_CONFLICT' : 'NEXTORE_UNAVAILABLE',
+          nextoreRegistration.message,
+        );
       }
       /** @type {import('@open-design/contracts').CreateProjectResponse} */
       const createdProject = pluginResolutionState.snapshot
