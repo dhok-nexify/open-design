@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { checkBwrap } from '../../src/sandbox/self-check.js';
+import { checkBwrap, describeBwrapProbeFailure } from '../../src/sandbox/self-check.js';
 
 describe('checkBwrap', () => {
   it('reports a missing binary as not_found', () => {
@@ -22,6 +22,15 @@ describe('checkBwrap', () => {
     expect(result.ok).toBe(false);
     expect(result.reason).toBe('probe_failed');
     expect(result.detail).toContain('Permission denied');
+  });
+
+  it('prefers the bubblewrap stderr message over the command line', () => {
+    const error = Object.assign(new Error('Command failed: /usr/bin/bwrap ...'), {
+      stderr: Buffer.from('bwrap: setting up uid map: Permission denied\n'),
+    });
+    expect(describeBwrapProbeFailure(error)).toBe(
+      'bwrap: setting up uid map: Permission denied',
+    );
   });
 
   it('accepts a working bubblewrap', () => {

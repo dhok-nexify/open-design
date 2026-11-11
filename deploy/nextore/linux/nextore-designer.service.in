@@ -14,12 +14,13 @@ ExecStart=/usr/bin/env node @PREFIX@/apps/daemon/dist/cli.js --no-open
 Restart=always
 RestartSec=3s
 
-# Hardening. Do not add SystemCallFilter or RestrictNamespaces: bubblewrap
-# must call unshare(CLONE_NEWUSER) and mount inside that namespace.
-# NoNewPrivileges is explicitly off because Ubuntu ships bwrap as setuid-root;
-# NNP suppresses that transition and leaves the AppArmor-restricted
-# unprivileged path, which fails at run time even though a shell probe as the
-# same user succeeds. Isolation comes from bwrap itself.
+# bubblewrap creates user, pid, and mount namespaces and may rely on the
+# setuid helper Ubuntu ships. Keep NoNewPrivileges off. Do not add
+# seccomp-based directives (SystemCallFilter, RestrictNamespaces,
+# RestrictAddressFamilies, RestrictSUIDSGID, LockPersonality, ProtectClock):
+# they implicitly enable NoNewPrivileges, which disables the setuid transition
+# and makes the runtime probe fail even though a shell probe as the same user
+# succeeds. Isolation comes from bwrap itself.
 NoNewPrivileges=no
 PrivateTmp=yes
 ProtectSystem=strict
@@ -27,10 +28,6 @@ ProtectHome=yes
 ProtectKernelTunables=yes
 ProtectKernelModules=yes
 ProtectControlGroups=yes
-ProtectClock=yes
-RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
-RestrictSUIDSGID=yes
-LockPersonality=yes
 MemoryDenyWriteExecute=no
 ReadWritePaths=@DATA_DIR@
 

@@ -22,7 +22,7 @@ usage() {
 usage: install.sh [options]
 
   --prefix <dir>    install root (default /opt/nextore-designer)
-  --data-dir <dir>  daemon data root, becomes a systemd ReadWritePath
+  --data-dir <dir>  daemon data root owned by the service user
                     (default /var/lib/nextore-designer)
   --user <name>     service user (default nextore-designer)
   --start           start the service after installing
@@ -65,21 +65,46 @@ if ! command -v bwrap >/dev/null 2>&1; then
   exit 1
 fi
 
-if [ -r /proc/sys/kernel/unprivileged_userns_clone ] && \
-   [ "$(cat /proc/sys/kernel/unprivileged_userns_clone)" != "1" ]; then
-  echo "unprivileged user namespaces are disabled (kernel.unprivileged_userns_clone=0)" >&2
-  echo "enable them or run the service with CAP_SYS_ADMIN; refusing to install" >&2
-  exit 1
-fi
-
 echo "checking bubblewrap as a service user"
 if ! id -u "$SERVICE_USER" >/dev/null 2>&1; then
   useradd --system --home-dir "$DATA_DIR" --shell /usr/sbin/nologin "$SERVICE_USER"
 fi
-if ! runuser -u "$SERVICE_USER" -- bwrap --die-with-parent --unshare-pid \
-      --ro-bind / / --dev /dev --proc /proc --tmpfs /tmp /bin/true; then
-  echo "bwrap cannot create a namespace as $SERVICE_USER" >&2
-  echo "check AppArmor (aa-status) and kernel.unprivileged_userns_clone" >&2
+
+sandbox_probe() {
+  runuser -u "$SERVICE_USER" -- bwrap --die-with-parent --unshare-pid \
+    --ro-bind / / --dev /dev --proc /proc --tmpfs /tmp /bin/true
+}
+
+sandbox_probe_no_new_privileges() {
+  if command -v setpriv >/dev/null 2>&1; then
+    runuser -u "$SERVICE_USER" -- setpriv --no-new-privs bwrap --die-with-parent --unshare-pid \
+      --ro-bind / / --dev /dev --proc /proc --tmpfs /tmp /bin/true
+  else
+    sandbox_probe
+  fi
+}
+
+enable_user_namespaces() {
+  local file=/etc/sysctl.d/99-nextore-designer.conf
+  : > "$file"
+  if sysctl -n kernel.apparmor_restrict_unprivileged_userns >/dev/null 2>&1; then
+    printf '%s\n' 'kernel.apparmor_restrict_unprivileged_userns=0' >> "$file"
+    sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
+  fi
+  if sysctl -n kernel.unprivileged_userns_clone >/dev/null 2>&1; then
+    printf '%s\n' 'kernel.unprivileged_userns_clone=1' >> "$file"
+    sysctl -w kernel.unprivileged_userns_clone=1 || true
+  fi
+  sysctl --system || true
+}
+
+if ! sandbox_probe >/dev/null 2>&1 || ! sandbox_probe_no_new_privileges >/dev/null 2>&1; then
+  echo "bubblewrap probe failed; enabling unprivileged user namespaces" >&2
+  enable_user_namespaces
+fi
+if ! sandbox_probe_no_new_privileges; then
+  echo "bwrap cannot create a namespace as $SERVICE_USER, even with NoNewPrivileges" >&2
+  echo "check AppArmor (aa-status), kernel.unprivileged_userns_clone and setuid bwrap" >&2
   exit 1
 fi
 
@@ -127,6 +152,22 @@ sed -e "s|@PREFIX@|$PREFIX|g" \
     -e "s|@USER@|$SERVICE_USER|g" \
     "$SCRIPT_DIR/nextore-designer.service.in" > "$UNIT_PATH"
 chmod 0644 "$UNIT_PATH"
+
+if ! systemd-run --quiet --wait --pipe --collect \
+      --property=User="$SERVICE_USER" \
+      --property=NoNewPrivileges=no \
+      --property=PrivateTmp=yes \
+      --property=ProtectSystem=strict \
+      --property=ProtectHome=yes \
+      --property=ProtectKernelTunables=yes \
+      --property=ProtectKernelModules=yes \
+      --property=ProtectControlGroups=yes \
+      --property=ReadWritePaths="$DATA_DIR" \
+      /usr/bin/bwrap --die-with-parent --unshare-pid \
+        --ro-bind / / --dev /dev --proc /proc --tmpfs /tmp /bin/true; then
+  echo "bwrap works from a shell but not inside a systemd unit" >&2
+  exit 1
+fi
 
 systemctl daemon-reload
 systemctl enable nextore-designer

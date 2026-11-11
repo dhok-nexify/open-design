@@ -68,12 +68,16 @@ tar -xzf dist/nextore-designer-*.tar.gz -C /tmp/designer-payload
 sudo /tmp/designer-payload/install/install.sh --start
 ```
 
-The installer checks `kernel.unprivileged_userns_clone`, runs a bubblewrap probe as
-the service user, creates the data directory and secret, installs
-`nextore-designer.service` and enables it. It is idempotent: an existing
+The installer checks the user-namespace sysctls, probes bubblewrap as the
+service user with and without `NoNewPrivileges`, then probes it again through
+`systemd-run` with the unit's mount protections. It creates the data directory
+and secret, installs `nextore-designer.service` and enables it. It is
+idempotent: an existing
 `/etc/nextore-designer/designer.env` and secret are kept. The systemd unit
-deliberately omits `SystemCallFilter` and `RestrictNamespaces` because they would
-stop bubblewrap from creating its namespace.
+deliberately omits seccomp-based hardening (`SystemCallFilter`,
+`RestrictNamespaces`, `RestrictAddressFamilies`, `RestrictSUIDSGID`,
+`LockPersonality`, `ProtectClock`) because those directives implicitly enable
+`NoNewPrivileges`, which disables the setuid bubblewrap helper Ubuntu ships.
 
 ## Data and secrets
 

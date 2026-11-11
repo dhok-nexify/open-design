@@ -3146,8 +3146,9 @@ let sandboxHealthCache: {
   value: { ok: boolean; mode: 'bwrap' | 'noop'; reason?: string; detail?: string };
 } | null = null;
 const SANDBOX_HEALTH_TTL_MS = 30_000;
-// A broken host pays the synchronous probe cost once, not on every poll.
-const SANDBOX_HEALTH_FAILURE_TTL_MS = 300_000;
+// Keep failures short so an operator who fixes the host sees the result
+// without restarting the daemon.
+const SANDBOX_HEALTH_FAILURE_TTL_MS = 10_000;
 
 export async function startServer({
   port = 7456,

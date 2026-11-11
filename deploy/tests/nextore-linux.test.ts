@@ -42,10 +42,10 @@ test('installer is idempotent for the env file and the secret', async () => {
   assert.match(install, /chmod 0640 "\$ENV_DIR\/designer_secret"/);
 });
 
-test('systemd unit hardens the daemon without breaking bubblewrap', async () => {
+test('systemd unit keeps the setuid bubblewrap path available', async () => {
   const unit = await read('nextore-designer.service.in');
   for (const directive of [
-    'NoNewPrivileges=yes',
+    'NoNewPrivileges=no',
     'ProtectSystem=strict',
     'ProtectHome=yes',
     'PrivateTmp=yes',
@@ -54,9 +54,18 @@ test('systemd unit hardens the daemon without breaking bubblewrap', async () => 
   ]) {
     assert.ok(unit.includes(directive), directive);
   }
-  // These would make the sandbox unable to create or use its namespace.
-  assert.ok(!unit.includes('SystemCallFilter='), 'SystemCallFilter would block bwrap');
-  assert.ok(!unit.includes('RestrictNamespaces='), 'RestrictNamespaces would block bwrap');
+  // These install seccomp filters and implicitly enable NoNewPrivileges, which
+  // disables the setuid bwrap helper Ubuntu ships.
+  for (const directive of [
+    'SystemCallFilter=',
+    'RestrictNamespaces=',
+    'RestrictAddressFamilies=',
+    'RestrictSUIDSGID=',
+    'LockPersonality=',
+    'ProtectClock=',
+  ]) {
+    assert.ok(!unit.includes(directive), directive + ' would force NoNewPrivileges');
+  }
   assert.ok(unit.includes('MemoryDenyWriteExecute=no'), 'V8 needs writable executable pages');
 });
 
