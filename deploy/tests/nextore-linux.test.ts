@@ -46,10 +46,9 @@ test('systemd unit keeps the setuid bubblewrap path available', async () => {
   const unit = await read('nextore-designer.service.in');
   for (const directive of [
     'NoNewPrivileges=no',
-    'ProtectSystem=strict',
+    'ProtectSystem=full',
     'ProtectHome=yes',
     'PrivateTmp=yes',
-    'ReadWritePaths=@DATA_DIR@',
     'Restart=always',
   ]) {
     assert.ok(unit.includes(directive), directive);
@@ -65,6 +64,16 @@ test('systemd unit keeps the setuid bubblewrap path available', async () => {
     'ProtectClock=',
   ]) {
     assert.ok(!unit.includes(directive), directive + ' would force NoNewPrivileges');
+  }
+  // strict (or the kernel protections it implies) locks the /proc mount that
+  // bubblewrap must replace inside its namespace.
+  for (const directive of [
+    'ProtectSystem=strict',
+    'ProtectKernelTunables=yes',
+    'ProtectKernelModules=yes',
+    'ProtectControlGroups=yes',
+  ]) {
+    assert.ok(!unit.includes(directive), directive + ' would lock the bwrap proc mount');
   }
   assert.ok(unit.includes('MemoryDenyWriteExecute=no'), 'V8 needs writable executable pages');
 });

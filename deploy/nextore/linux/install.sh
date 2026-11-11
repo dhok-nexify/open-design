@@ -157,12 +157,8 @@ if ! systemd-run --quiet --wait --pipe --collect \
       --property=User="$SERVICE_USER" \
       --property=NoNewPrivileges=no \
       --property=PrivateTmp=yes \
-      --property=ProtectSystem=strict \
+      --property=ProtectSystem=full \
       --property=ProtectHome=yes \
-      --property=ProtectKernelTunables=yes \
-      --property=ProtectKernelModules=yes \
-      --property=ProtectControlGroups=yes \
-      --property=ReadWritePaths="$DATA_DIR" \
       /usr/bin/bwrap --die-with-parent --unshare-pid \
         --ro-bind / / --dev /dev --proc /proc --tmpfs /tmp /bin/true; then
   echo "bwrap works from a shell but not inside a systemd unit" >&2

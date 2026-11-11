@@ -23,13 +23,10 @@ RestartSec=3s
 # succeeds. Isolation comes from bwrap itself.
 NoNewPrivileges=no
 PrivateTmp=yes
-ProtectSystem=strict
+# full keeps /usr, /boot and /etc read-only without locking /proc or /sys.
+ProtectSystem=full
 ProtectHome=yes
-ProtectKernelTunables=yes
-ProtectKernelModules=yes
-ProtectControlGroups=yes
 MemoryDenyWriteExecute=no
-ReadWritePaths=@DATA_DIR@
 
 [Install]
 WantedBy=multi-user.target

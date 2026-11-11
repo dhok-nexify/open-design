@@ -70,7 +70,7 @@ sudo /tmp/designer-payload/install/install.sh --start
 
 The installer checks the user-namespace sysctls, probes bubblewrap as the
 service user with and without `NoNewPrivileges`, then probes it again through
-`systemd-run` with the unit's mount protections. It creates the data directory
+`systemd-run` with the unit's protections. It creates the data directory
 and secret, installs `nextore-designer.service` and enables it. It is
 idempotent: an existing
 `/etc/nextore-designer/designer.env` and secret are kept. The systemd unit
@@ -78,6 +78,9 @@ deliberately omits seccomp-based hardening (`SystemCallFilter`,
 `RestrictNamespaces`, `RestrictAddressFamilies`, `RestrictSUIDSGID`,
 `LockPersonality`, `ProtectClock`) because those directives implicitly enable
 `NoNewPrivileges`, which disables the setuid bubblewrap helper Ubuntu ships.
+It also uses `ProtectSystem=full` instead of `strict`: strict locks the `/proc`
+and `/sys` mounts that bubblewrap must replace inside its own namespace, and
+the runtime probe fails with "Can't mount proc on /newroot/proc".
 
 ## Data and secrets
 
