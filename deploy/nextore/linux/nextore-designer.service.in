@@ -14,12 +14,13 @@ ExecStart=/usr/bin/env node @PREFIX@/apps/daemon/dist/cli.js --no-open
 Restart=always
 RestartSec=3s
 
-# Hardening. Deliberately no SystemCallFilter, RestrictNamespaces or
-# NoNewPrivileges removal workaround: bubblewrap must be able to call
-# unshare(CLONE_NEWUSER) and mount inside that namespace, which syscall
-# filtering and namespace restrictions break. Isolation of the agent itself
-# comes from bwrap, not from the unit's seccomp.
-NoNewPrivileges=yes
+# Hardening. Do not add SystemCallFilter or RestrictNamespaces: bubblewrap
+# must call unshare(CLONE_NEWUSER) and mount inside that namespace.
+# NoNewPrivileges is explicitly off because Ubuntu ships bwrap as setuid-root;
+# NNP suppresses that transition and leaves the AppArmor-restricted
+# unprivileged path, which fails at run time even though a shell probe as the
+# same user succeeds. Isolation comes from bwrap itself.
+NoNewPrivileges=no
 PrivateTmp=yes
 ProtectSystem=strict
 ProtectHome=yes

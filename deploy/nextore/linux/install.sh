@@ -133,7 +133,13 @@ systemctl enable nextore-designer
 
 if [ "$START" -eq 1 ]; then
   systemctl restart nextore-designer
-  echo "started nextore-designer; follow with: journalctl -u nextore-designer -f"
+  for i in $(seq 1 30); do
+    if node -e 'fetch("http://127.0.0.1:7456/api/health").then(r=>r.json()).then(h=>process.exit(h && h.ok ? 0 : 1)).catch(()=>process.exit(1))' 2>/dev/null; then break; fi
+    sleep 1
+  done
+  node -e 'fetch("http://127.0.0.1:7456/api/health").then(r=>r.json()).then(h=>{if(!h.sandbox||h.sandbox.ok!==true){console.error("sandbox unavailable: "+JSON.stringify(h.sandbox||null));process.exit(1)}}).catch(e=>{console.error(e);process.exit(1)})' \
+    || { echo "execution sandbox probe failed at runtime; check AppArmor/user namespaces" >&2; exit 1; }
+  echo "started nextore-designer; sandbox probe OK; follow with: journalctl -u nextore-designer -f"
 else
   echo "installed. Fill in $ENV_DIR/designer.env, then: systemctl start nextore-designer"
 fi

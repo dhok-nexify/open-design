@@ -11,6 +11,7 @@ import {
   lastResolvedTeamProjects as cachedTeamProjects,
 } from './useWorkspaceContext';
 import { useCollab } from './useCollab';
+import { NEXTORE_WEB_EDITION } from '../nextore/features';
 import { workspaceIdentityCacheKey } from './workspace-identity';
 
 // Workspace-scoped project ids the current viewer created in THIS browser
@@ -327,6 +328,10 @@ export function useProjectCollab(
 ): ProjectCollab {
   const { context, loading: workspaceContextLoading } = useWorkspaceContextState(options);
   const decision = resolveCollabSession(context);
+  // The NexTore edition owns membership, presence and comments on the module
+  // side; the local collab client has no project row to poll there and would
+  // only produce 400s. Keep the hook mounted but dormant.
+  const localCollabEnabled = NEXTORE_WEB_EDITION !== 'nextore' && decision.enabled;
   const member = decision.member
     ? {
         ...decision.member,
@@ -338,12 +343,12 @@ export function useProjectCollab(
     projectId: projectId ?? null,
     member,
     workspaceContext: context,
-    enabled: decision.enabled,
+    enabled: localCollabEnabled,
     // Collab routes fail closed without an explicit workspace identity. Wait
     // for context, then bind every status/presence/pull request to that exact
     // identity; switching workspace recreates the client and tombstones the
     // old response stream.
-    statusEnabled: Boolean(projectId) && decision.enabled,
+    statusEnabled: Boolean(projectId) && localCollabEnabled,
     ...(options.fetch ? { fetch: options.fetch } : {}),
     ...(options.baseUrl !== undefined ? { baseUrl: options.baseUrl } : {}),
     ...(options.heartbeatMs !== undefined ? { heartbeatMs: options.heartbeatMs } : {}),

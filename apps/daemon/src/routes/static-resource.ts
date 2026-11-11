@@ -455,9 +455,10 @@ export function registerStaticResourceRoutes(app: Express, ctx: RegisterStaticRe
       return;
     }
     const agentCliEnv = config.agentCliEnv ?? {};
-    // NEXTORE: the edition exposes one execution path. `/api/agents` is 404 in
-    // the edition kill switch, but the listing still filters here so a future
-    // mount mistake cannot advertise runtimes the daemon refuses to start.
+    // NEXTORE: the edition exposes one execution path. The route stays mounted
+    // (the UI needs its availability probe) but the listing filters to the
+    // edition runtimes so it can never advertise a runtime the daemon refuses
+    // to start.
     const allowedAgentIds = new Set(
       agentDefsForEdition(resolveEdition(process.env.OD_EDITION)).map((def) => def.id),
     );

@@ -10,6 +10,7 @@ import { coalescedGet, evictCoalescedGet } from '../lib/coalesced-get';
 import { isDaemonProxyConnectionFailure } from '../runtime/daemon-proxy-failure';
 import { BackoffController, type BackoffOptions } from '../lib/backoff';
 import { markProjectCreatedByViewer } from '../collab/useProjectCollab';
+import { NEXTORE_WEB_EDITION } from '../nextore/features';
 import {
   API_ERROR_CODES,
   isSameWorkspacePrincipal,
@@ -791,7 +792,13 @@ export async function createProject(
           'Content-Type': 'application/json',
           ...(input.workspaceContext ? workspaceProjectHeaders(input.workspaceContext) : {}),
         },
-        body: JSON.stringify({ id, ...omitWorkspaceContext(input) }),
+        body: JSON.stringify({
+          id,
+          ...omitWorkspaceContext(input),
+          // New NexTore projects inherit the edition design system even when a
+          // creation surface deliberately asked for no design system.
+          designSystemId: input.designSystemId ?? (NEXTORE_WEB_EDITION === 'nextore' ? 'nextore' : null),
+        }),
       });
       if (resp.ok) {
         const created = (await resp.json()) as {

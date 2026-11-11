@@ -412,6 +412,7 @@ import {
   resolveEdition,
 } from './edition/index.js';
 import { resolveSandboxProvider, SandboxUnavailableError } from './sandbox/index.js';
+import { checkBwrap } from './sandbox/self-check.js';
 import { createNextoreClient } from './nextore/client.js';
 import { normalizeAccess } from './nextore/wire.js';
 import { resolveProductBrandName } from './nextore/branding-state.js';
@@ -3138,6 +3139,15 @@ export interface StartServerResult {
   shutdown: () => Promise<void> | void;
   routeInventory: import('./route-registration-guard.js').RouteRegistration[];
 }
+
+/** Cached execution-sandbox probe for the NexTore health surface. */
+let sandboxHealthCache: {
+  at: number;
+  value: { ok: boolean; mode: 'bwrap' | 'noop'; reason?: string; detail?: string };
+} | null = null;
+const SANDBOX_HEALTH_TTL_MS = 30_000;
+// A broken host pays the synchronous probe cost once, not on every poll.
+const SANDBOX_HEALTH_FAILURE_TTL_MS = 300_000;
 
 export async function startServer({
   port = 7456,
@@ -8184,6 +8194,23 @@ export async function startServer({
 
   app.get('/api/health', async (_req, res) => {
     const versionInfo = await readCurrentAppVersionInfo();
+    let sandbox: { ok: boolean; mode: 'bwrap' | 'noop'; reason?: string; detail?: string } | undefined;
+    if (edition === 'nextore') {
+      const now = Date.now();
+      const cacheTtl = sandboxHealthCache?.value.ok === false
+        ? SANDBOX_HEALTH_FAILURE_TTL_MS
+        : SANDBOX_HEALTH_TTL_MS;
+      if (!sandboxHealthCache || now - sandboxHealthCache.at > cacheTtl) {
+        const mode = process.env.OD_SANDBOX === 'noop' ? 'noop' : 'bwrap';
+        sandboxHealthCache = {
+          at: now,
+          value: mode === 'noop'
+            ? { ok: true, mode }
+            : { ...checkBwrap({ bwrapPath: process.env.OD_BWRAP_BIN?.trim() || 'bwrap' }), mode },
+        };
+      }
+      sandbox = sandboxHealthCache.value;
+    }
     const {
       pending,
       delivered,
@@ -8196,6 +8223,7 @@ export async function startServer({
       ok: true,
       version: versionInfo.version,
       ...nextoreHealthMetadata(edition, versionInfo.version),
+      ...(sandbox ? { sandbox } : {}),
       amrTerminalReporter: {
         status: 'active',
         pending,

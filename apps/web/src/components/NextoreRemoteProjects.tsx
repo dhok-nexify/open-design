@@ -8,6 +8,8 @@ import {
   type NextoreProjectEntry,
 } from '../nextore-projects';
 
+import { useT } from '../i18n';
+
 /**
  * Projects that live in NexTore but have no content on this device (NXD-D09).
  *
@@ -16,6 +18,7 @@ import {
  * content sync exists. Nothing renders when every project is local.
  */
 export function NextoreRemoteProjects() {
+  const t = useT();
   const [projects, setProjects] = useState<NextoreProjectEntry[]>([]);
 
   useEffect(() => {
@@ -32,9 +35,9 @@ export function NextoreRemoteProjects() {
   if (projects.length === 0) return null;
   return (
     <section className="nextore-remote-projects" data-testid="nextore-remote-projects">
-      <h2 className="nextore-remote-projects-title">On other devices</h2>
+      <h2 className="nextore-remote-projects-title">{t('nextoreRemote.title')}</h2>
       <p className="nextore-remote-projects-hint">
-        These projects exist in NexTore but their files are not on this device yet.
+        {t('nextoreRemote.hint')}
       </p>
       <ul className="nextore-remote-projects-list">
         {projects.map((project) => (
@@ -44,7 +47,7 @@ export function NextoreRemoteProjects() {
             title={project.designerProjectId}
           >
             <span className="nextore-remote-project-name">{project.name}</span>
-            <span className="nextore-remote-project-state">not on this device</span>
+            <span className="nextore-remote-project-state">{t('nextoreRemote.notOnDevice')}</span>
           </li>
         ))}
       </ul>

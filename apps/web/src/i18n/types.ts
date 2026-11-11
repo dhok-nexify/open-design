@@ -73,6 +73,13 @@ export interface Dict {
   /** NexTore edition: a signed-in member without the Designer access right. */
   'accessRequired.title': string;
   'accessRequired.body': string;
+
+  /** NexTore projects whose files live on another device. */
+  'nextoreRemote.title': string;
+  'nextoreRemote.hint': string;
+  'nextoreRemote.notOnDevice': string;
+  'nextoreRemote.notOnDeviceTitle': string;
+  'nextoreRemote.remoteBadge': string;
   'workspaceInvite.dialogAria': string;
   'workspaceInvite.title': string;
   'workspaceInvite.freePlanBody': string;

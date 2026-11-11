@@ -44,8 +44,10 @@ const NEXTORE_DISABLED_ROUTE_RULES: readonly DisabledRouteRule[] = Object.freeze
     '/api/providers',
     '/api/proxy',
   ]),
-  ...rules('agent-picker', ['/api/agents']),
-  ...rules('media-providers', ['/api/media/models', '/api/media/providers']),
+  // The list endpoint is the UI's availability probe (NXD-D15); only the
+  // management subroutes stay closed.
+  { feature: 'agent-picker', pattern: /^\/api\/agents\/.+$/ },
+  ...rules('media-providers', ['/api/media/models', '/api/media/providers', '/api/media/config']),
   { feature: 'terminals', pattern: /^\/api\/projects\/[^/]+\/terminals(?:\/|$)/ },
   ...rules('terminals', ['/api/terminals']),
   ...rules('host-tools', ['/api/host-tools']),

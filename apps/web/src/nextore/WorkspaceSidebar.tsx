@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 
+import { useT } from '../i18n';
 import {
   fetchNextoreProjectListing,
   groupProjectsByWorkspace,
@@ -16,6 +17,7 @@ import {
  * content on this device yet is shown as a read-only row instead of a link.
  */
 export function NextoreWorkspaceSidebar({ refreshKey }: { refreshKey?: string }) {
+  const t = useT();
   const [groups, setGroups] = useState<NextoreProjectGroup[]>([]);
 
   useEffect(() => {
@@ -33,7 +35,7 @@ export function NextoreWorkspaceSidebar({ refreshKey }: { refreshKey?: string })
   return (
     <div className="nextore-rail" data-testid="nextore-workspace-sidebar">
       {groups.map((group, index) => {
-        const name = group.workspaceName || 'Projects';
+        const name = group.workspaceName || t('entry.navProjects');
         return (
           <section
             key={group.workspaceId ?? 'unassigned-' + index}
@@ -60,10 +62,10 @@ export function NextoreWorkspaceSidebar({ refreshKey }: { refreshKey?: string })
                       ) : (
                         <span
                           className="nextore-rail__project is-remote"
-                          title={project.name + ' — not on this device yet'}
+                          title={t('nextoreRemote.notOnDeviceTitle', { project: project.name })}
                         >
                           {project.name}
-                          <span className="nextore-rail__badge">remote</span>
+                          <span className="nextore-rail__badge">{t('nextoreRemote.remoteBadge')}</span>
                         </span>
                       )}
                     </li>

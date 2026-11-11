@@ -275,8 +275,8 @@ export function readWorkspaceDirectoryForCurrentGeneration(
 ): Promise<WorkspaceDirectoryResponse> {
   const key = `workspace-directory-selection:${workspaceContextRequestToken}`;
   return options.fresh
-    ? forceCoalescedGet(key, fetchWorkspaceDirectory)
-    : coalescedGet(key, fetchWorkspaceDirectory);
+    ? forceCoalescedGet(key, fetchWorkspaceDirectory, WORKSPACE_DIRECTORY_CACHE_MS)
+    : coalescedGet(key, fetchWorkspaceDirectory, WORKSPACE_DIRECTORY_CACHE_MS);
 }
 
 function billingStateFromLifecycle(
@@ -1012,6 +1012,9 @@ export function useWorkspaceContext(): WorkspaceContextState {
   );
 }
 
+// The account directory changes through events; a short cache absorbs the
+// burst of mounted consumers without making the workspace switcher stale.
+const WORKSPACE_DIRECTORY_CACHE_MS = 10_000;
 const WORKSPACE_CONTEXT_POLL_MS = 30_000;
 // Poll-as-floor cadence while the workspace SSE is connected — a slow safety net
 // behind the pushed `workspace-context-changed` events.

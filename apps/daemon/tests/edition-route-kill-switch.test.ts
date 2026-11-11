@@ -25,7 +25,9 @@ async function listen(app: express.Express): Promise<string> {
 
 describe('disabledFeatureForPath', () => {
   it('matches complete path segments only', () => {
-    expect(disabledFeatureForPath('/api/agents')).toBe('agent-picker');
+    // The list endpoint is the UI's availability probe; only management
+    // subroutes stay closed in the edition.
+    expect(disabledFeatureForPath('/api/agents')).toBeNull();
     expect(disabledFeatureForPath('/api/agents/status')).toBe('agent-picker');
     expect(disabledFeatureForPath('/api/agents-archive')).toBeNull();
   });
@@ -37,6 +39,11 @@ describe('disabledFeatureForPath', () => {
     expect(disabledFeatureForPath('/api/projects/project-1/files')).toBeNull();
   });
 
+  it('closes the media settings surface while generation stays internal', () => {
+    expect(disabledFeatureForPath('/api/media/config')).toBe('media-providers');
+    expect(disabledFeatureForPath('/api/media/models')).toBe('media-providers');
+    expect(disabledFeatureForPath('/api/media/providers')).toBe('media-providers');
+  });
   it('leaves process health endpoints available', () => {
     expect(disabledFeatureForPath('/api/health')).toBeNull();
     expect(disabledFeatureForPath('/api/version')).toBeNull();
