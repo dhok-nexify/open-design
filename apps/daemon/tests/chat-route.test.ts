@@ -655,6 +655,10 @@ process.stdin.on('end', () => {
         };
 
         const externalDirectory = parsed.permission?.external_directory ?? {};
+        const bundledPluginsDir = resolve(process.cwd(), '../..', 'plugins', '_official');
+        expect(externalDirectory[bundledPluginsDir]).toBe('allow');
+        expect(externalDirectory[join(bundledPluginsDir, '*')]).toBe('allow');
+        expect(externalDirectory[join(bundledPluginsDir, '**')]).toBe('allow');
         const cwdAliases = new Set([effectiveCwd]);
         if (effectiveCwd.startsWith('/private/var/')) {
           cwdAliases.add(effectiveCwd.replace(/^\/private\/var\//, '/var/'));
@@ -662,8 +666,8 @@ process.stdin.on('end', () => {
         const allowedCwd = [...cwdAliases].find(
           (cwd) =>
             externalDirectory[cwd] === 'allow' &&
-            externalDirectory[`${cwd}/*`] === 'allow' &&
-            externalDirectory[`${cwd}/**`] === 'allow',
+            externalDirectory[join(cwd, '*')] === 'allow' &&
+            externalDirectory[join(cwd, '**')] === 'allow',
         );
         expect(allowedCwd).toBeTruthy();
       },
@@ -4579,6 +4583,7 @@ describe('chat prompt helpers', () => {
       agentId: '  CoDeX  ',
       skillsDir: '/repo/skills',
       designSystemsDir: '/repo/design-systems',
+      bundledPluginsDir: '/repo/plugins/_official',
       linkedDirs: ['/linked/reference'],
       existsSync: () => true,
     });
@@ -4590,12 +4595,14 @@ describe('chat prompt helpers', () => {
     const existingDirs = new Set([
       '/repo/skills',
       '/repo/design-systems',
+      '/repo/plugins/_official',
       '/linked/reference',
     ]);
     const dirs = resolveChatExtraAllowedDirs({
       agentId: 'claude',
       skillsDir: '/repo/skills',
       designSystemsDir: '/repo/design-systems',
+      bundledPluginsDir: '/repo/plugins/_official',
       linkedDirs: ['/linked/reference'],
       existsSync: (dir: string) => existingDirs.has(dir),
     });
@@ -4603,8 +4610,20 @@ describe('chat prompt helpers', () => {
     expect(dirs).toEqual([
       '/repo/skills',
       '/repo/design-systems',
+      '/repo/plugins/_official',
       '/linked/reference',
     ]);
+  });
+
+  it('grants headless OpenCode read access to bundled plugin examples', () => {
+    const bundledPluginsDir = resolve(process.cwd(), '../..', 'plugins', '_official');
+    const dirs = resolveChatExtraAllowedDirs({
+      agentId: 'byok-opencode',
+      bundledPluginsDir,
+      existsSync: () => true,
+    });
+
+    expect(dirs).toEqual([bundledPluginsDir]);
   });
 
 });

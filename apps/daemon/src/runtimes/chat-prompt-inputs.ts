@@ -327,12 +327,20 @@ export function resolveChatExtraAllowedDirs({
   agentId,
   skillsDir,
   designSystemsDir,
+  bundledPluginsDir,
   linkedDirs = [],
   existsSync = fs.existsSync,
 }: {
   agentId?: string | null;
   skillsDir?: string | null;
   designSystemsDir?: string | null;
+  /**
+   * Bundled `plugins/_official` tree. Skills and prompts reference example
+   * files here by absolute path, but the project cwd is elsewhere. OpenCode
+   * treats that as an `external_directory` permission request and auto-rejects
+   * it in headless runs, so the read-only directory must be granted explicitly.
+   */
+  bundledPluginsDir?: string | null;
   linkedDirs?: Array<string | null | undefined>;
   existsSync?: (path: string) => boolean;
 }): string[] {
@@ -343,6 +351,7 @@ export function resolveChatExtraAllowedDirs({
     : [
         skillsDir,
         designSystemsDir,
+        bundledPluginsDir,
         ...(Array.isArray(linkedDirs) ? linkedDirs : []),
       ];
   return Array.from(
