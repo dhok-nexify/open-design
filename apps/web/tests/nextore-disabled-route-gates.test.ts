@@ -86,12 +86,34 @@ describe('NexTore edition — disabled routes are answered locally', () => {
     expect(fetch).not.toHaveBeenCalled();
   });
 
-  it('returns no agents for the hidden picker', async () => {
+  it('probes /api/agents so the composer knows its runtime is installed', async () => {
     const { fetchAgents, fetchAgentsStream } = await import('../src/providers/registry');
 
+    // Round-5 NEW-04: gating this probe on the hidden agent-picker feature left
+    // the agent map empty and the project composer silently refused every send.
+    vi.stubGlobal('fetch', vi.fn(async () =>
+      new Response('{"agents":[]}', {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }),
+    ));
+
     await expect(fetchAgents()).resolves.toEqual([]);
+    expect(fetch).toHaveBeenCalledWith('/api/agents', { cache: 'no-store' });
+
+    const streamFetch = vi.fn(async () =>
+      new Response('event: done\ndata: {}\n\n', {
+        status: 200,
+        headers: { 'content-type': 'text/event-stream' },
+      }),
+    );
+    vi.stubGlobal('fetch', streamFetch);
+
     await expect(fetchAgentsStream({ onAgent: () => {} })).resolves.toEqual([]);
-    expect(fetch).not.toHaveBeenCalled();
+    expect(streamFetch).toHaveBeenCalledWith(
+      '/api/agents?stream=1',
+      expect.objectContaining({ cache: 'no-store' }),
+    );
   });
 
   it('falls back to the static media registry', async () => {

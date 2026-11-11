@@ -119,6 +119,19 @@ describe('buildBwrapArgs', () => {
     expect(args[args.indexOf('--setenv') + 1]).toBe('HOME');
   });
 
+  it('makes /tmp writable before mounting the sandbox HOME inside it', () => {
+    // bubblewrap processes mounts in order, and the host tree above is
+    // read-only. Creating SANDBOX_HOME before /tmp is a tmpfs fails with
+    // 'Can't mkdir /tmp/od-sandbox-home: Read-only file system'.
+    const args = buildBwrapArgs(request);
+    const tmpfsTmp = args.findIndex((arg, index) => arg === '--tmpfs' && args[index + 1] === '/tmp');
+    const tmpfsHome = args.findIndex(
+      (arg, index) => arg === '--tmpfs' && args[index + 1] === SANDBOX_HOME,
+    );
+    expect(tmpfsTmp).toBeGreaterThan(-1);
+    expect(tmpfsHome).toBeGreaterThan(tmpfsTmp);
+  });
+
   it('keeps the sandbox tied to the daemon and its own session', () => {
     const args = buildBwrapArgs(request);
     expect(args).toContain('--die-with-parent');

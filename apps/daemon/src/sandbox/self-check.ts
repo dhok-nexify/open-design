@@ -1,5 +1,6 @@
 import { execFileSync } from 'node:child_process';
 
+import { SANDBOX_HOME } from './bwrap-provider.js';
 import type { SandboxCheck } from './provider.js';
 
 function readStderr(error: unknown): string {
@@ -41,6 +42,10 @@ export function checkBwrap(options: BwrapProbeOptions = {}): SandboxCheck {
   });
 
   try {
+    // Mirrors buildBwrapArgs, including the nested HOME tmpfs: a probe that
+    // stops at --tmpfs /tmp passes on a host where the real run cannot create
+    // /tmp/od-sandbox-home, which is exactly how round-5 shipped a run that
+    // failed on its first spawn while /api/health still said ok.
     run(bwrapPath, [
       '--die-with-parent',
       '--unshare-pid',
@@ -53,6 +58,11 @@ export function checkBwrap(options: BwrapProbeOptions = {}): SandboxCheck {
       '/proc',
       '--tmpfs',
       '/tmp',
+      '--tmpfs',
+      SANDBOX_HOME,
+      '--setenv',
+      'HOME',
+      SANDBOX_HOME,
       '/bin/true',
     ]);
   } catch (error) {

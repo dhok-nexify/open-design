@@ -38,17 +38,21 @@ export function buildBwrapArgs(request: SandboxRequest): string[] {
     '--bind',
     cwd,
     cwd,
+    '--dev',
+    '/dev',
+    '--proc',
+    '/proc',
+    // /tmp becomes a writable tmpfs BEFORE the nested sandbox HOME below:
+    // bubblewrap creates that mount point inside /tmp while the host tree is
+    // still the read-only bind above. Reversing these two blocks produced
+    // bwrap: Can't mkdir /tmp/od-sandbox-home: Read-only file system.
+    '--tmpfs',
+    '/tmp',
     '--tmpfs',
     SANDBOX_HOME,
     '--setenv',
     'HOME',
     SANDBOX_HOME,
-    '--tmpfs',
-    '/tmp',
-    '--dev',
-    '/dev',
-    '--proc',
-    '/proc',
     '--chdir',
     cwd,
     '--',

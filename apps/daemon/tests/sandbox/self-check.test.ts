@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import { SANDBOX_HOME } from '../../src/sandbox/bwrap-provider.js';
 import { checkBwrap, describeBwrapProbeFailure } from '../../src/sandbox/self-check.js';
 
 describe('checkBwrap', () => {
@@ -31,6 +32,20 @@ describe('checkBwrap', () => {
     expect(describeBwrapProbeFailure(error)).toBe(
       'bwrap: setting up uid map: Permission denied',
     );
+  });
+
+  it('probes the same writable /tmp and HOME sequence the run uses', () => {
+    const calls: string[][] = [];
+    const run = (_file: string, args: readonly string[]) => {
+      calls.push([...args]);
+    };
+    expect(checkBwrap({ run }).ok).toBe(true);
+    const args = calls[0] ?? [];
+    const tmpfsTmp = args.findIndex((arg, index) => arg === '--tmpfs' && args[index + 1] === '/tmp');
+    const tmpfsHome = args.findIndex((arg, index) => arg === '--tmpfs' && args[index + 1] === SANDBOX_HOME);
+    expect(tmpfsTmp).toBeGreaterThan(-1);
+    expect(tmpfsHome).toBeGreaterThan(tmpfsTmp);
+    expect(args).toContain(SANDBOX_HOME);
   });
 
   it('accepts a working bubblewrap', () => {

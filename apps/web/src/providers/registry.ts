@@ -160,8 +160,12 @@ function deployProviderQuery(providerId?: WebDeployProviderId): string {
 }
 
 export async function fetchAgents(options?: { throwOnError?: boolean }): Promise<AgentInfo[]> {
-  // NEXTORE: no agent picker in the edition — do not probe a disabled route.
-  if (!isFeatureEnabled('agent-picker')) return [];
+  // NEXTORE: keep the probe. The edition mounts /api/agents so the UI can learn
+  // whether its single allowed runtime is installed. The daemon filters the
+  // listing to the edition runtimes, and the route kill switch still blocks the
+  // per-agent admin subpaths.
+  // Gating this on the agent-picker feature is what left agentsById empty and
+  // silently blocked every send in the project composer (round-5 NEW-04).
   try {
     const resp = await fetch('/api/agents', { cache: 'no-store' });
     if (!resp.ok) {
@@ -189,9 +193,8 @@ export async function fetchAgentsStream(args: {
   signal?: AbortSignal;
 }): Promise<AgentInfo[]> {
   const { onAgent, signal } = args;
-  // NEXTORE: same rule as fetchAgents — an EventSource against a 404 route
-  // reconnects forever and floods the console (NXD-D26).
-  if (!isFeatureEnabled('agent-picker')) return [];
+  // NEXTORE: keep the probe, same rule as fetchAgents above — the edition
+  // route answers, so there is no reconnect loop to avoid.
   const resp = await fetch('/api/agents?stream=1', {
     cache: 'no-store',
     headers: { Accept: 'text/event-stream' },
