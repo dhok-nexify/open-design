@@ -5,52 +5,69 @@ import type { NextoreGroupsResponse, NextoreSessionGroupSummary } from '@open-de
 /**
  * Admin-only group directory for the team-workspace dialog (NXD-D40).
  *
- * The session view only carries the caller's own groups; an admin granting a
- * team workspace usually needs other groups (ND Manager / Editor / Reader).
+ * The module caps one response and searches server-side, so the dialog can
+ * offer a search box instead of downloading thousands of groups.
  */
-let cached: NextoreSessionGroupSummary[] | null = null;
-let inflight: Promise<NextoreSessionGroupSummary[] | null> | null = null;
+export interface NextoreGroupsResult {
+  groups: NextoreSessionGroupSummary[];
+  truncated: boolean;
+}
+
+const cache = new Map<string, NextoreGroupsResult>();
+const inflight = new Map<string, Promise<NextoreGroupsResult | null>>();
 
 export async function fetchNextoreGroups(
+  query = '',
   force = false,
   fetchImpl: typeof fetch = fetch,
-): Promise<NextoreSessionGroupSummary[] | null> {
-  if (cached && !force) return cached;
-  if (inflight) return inflight;
+): Promise<NextoreGroupsResult | null> {
+  const key = query.trim();
+  if (!force) {
+    const cached = cache.get(key);
+    if (cached) return cached;
+  }
+  const pending = inflight.get(key);
+  if (pending) return pending;
 
-  inflight = (async () => {
+  const request = (async () => {
     try {
-      const response = await fetchImpl('/api/nextore/groups', {
+      const suffix = key ? '?query=' + encodeURIComponent(key) : '';
+      const response = await fetchImpl('/api/nextore/groups' + suffix, {
         headers: { accept: 'application/json' },
       });
       if (!response.ok) return null;
       const body = (await response.json()) as Partial<NextoreGroupsResponse>;
       if (!Array.isArray(body.groups)) return null;
-      cached = body.groups
-        .filter(
-          (group): group is NextoreSessionGroupSummary =>
-            typeof group === 'object'
-            && group !== null
-            && typeof (group as { id?: unknown }).id === 'number'
-            && Number.isInteger((group as { id: number }).id)
-            && (group as { id: number }).id > 0,
-        )
-        .map((group) => ({
-          id: group.id,
-          name: typeof group.name === 'string' ? group.name : '',
-        }));
-      return cached;
+      const result: NextoreGroupsResult = {
+        groups: body.groups
+          .filter(
+            (group): group is NextoreSessionGroupSummary =>
+              typeof group === 'object'
+              && group !== null
+              && typeof (group as { id?: unknown }).id === 'number'
+              && Number.isInteger((group as { id: number }).id)
+              && (group as { id: number }).id > 0,
+          )
+          .map((group) => ({
+            id: group.id,
+            name: typeof group.name === 'string' ? group.name : '',
+          })),
+        truncated: body.truncated === true,
+      };
+      cache.set(key, result);
+      return result;
     } catch {
       return null;
     } finally {
-      inflight = null;
+      inflight.delete(key);
     }
   })();
-  return inflight;
+  inflight.set(key, request);
+  return request;
 }
 
 /** Test helper. */
 export function resetNextoreGroups(): void {
-  cached = null;
-  inflight = null;
+  cache.clear();
+  inflight.clear();
 }

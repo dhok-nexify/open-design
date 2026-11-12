@@ -60,8 +60,8 @@ export interface NextoreClient {
   workspaces<T>(accessToken: string, signal?: AbortSignal): Promise<T>;
   /** Projects the caller can read in one workspace (D08 listing). */
   workspaceProjects<T>(accessToken: string, workspaceId: number, signal?: AbortSignal): Promise<T>;
-  /** Every platform group for the team-workspace dialog (DesignerAdmin, NXD-D40). */
-  groups<T>(accessToken: string, signal?: AbortSignal): Promise<T>;
+  /** Platform groups for the team-workspace dialog (DesignerAdmin, NXD-D40). */
+  groups<T>(accessToken: string, query?: string, signal?: AbortSignal): Promise<T>;
   /** Creates a team workspace with per-group role grants (NXD-D40). */
   createWorkspace<T>(
     accessToken: string,
@@ -216,9 +216,10 @@ export function createNextoreClient(options: NextoreClientOptions): NextoreClien
       );
     },
 
-    groups<T>(accessToken: string, signal?: AbortSignal) {
+    groups<T>(accessToken: string, query?: string, signal?: AbortSignal) {
+      const suffix = query ? '?query=' + encodeURIComponent(query) : '';
       return request<T>(
-        'api/designer/groups',
+        'api/designer/groups' + suffix,
         signal ? { accessToken, signal } : { accessToken },
       );
     },

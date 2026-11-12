@@ -94,6 +94,11 @@ export interface Dict {
   'nextoreTeam.creating': string;
   'nextoreTeam.error': string;
   'nextoreTeam.noGroups': string;
+  'nextoreTeam.searchGroups': string;
+  'nextoreTeam.truncated': string;
+  'nextoreTeam.noMatches': string;
+  'home.noCreateTitle': string;
+  'home.noCreateBody': string;
   'workspaceInvite.dialogAria': string;
   'workspaceInvite.title': string;
   'workspaceInvite.freePlanBody': string;

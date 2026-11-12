@@ -1085,6 +1085,16 @@ button.nextore-rail__workspace-name.is-selected {
   color: var(--text);
   font-size: 13px;
 }
+.nextore-dialog__search {
+  height: 32px;
+  margin-bottom: 8px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 12px;
+}
 .nextore-dialog__groups {
   margin: 0;
   padding: 0;

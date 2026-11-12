@@ -38,21 +38,31 @@ export function NextoreTeamWorkspaceDialog({
   const [name, setName] = useState('');
   const [roles, setRoles] = useState<Record<number, NextoreTeamWorkspaceRole>>({});
   const [availableGroups, setAvailableGroups] = useState(groups);
+  const [groupQuery, setGroupQuery] = useState('');
+  const [debouncedQuery, setDebouncedQuery] = useState('');
+  const [truncated, setTruncated] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedQuery(groupQuery.trim()), 250);
+    return () => window.clearTimeout(timer);
+  }, [groupQuery]);
+
+  useEffect(() => {
     let cancelled = false;
-    void fetchNextoreGroups().then((next) => {
+    void fetchNextoreGroups(debouncedQuery).then((result) => {
       // Keep the session groups when the admin directory is unavailable.
-      if (cancelled || !next || next.length === 0) return;
-      setAvailableGroups(next);
-      // Drop any role chosen from the smaller session list that the full
-      // directory does not contain, so an invisible grant cannot be submitted.
+      if (cancelled || !result) return;
+      setAvailableGroups(result.groups);
+      setTruncated(result.truncated);
+      // The unfiltered directory is authoritative: drop roles for groups that
+      // disappeared. A search result must not prune hidden selections.
+      if (debouncedQuery !== '' || result.groups.length === 0) return;
       setRoles((current) => {
         const nextRoles: Record<number, NextoreTeamWorkspaceRole> = {};
         for (const [id, role] of Object.entries(current)) {
-          if (next.some((group) => group.id === Number(id))) {
+          if (result.groups.some((group) => group.id === Number(id))) {
             nextRoles[Number(id)] = role;
           }
         }
@@ -62,7 +72,7 @@ export function NextoreTeamWorkspaceDialog({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [debouncedQuery]);
 
   // Escape closes like the backdrop, but never while a create is in flight.
   useEffect(() => {
@@ -155,8 +165,21 @@ export function NextoreTeamWorkspaceDialog({
 
         <fieldset className="nextore-dialog__groups">
           <legend>{t('nextoreTeam.groupsLabel')}</legend>
+          <input
+            type="search"
+            className="nextore-dialog__search"
+            value={groupQuery}
+            placeholder={t('nextoreTeam.searchGroups')}
+            aria-label={t('nextoreTeam.searchGroups')}
+            onChange={(event) => setGroupQuery(event.target.value)}
+          />
+          {truncated ? (
+            <p className="nextore-dialog__muted">{t('nextoreTeam.truncated')}</p>
+          ) : null}
           {availableGroups.length === 0 ? (
-            <p className="nextore-dialog__muted">{t('nextoreTeam.noGroups')}</p>
+            <p className="nextore-dialog__muted">
+              {groupQuery.trim() ? t('nextoreTeam.noMatches') : t('nextoreTeam.noGroups')}
+            </p>
           ) : (
             availableGroups.map((group) => {
               const role = roles[group.id];

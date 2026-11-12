@@ -112,7 +112,7 @@ export function registerNextoreWorkspaceRoutes(
   // Group directory for the team-workspace dialog. The member bootstrap only
   // lists the caller's groups, which is not enough for an admin granting
   // ND Manager / ND Editor / ND Reader.
-  app.get('/api/nextore/groups', async (_req, res: Response) => {
+  app.get('/api/nextore/groups', async (req, res: Response) => {
     if (resolveEdition(process.env.OD_EDITION) !== 'nextore') {
       deny(res, 404, 'FEATURE_DISABLED', 'not available in this edition');
       return;
@@ -128,8 +128,14 @@ export function registerNextoreWorkspaceRoutes(
       return;
     }
 
+    const rawQuery = typeof req.query.query === 'string' ? req.query.query.trim() : '';
+    const query = rawQuery.slice(0, 128);
+
     try {
-      const payload = await deps.client.groups<unknown>(session.accessToken!.trim());
+      const payload = await deps.client.groups<unknown>(
+        session.accessToken!.trim(),
+        query || undefined,
+      );
       const groups = wireArray(payload, 'groups', 'Groups')
         .map((entry) => {
           const id = wireNumber(entry, 'id', 'Id');
@@ -138,7 +144,11 @@ export function registerNextoreWorkspaceRoutes(
         })
         .filter((group): group is { id: number; name: string } => group !== null)
         .sort((a, b) => a.name.localeCompare(b.name));
-      const body: NextoreGroupsResponse = { groups };
+      const body: NextoreGroupsResponse = {
+        groups,
+        truncated: (payload as { truncated?: unknown }).truncated === true
+          || (payload as { Truncated?: unknown }).Truncated === true,
+      };
       res.json(body);
     } catch (error) {
       if (error instanceof NextoreClientError && error.statusCode === 403) {

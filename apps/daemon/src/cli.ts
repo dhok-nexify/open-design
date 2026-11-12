@@ -2718,6 +2718,13 @@ async function structuredHttpFailure(resp, fallbackCode = 'daemon-not-running') 
     typeof parsed?.error === 'string'
       ? { message: parsed.error }
       : parsed?.error;
+  if (errorObj?.code === 'SESSION_REQUIRED') {
+    console.error(
+      '\nThis daemon runs the NexTore edition: /api needs a signed-in NexTore '
+      + 'session, which the CLI does not hold yet.',
+    );
+    console.error('Use the Designer web UI for now; CLI sign-in is tracked as NXD-P10.');
+  }
   const errCode = normalizeRecoverableErrorCode(errorObj?.code, errorObj?.message);
   if (errCode) {
     exitWithStructuredError({
@@ -7038,7 +7045,10 @@ async function runNextore(args) {
                     [--json]
                     Create a NexTore Designer team workspace. Requires the
                     DesignerAdmin right. Each --group grants that group the
-                    role preset's workspace rights.`);
+                    role preset's workspace rights.
+
+                    Note: the NexTore edition gates /api by the browser
+                    session; CLI sign-in is tracked as NXD-P10.`);
     return;
   }
 
@@ -7088,6 +7098,13 @@ async function runNextore(args) {
   });
   const data = await resp.json().catch(() => ({}));
   if (!resp.ok) {
+    if (data?.error?.code === 'SESSION_REQUIRED') {
+      console.error(
+        'This daemon runs the NexTore edition: /api needs a signed-in NexTore '
+        + 'session, which the CLI does not hold yet.',
+      );
+      console.error('Use the Designer web UI for now; CLI sign-in is tracked as NXD-P10.');
+    }
     console.error(`POST /api/nextore/workspaces failed: ${resp.status} ${JSON.stringify(data)}`);
     process.exit(1);
   }

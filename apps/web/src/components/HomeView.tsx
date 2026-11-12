@@ -272,6 +272,11 @@ const AUTHORING_DEFAULT_SCENARIO_INPUTS = {
 interface Props {
   isActive?: boolean;
   projects: Project[];
+  /**
+   * NexTore edition: false hides the creation composer for members without
+   * DesignerCreateProject. Defaults to true so upstream is unchanged.
+   */
+  canCreateProject?: boolean;
   projectsLoading?: boolean;
   designSystems?: DesignSystemSummary[];
   designSystemsLoading?: boolean;
@@ -495,6 +500,7 @@ export function seedHomeComposerPrompt(prompt: string): void {
 export function HomeView({
   isActive = true,
   projects,
+  canCreateProject = true,
   projectsLoading,
   designSystems = EMPTY_DESIGN_SYSTEMS,
   designSystemsLoading = false,
@@ -3103,6 +3109,7 @@ export function HomeView({
         />
       ) : null}
       {isActive ? <AppWashKineticGrid clipBottomTo=".home-hero" /> : null}
+      {canCreateProject ? (
       <HomeHero
         workspaceContext={workspaceContext}
         ref={inputRef}
@@ -3225,6 +3232,12 @@ export function HomeView({
         // only this mount point is gone.
         recommendationSlot={artifactUpgradeSlot}
       />
+      ) : (
+        <div className="home-readonly-notice" data-testid="home-readonly-notice">
+          <h1 className="home-readonly-notice__title">{t('home.noCreateTitle')}</h1>
+          <p className="home-readonly-notice__body">{t('home.noCreateBody')}</p>
+        </div>
+      )}
 
       {recentProjectsEmpty ? null : (
       <RecentProjectsStrip

@@ -48,6 +48,8 @@ export interface NextoreSessionGroupSummary {
 /** GET /api/nextore/groups response (DesignerAdmin only). */
 export interface NextoreGroupsResponse {
   groups: NextoreSessionGroupSummary[];
+  /** True when more groups matched than the response carries. */
+  truncated?: boolean;
 }
 
 /** GET /api/nextore/session response (the shell's own identity view). */

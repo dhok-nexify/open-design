@@ -1827,6 +1827,7 @@ export function EntryShell({
               <HomeView
                 isActive={view === 'home'}
                 projects={homeProjectsList}
+                canCreateProject={canCreateNextoreProject}
                 projectsLoading={projectsLoading}
                 designSystems={designSystems}
                 designSystemsLoading={designSystemsLoading}
