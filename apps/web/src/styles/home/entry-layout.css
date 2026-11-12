@@ -941,232 +941,86 @@
 }
 .entry-nav-rail__team svg { color: var(--text-soft); }
 
-/* NexTore workspace + project list replacing the cloud switcher (NXD-D09). */
-.nextore-rail {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  min-width: 0;
-  margin: 4px 0 10px;
-  padding: 0 6px;
-}
-.nextore-rail__workspace {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-.nextore-rail__workspace-name {
-  margin: 0;
-  padding: 0 4px;
-  color: var(--text-faint);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.nextore-rail__projects {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.nextore-rail__project {
-  display: flex;
+/* NexTore workspace switcher (NXD-D40).
+   The rail shows only the workspace the member is standing in; the workspace
+   list lives inside this menu, so the rail height never grows with the number
+   of workspaces or projects. */
+.nextore-switcher { position: relative; }
+.nextore-switcher__menu { min-width: 220px; }
+
+/* Compact trigger used by the Home workspace bar. */
+.nextore-chip {
+  display: inline-flex;
   align-items: center;
   gap: 6px;
+  max-width: 280px;
   height: 28px;
-  padding: 0 8px;
-  border-radius: var(--radius);
-  color: var(--text);
-  font-size: 13px;
-  text-decoration: none;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-a.nextore-rail__project:hover {
-  background: var(--bg-subtle);
-  color: var(--text-strong);
-}
-.nextore-rail__project.is-remote { color: var(--text-faint); cursor: default; }
-.nextore-rail__badge {
-  flex: 0 0 auto;
-  margin-left: auto;
-  padding: 1px 5px;
+  padding: 0 10px;
   border: 1px solid var(--border);
   border-radius: var(--radius-pill);
-  color: var(--text-faint);
-  font-size: 10px;
-  line-height: 14px;
-}
-/* Workspace headers are selection buttons in the NexTore edition (NXD-D40). */
-button.nextore-rail__workspace-name {
-  width: 100%;
-  border: 0;
-  background: none;
-  text-align: left;
-  cursor: pointer;
-  border-radius: var(--radius);
-}
-button.nextore-rail__workspace-name:hover,
-button.nextore-rail__workspace-name.is-selected {
-  color: var(--text-strong);
-  background: var(--bg-subtle);
-}
-.nextore-rail__all,
-.nextore-rail__create-workspace {
-  align-self: flex-start;
-  border: 0;
-  background: none;
-  color: var(--text-soft);
+  background: var(--bg-elevated);
+  color: var(--text);
+  font: inherit;
   font-size: 12px;
-  padding: 2px 8px;
-  border-radius: var(--radius);
   cursor: pointer;
 }
-.nextore-rail__all:hover,
-.nextore-rail__create-workspace:hover {
-  color: var(--text-strong);
-  background: var(--bg-subtle);
+.nextore-chip:hover { background: var(--bg-subtle); color: var(--text-strong); }
+.nextore-chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.nextore-chip__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.nextore-rail__shared {
-  border-top: 1px solid var(--border);
-  padding-top: 8px;
-}
-/* Team-workspace dialog. Fixed so the narrow rail never clips it. */
-.nextore-dialog-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 10000;
+.nextore-chip.is-loading { color: var(--text-faint); }
+
+.home-workspace-bar {
   display: flex;
   align-items: center;
-  justify-content: center;
-  padding: 24px;
-  background: rgb(0 0 0 / 45%);
+  gap: 10px;
+  margin: 0 0 10px;
+  padding: 0 4px;
 }
-.nextore-dialog {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  width: min(460px, 100%);
-  max-height: min(640px, calc(100vh - 48px));
-  overflow: auto;
-  padding: 20px;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  background: var(--bg-elevated, var(--bg));
-  box-shadow: 0 18px 48px rgb(0 0 0 / 28%);
-}
-.nextore-dialog__title {
-  margin: 0;
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--text-strong);
-}
-.nextore-dialog__field {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  font-size: 12px;
-  color: var(--text-soft);
-}
-.nextore-dialog__field input {
-  height: 34px;
-  padding: 0 10px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--bg);
-  color: var(--text);
-  font-size: 13px;
-}
-.nextore-dialog__search {
-  height: 32px;
-  margin-bottom: 8px;
-  padding: 0 10px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--bg);
-  color: var(--text);
+.home-workspace-bar__hint {
+  color: var(--text-faint);
   font-size: 12px;
 }
-.nextore-dialog__groups {
-  margin: 0;
-  padding: 0;
-  border: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.nextore-dialog__groups legend {
-  padding: 0;
-  margin-bottom: 4px;
-  font-size: 12px;
-  color: var(--text-soft);
-}
-.nextore-dialog__group {
+
+/* Projects view browsing scope, backed by ?ws= (NXD-D40). */
+.entry-section__head-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
-  padding: 4px 2px;
-  font-size: 13px;
+  gap: 16px;
+  flex-wrap: wrap;
 }
-.nextore-dialog__group label {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-.nextore-dialog__group select {
-  height: 30px;
+.nextore-scope-tabs {
+  display: inline-flex;
+  gap: 4px;
+  padding: 3px;
   border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--bg);
-  color: var(--text);
+  border-radius: var(--radius-pill);
+  background: var(--bg-subtle);
+}
+.nextore-scope-tabs__tab {
+  height: 26px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--text-soft);
+  font: inherit;
   font-size: 12px;
-}
-.nextore-dialog__muted {
-  margin: 0;
-  color: var(--text-faint);
-  font-size: 12px;
-}
-.nextore-dialog__error {
-  margin: 0;
-  color: var(--danger, #c0392b);
-  font-size: 12px;
-}
-.nextore-dialog__actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-}
-.nextore-dialog__primary,
-.nextore-dialog__secondary {
-  height: 32px;
-  padding: 0 14px;
-  border-radius: var(--radius);
-  font-size: 13px;
   cursor: pointer;
+  transition: background-color 150ms var(--ease-out), color 150ms var(--ease-out);
 }
-.nextore-dialog__secondary {
-  border: 1px solid var(--border);
-  background: none;
-  color: var(--text);
-}
-.nextore-dialog__primary {
-  border: 1px solid var(--accent, var(--border));
-  background: var(--accent, var(--text-strong));
-  color: var(--bg);
-}
-.nextore-dialog__primary:disabled {
-  opacity: 0.5;
-  cursor: default;
+.nextore-scope-tabs__tab:hover { color: var(--text-strong); }
+.nextore-scope-tabs__tab:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.nextore-scope-tabs__tab[aria-pressed='true'] {
+  background: var(--bg-elevated);
+  color: var(--text-strong);
+  font-weight: 600;
+  box-shadow: var(--shadow-sm);
 }
 
 /* Section label (e.g. 更多) */

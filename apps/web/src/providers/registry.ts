@@ -2896,6 +2896,27 @@ export async function fetchPreviewComments(
   }
 }
 
+export async function fetchProjectPreviewComments(
+  projectId: string,
+  workspaceContext?: WorkspaceCollabContext | null,
+): Promise<PreviewComment[]> {
+  try {
+    const resp = await fetch(
+      `/api/projects/${encodeURIComponent(projectId)}/comments`,
+      {
+        headers: workspaceContext
+          ? workspaceProjectHeaders(workspaceContext)
+          : undefined,
+      },
+    );
+    if (!resp.ok) return [];
+    const json = (await resp.json()) as { comments: PreviewComment[] };
+    return json.comments ?? [];
+  } catch {
+    return [];
+  }
+}
+
 // `workspaceContext`, when present, proves the caller's workspace membership
 // to the daemon's `enforceCommentWorkspaceMutation` gate (spec 04 §10 fix
 // #4/#6 — recvqbklNGDqYY) the same way `workspaceProjectHeaders`' call sites
@@ -2913,6 +2934,31 @@ export async function upsertPreviewComment(
   try {
     const resp = await fetch(
       `/api/projects/${encodeURIComponent(projectId)}/conversations/${encodeURIComponent(conversationId)}/comments`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(workspaceContext ? workspaceProjectHeaders(workspaceContext) : {}),
+        },
+        body: JSON.stringify(input),
+      },
+    );
+    if (!resp.ok) return null;
+    const json = (await resp.json()) as { comment: PreviewComment };
+    return json.comment ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export async function upsertProjectPreviewComment(
+  projectId: string,
+  input: PreviewCommentUpsertRequest,
+  workspaceContext?: WorkspaceCollabContext | null,
+): Promise<PreviewComment | null> {
+  try {
+    const resp = await fetch(
+      `/api/projects/${encodeURIComponent(projectId)}/comments`,
       {
         method: 'POST',
         headers: {

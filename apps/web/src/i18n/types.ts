@@ -81,6 +81,14 @@ export interface Dict {
   'nextoreRemote.notOnDeviceTitle': string;
   'nextoreRemote.remoteBadge': string;
   'nextoreWorkspace.allProjects': string;
+  'nextoreWorkspace.currentSpace': string;
+  'nextoreWorkspace.currentUnknown': string;
+  'nextoreWorkspace.mine': string;
+  'nextoreWorkspace.teams': string;
+  'nextoreWorkspace.createHint': string;
+  'nextoreWorkspace.switched': string;
+  'nextoreTeam.roleForGroup': string;
+  'nextoreTeam.selectedCount': string;
   'nextoreShared.title': string;
   'nextoreTeam.createAction': string;
   'nextoreTeam.dialogTitle': string;

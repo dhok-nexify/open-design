@@ -398,6 +398,19 @@
   overflow: hidden;
   white-space: nowrap;
 }
+.recent-projects__card-workspace {
+  min-width: 0;
+  max-width: 140px;
+  overflow: hidden;
+  padding: 1px 7px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  color: var(--text-faint);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .recent-projects__card-sep {
   color: var(--text-muted);
   flex: 0 0 auto;

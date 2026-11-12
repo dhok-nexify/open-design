@@ -68,7 +68,9 @@ import {
   isDesignerAccessRequired,
 } from './nextore/access-required';
 import { bootstrapBranding, refreshBranding } from './nextore/branding';
-import { getNextoreWorkspaceSelection } from './nextore/workspace-selection';
+import { getNextoreWorkspaceContext } from './nextore/workspace-context';
+import { refreshNextoreProjectListing } from './nextore/listing-store';
+import { NEXTORE_WEB_EDITION } from './nextore/features';
 import { BrandSplash } from './components/BrandSplash';
 import { TooltipLayer } from './components/TooltipLayer';
 import { UpdateDialog } from './components/UpdateDialog';
@@ -3085,7 +3087,9 @@ function AppInner() {
           openWorkspaceTab(optimisticRoute);
           navigate(optimisticRoute);
         }
-        const selectedNextoreWorkspaceId = getNextoreWorkspaceSelection()?.id;
+        // The switcher is the write target: a new project always lands in the
+        // workspace the member is standing in (NXD-D40).
+        const selectedNextoreWorkspaceId = getNextoreWorkspaceContext()?.workspaceId;
         result = await createProject({
           ...(optimisticProjectId ? { id: optimisticProjectId } : {}),
           name: input.name,
@@ -3115,6 +3119,9 @@ function AppInner() {
           ...(selectedNextoreWorkspaceId ? { nextoreWorkspaceId: selectedNextoreWorkspaceId } : {}),
           workspaceContext: createWorkspaceContext,
         });
+        // The Projects view filters by workspace, so the NexTore listing has to
+        // know about the new record before that filter runs (NXD-D40).
+        if (NEXTORE_WEB_EDITION === 'nextore') void refreshNextoreProjectListing();
       } catch (err) {
         const errorCode =
           err instanceof Error && err.message.trim()

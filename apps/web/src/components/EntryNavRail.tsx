@@ -61,7 +61,7 @@ import type { EntrySettingsSection } from './EntrySettingsMenu';
 import { isRtlLocale, useI18n } from '../i18n';
 import { useDismissOnOutsideInteraction } from '../hooks/useDismissOnOutsideInteraction';
 import { ENTRY_RAIL_TOGGLE_EVENT } from './entryRailBridge';
-import { NextoreWorkspaceSidebar } from '../nextore/WorkspaceSidebar';
+import { NextoreWorkspaceSwitcher } from '../nextore/WorkspaceSwitcher';
 import { NEXTORE_WEB_EDITION } from '../nextore/features';
 import {
   beginWorkspaceScopedRead,
@@ -1245,8 +1245,8 @@ export function EntryNavRail({
   const homeLabel = t('entry.navRecents');
   const isHome = view === 'home';
 
-  // The NexTore edition has no cloud team switcher: workspaces and their
-  // projects come from the module and render in NextoreWorkspaceSidebar.
+  // The NexTore edition has no cloud team switcher: the workspace lives in the
+  // rail's own switcher row and the project list lives in the main area.
   const isTeam = NEXTORE_WEB_EDITION !== 'nextore'
     && Boolean(context)
     && context!.workspaceType === 'team';
@@ -1523,10 +1523,7 @@ export function EntryNavRail({
       <div className="entry-nav-rail__group">
 
         {NEXTORE_WEB_EDITION === 'nextore' ? (
-          <NextoreWorkspaceSidebar
-            refreshKey={view}
-            onSelectWorkspace={() => onViewChange('projects')}
-          />
+          <NextoreWorkspaceSwitcher />
         ) : context ? (
           <div className="entry-nav-rail__team-wrap">
             <button
@@ -1711,6 +1708,20 @@ export function EntryNavRail({
         >
           <Icon name="home" size={16} />
         </NavButton>
+
+        {NEXTORE_WEB_EDITION === 'nextore' ? (
+          // The rail no longer carries a project list, so the project grid needs
+          // its own first-class destination (NXD-D40).
+          <NavButton
+            active={view === 'projects'}
+            ariaLabel={t('entry.navProjects')}
+            label={t('entry.navProjects')}
+            onClick={() => selectView('projects')}
+            testId="entry-nav-projects"
+          >
+            <Icon name="grid" size={16} />
+          </NavButton>
+        ) : null}
 
         {context ? (
           <div className="entry-nav-rail__team-section">

@@ -146,6 +146,10 @@ interface Props {
    * other views are active, so hidden strips must not occupy browser connection
    * slots with background cover probes. */
   isActive?: boolean;
+  /** NexTore edition: projectId → the workspace that owns it (NXD-D40). Home's
+   *  recents stay global, so each card carries its own space label to keep the
+   *  "did switching spaces lose my work?" anxiety from ever appearing. */
+  projectWorkspaceLabels?: ReadonlyMap<string, string>;
 }
 
 const EMPTY_DESIGN_SYSTEMS: DesignSystemSummary[] = [];
@@ -353,6 +357,7 @@ export function RecentProjectsStrip({
   canAssignInviteRoles,
   canManageProjectCollection,
   isActive = true,
+  projectWorkspaceLabels,
 }: Props) {
   const t = useT();
   const analytics = useAnalytics();
@@ -1896,6 +1901,14 @@ export function RecentProjectsStrip({
                       ) : (
                         <ProjectTag category={projectCategory(project)} />
                       )}
+                      {projectWorkspaceLabels?.get(project.id) ? (
+                        <span
+                          className="recent-projects__card-workspace"
+                          title={projectWorkspaceLabels.get(project.id)}
+                        >
+                          {projectWorkspaceLabels.get(project.id)}
+                        </span>
+                      ) : null}
                     </div>
                   </div>
                 </div>

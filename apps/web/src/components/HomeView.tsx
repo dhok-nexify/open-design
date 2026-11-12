@@ -99,6 +99,10 @@ import {
   requiredInputsAreUserFillable,
 } from '../utils/pluginRequiredInputs';
 import { HomeHero, type ExamplePromptInfo, type HomeHeroHandle } from './HomeHero';
+import { groupProjectsByWorkspace } from '../nextore-projects';
+import { useNextoreProjectListing } from '../nextore/listing-store';
+import { NextoreWorkspaceSwitcher } from '../nextore/WorkspaceSwitcher';
+import { useNextoreWorkspaceContext } from '../nextore/workspace-context';
 import { AppWashKineticGrid } from './AppWashKineticGrid';
 import { findChip, HOME_HERO_CHIPS, type HomeHeroChip } from './home-hero/chips';
 import {
@@ -3075,6 +3079,34 @@ export function HomeView({
   // #5517: with no recent projects the home (logo + heading + composer)
   // centers vertically instead of hugging the top, and the strip is skipped.
   const recentProjectsEmpty = !projectsLoading && projects.length === 0;
+  // NexTore edition (NXD-D40): Home keeps its recents global, so every card
+  // carries the workspace it belongs to, and the current workspace — which is
+  // where a new project lands — is stated once above the composer.
+  const nextoreListing = useNextoreProjectListing(NEXTORE_WEB_EDITION === 'nextore');
+  const nextoreWorkspace = useNextoreWorkspaceContext();
+  const nextoreWorkspaceLabels = useMemo(() => {
+    const labels = new Map<string, string>();
+    if (!nextoreListing) return labels;
+    for (const group of groupProjectsByWorkspace(nextoreListing)) {
+      if (!group.workspaceName) continue;
+      for (const project of group.projects) labels.set(project.designerProjectId, group.workspaceName);
+    }
+    return labels;
+  }, [nextoreListing]);
+  const [workspaceAnnouncement, setWorkspaceAnnouncement] = useState('');
+  const announcedWorkspaceIdRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (!nextoreWorkspace) {
+      announcedWorkspaceIdRef.current = null;
+      setWorkspaceAnnouncement('');
+      return;
+    }
+    if (announcedWorkspaceIdRef.current === nextoreWorkspace.workspaceId) return;
+    const first = announcedWorkspaceIdRef.current === null;
+    announcedWorkspaceIdRef.current = nextoreWorkspace.workspaceId;
+    if (first) return;
+    setWorkspaceAnnouncement(t('nextoreWorkspace.switched', { workspace: nextoreWorkspace.name }));
+  }, [nextoreWorkspace, t]);
   // A deliberate resource/plugin selection already gives submit an exact
   // route, so it must not remain behind the fresh-home default-prototype barrier.
   // Keep the barrier for a plain prompt: that is the only lane where sending
@@ -3109,6 +3141,13 @@ export function HomeView({
         />
       ) : null}
       {isActive ? <AppWashKineticGrid clipBottomTo=".home-hero" /> : null}
+      {NEXTORE_WEB_EDITION === 'nextore' && nextoreWorkspace ? (
+        <div className="home-workspace-bar" data-testid="home-workspace-bar">
+          <NextoreWorkspaceSwitcher variant="chip" />
+          <span className="home-workspace-bar__hint">{t('nextoreWorkspace.createHint')}</span>
+          <span className="sr-only" role="status" aria-live="polite">{workspaceAnnouncement}</span>
+        </div>
+      ) : null}
       {canCreateProject ? (
       <HomeHero
         workspaceContext={workspaceContext}
@@ -3245,6 +3284,7 @@ export function HomeView({
         projects={projects}
         designSystems={designSystems}
         heading={t('recentProjects.title')}
+        {...(NEXTORE_WEB_EDITION === 'nextore' ? { projectWorkspaceLabels: nextoreWorkspaceLabels } : {})}
         {...(isSharedProject ? { isSharedProject } : {})}
         {...(onProjectShared ? { onProjectShared } : {})}
         {...(onProjectShareFailed ? { onProjectShareFailed } : {})}
