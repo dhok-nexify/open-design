@@ -5152,6 +5152,21 @@ export function registerProjectRoutes(app: Express, ctx: RegisterProjectRoutesDe
             'exampleBinding is daemon-owned',
           );
         }
+        // The mapping to the NexTore DesignProject is the only pointer from a
+        // local project to the ACL that governs it. Only the NXD-D08 registrar
+        // writes it, so a client that rebuilds metadata must not be able to
+        // repoint a project at someone else's DesignProject either.
+        if (
+          'nextoreProjectId' in patch.metadata
+          && patch.metadata.nextoreProjectId !== existingMeta?.nextoreProjectId
+        ) {
+          return sendApiError(
+            res,
+            400,
+            'BAD_REQUEST',
+            'nextoreProjectId is daemon-owned',
+          );
+        }
         if ('fromTrustedPicker' in patch.metadata
             && patch.metadata.fromTrustedPicker !== existingMeta?.fromTrustedPicker) {
           return sendApiError(
@@ -5252,6 +5267,15 @@ export function registerProjectRoutes(app: Express, ctx: RegisterProjectRoutesDe
           patch.metadata = {
             ...patch.metadata,
             exampleBinding: existingMeta.exampleBinding,
+          };
+        }
+        // Same reasoning as the example binding above: a patch that omits the
+        // mapping must not erase it, because an unmapped project has no ACL to
+        // consult and the authorizer now refuses it (NXD-D07 / T-D21).
+        if (typeof existingMeta?.nextoreProjectId === 'string' && existingMeta.nextoreProjectId) {
+          patch.metadata = {
+            ...patch.metadata,
+            nextoreProjectId: existingMeta.nextoreProjectId,
           };
         }
       }

@@ -93,10 +93,19 @@ const localAllow: AuthorizeProjectRequest = vi.fn(async () => true);
     expect(load).not.toHaveBeenCalled();
   });
 
-  it('keeps an unmapped local project working', async () => {
-    const { authorizer: run, load } = authorizer({ readProjectMapping: () => null });
-    await expect(run(req, res, 'local-1', { mode: 'read' })).resolves.toBe(true);
+  it('refuses an unmapped project instead of trusting the local gate', async () => {
+    // T-D21: the local gate has no member model in this edition, so an
+    // unmapped project must not fall through to "allowed" — that is how a lost
+    // mapping silently became full access for every signed-in member.
+    const { authorizer: run, deny, load } = authorizer({ readProjectMapping: () => null });
+    await expect(run(req, res, 'local-1', { mode: 'read' })).resolves.toBe(false);
     expect(load).not.toHaveBeenCalled();
+    expect(deny).toHaveBeenCalledWith(
+      res,
+      404,
+      'PROJECT_NOT_MAPPED',
+      expect.any(String),
+    );
   });
 
   it('stops at the local gate without calling the module', async () => {

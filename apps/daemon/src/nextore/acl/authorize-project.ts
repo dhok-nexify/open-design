@@ -74,10 +74,14 @@ function requiredRight(
  * Wraps the local project authorizer with the NexTore ACL (NXD-D07).
  *
  * Order matters: the local gate runs first so workspace placeholders, revoked
- * mirrors and imported projects keep exactly today's semantics. Only when a
- * project carries a NexTore mapping does the module get consulted. A project
- * without a mapping is a pre-D08 local project and stays allowed, which keeps
- * an existing deployment working while D08 fills the mapping in.
+ * mirrors and imported projects keep exactly today's semantics. The NexTore
+ * module then decides every project it owns, and a project WITHOUT a mapping is
+ * refused outright (T-D21). The local gate has no member model in this edition,
+ * so falling through to it would hand every signed-in member full rights over
+ * any project whose mapping went missing — which is reachable in practice, not
+ * only theoretical: `nextoreProjectId` lives in project metadata, and a patch
+ * that rebuilds metadata without it leaves a project holding real files but no
+ * ACL to consult. Refusing is the only fail-safe answer.
  *
  * A mapped project whose access cannot be resolved is denied with 503: the
  * module is the authority, and guessing would be worse than failing.
@@ -92,7 +96,15 @@ export function createNextoreProjectAuthorizer(
     if (deps.edition !== 'nextore') return true;
 
     const nextoreProjectId = deps.readProjectMapping(projectId);
-    if (!nextoreProjectId) return true;
+    if (!nextoreProjectId) {
+      deps.deny(
+        res,
+        404,
+        'PROJECT_NOT_MAPPED',
+        'This project is not registered with NexTore, so its permissions cannot be checked.',
+      );
+      return false;
+    }
 
     const session = deps.readSession(res);
     if (!session) {
