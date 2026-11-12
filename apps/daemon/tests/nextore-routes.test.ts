@@ -34,6 +34,8 @@ describe('createNextoreSelfTestHandler', () => {
       projectPermissionUrl: async <T>() => ({} as T),
       workspaces: async <T>() => ({} as T),
       workspaceProjects: async <T>() => ({} as T),
+      groups: async <T>() => ({} as T),
+      createWorkspace: async <T>() => ({} as T),
       createProject: async <T>() => ({} as T),
       deleteProject: async <T>() => ({} as T),
     };

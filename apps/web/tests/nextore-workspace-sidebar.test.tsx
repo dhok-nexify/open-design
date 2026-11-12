@@ -4,10 +4,16 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 
 import { NextoreWorkspaceSidebar } from '../src/nextore/WorkspaceSidebar';
+import { resetNextoreProjectListing } from '../src/nextore/listing-store';
+import { resetNextoreSessionView } from '../src/nextore/session-view';
+import { clearNextoreWorkspaceSelection } from '../src/nextore/workspace-selection';
 
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
+  resetNextoreProjectListing();
+  resetNextoreSessionView();
+  clearNextoreWorkspaceSelection();
 });
 
 function stubListing(body: unknown) {
@@ -58,5 +64,45 @@ describe('NextoreWorkspaceSidebar', () => {
     stubListing({ workspaces: [], projects: [], remoteWithoutLocal: [], localWithoutRemote: [] });
     render(<NextoreWorkspaceSidebar />);
     await waitFor(() => expect(screen.queryByTestId('nextore-workspace-sidebar')).toBeNull());
+  });
+
+  it('lists shared projects separately and offers the admin team-workspace action', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (input: string) => {
+      if (String(input).includes('/api/nextore/session')) {
+        return {
+          ok: true,
+          json: async () => ({
+            memberId: 1,
+            rights: { access: true, createProject: true, admin: true, manageMcp: true },
+            groups: [{ id: 4, name: 'ND Editor' }],
+          }),
+        } as unknown as Response;
+      }
+      return {
+        ok: true,
+        json: async () => ({
+          workspaces: [{ id: 9, name: 'admin Workspace', type: 'personal', sharedOnly: true }],
+          projects: [
+            {
+              nextoreProjectId: '10',
+              designerProjectId: 'local-shared',
+              name: 'Shared launch',
+              hasLocalContent: true,
+              workspaceId: 9,
+              workspaceName: 'admin Workspace',
+              workspaceType: 'personal',
+            },
+          ],
+          remoteWithoutLocal: [],
+          localWithoutRemote: [],
+        }),
+      } as unknown as Response;
+    }));
+
+    render(<NextoreWorkspaceSidebar />);
+    await waitFor(() => expect(screen.getByText('Shared with you')).toBeTruthy());
+    expect(screen.getByText('Shared launch').closest('a')?.getAttribute('href'))
+      .toBe('/projects/local-shared');
+    await waitFor(() => expect(screen.getByRole('button', { name: /New team workspace/i })).toBeTruthy());
   });
 });

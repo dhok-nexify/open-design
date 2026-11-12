@@ -1,6 +1,7 @@
 import type { Express, Response } from 'express';
 import { resolveEdition } from '@open-design/contracts';
 
+import type { NextoreSessionView } from '@open-design/contracts';
 import { readNextoreConfig } from '../nextore/config.js';
 import { normalizeMember, wireArray } from '../nextore/wire.js';
 
@@ -12,6 +13,15 @@ export interface NextoreDirectoryDeps {
 interface SessionView {
   accessToken?: string;
   memberId?: number;
+  member?: {
+    rights?: {
+      access?: unknown;
+      createProject?: unknown;
+      admin?: unknown;
+      manageMcp?: unknown;
+    } | null;
+    groups?: unknown;
+  } | null;
 }
 
 function readSession(res: Response): SessionView | null {
@@ -45,7 +55,23 @@ export function registerNextoreDirectoryRoutes(
       });
       return;
     }
-    res.json({ memberId: session.memberId });
+
+    const rights = session.member?.rights;
+    const body: NextoreSessionView = {
+      memberId: session.memberId,
+      // Fails closed: a session without cached rights cannot create team
+      // workspaces until the next bootstrap revalidation fills them.
+      rights: {
+        access: rights?.access === true,
+        createProject: rights?.createProject === true,
+        admin: rights?.admin === true,
+        manageMcp: rights?.manageMcp === true,
+      },
+      groups: Array.isArray(session.member?.groups)
+        ? (session.member.groups as NextoreSessionView['groups'])
+        : [],
+    };
+    res.json(body);
   });
 
   app.get('/api/nextore/members', async (req, res: Response) => {

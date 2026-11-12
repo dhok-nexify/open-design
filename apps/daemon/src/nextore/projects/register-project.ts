@@ -5,6 +5,10 @@ export interface NextoreWorkspaceSummary {
   id: number;
   name: string;
   type: string;
+  /** True when the caller reaches this workspace only through a shared project. */
+  sharedOnly?: boolean;
+  /** True when the caller may create a DesignProject in this workspace. */
+  canCreateProject?: boolean;
 }
 
 export interface NextoreProjectDescriptor {
@@ -14,6 +18,14 @@ export interface NextoreProjectDescriptor {
   skillId?: string | null;
 }
 
+function readCanCreateProject(value: unknown): boolean {
+  if (!value || typeof value !== 'object') return false;
+  const access = (value as { access?: unknown }).access ?? (value as { Access?: unknown }).Access;
+  if (!access || typeof access !== 'object') return false;
+  return (access as { canCreateProject?: unknown }).canCreateProject === true
+    || (access as { CanCreateProject?: unknown }).CanCreateProject === true;
+}
+
 function normalizeWorkspace(value: unknown): NextoreWorkspaceSummary | null {
   const id = wireNumber(value, 'id', 'Id');
   if (id === null || id === undefined) return null;
@@ -21,24 +33,35 @@ function normalizeWorkspace(value: unknown): NextoreWorkspaceSummary | null {
     id,
     name: wireString(value, 'name', 'Name')?.trim() ?? '',
     type: wireString(value, 'type', 'Type')?.trim() ?? '',
+    sharedOnly:
+      (value as { sharedOnly?: unknown }).sharedOnly === true
+      || (value as { SharedOnly?: unknown }).SharedOnly === true,
+    canCreateProject: readCanCreateProject(value),
   };
 }
 
 export type RegisterProjectResult =
   | { ok: true; nextoreProjectId: string; workspaceId: number }
-  | { ok: false; code: 'NO_WORKSPACE' | 'NEXTORE_ERROR' | 'PROJECT_NAME_CONFLICT'; message: string };
+  | {
+      ok: false;
+      code: 'NO_WORKSPACE' | 'WORKSPACE_FORBIDDEN' | 'NEXTORE_ERROR' | 'PROJECT_NAME_CONFLICT';
+      message: string;
+    };
 
 /**
  * Picks the workspace a new project belongs to (NXD-D08).
  *
- * The module guarantees a personal workspace exists on first read (N06), so the
- * personal one is the default; a caller that already knows a workspace id can
- * pass it and skip the lookup entirely.
+ * A writable personal workspace is the default; when the caller names an
+ * explicit workspace the registrar validates it instead of picking one.
  */
 export function pickWorkspaceId(workspaces: readonly NextoreWorkspaceSummary[]): number | null {
-  const personal = workspaces.find((workspace) => workspace.type === 'personal');
+  // Prefer a workspace the module says is writable; fall back to the full list
+  // so a permission denial still comes back from the create call with a reason.
+  const creatable = workspaces.filter((workspace) => workspace.canCreateProject !== false);
+  const pool = creatable.length > 0 ? creatable : workspaces;
+  const personal = pool.find((workspace) => workspace.type === 'personal');
   if (personal) return personal.id;
-  return workspaces.length > 0 ? workspaces[0]!.id : null;
+  return pool.length > 0 ? pool[0]!.id : null;
 }
 
 /**
@@ -57,13 +80,32 @@ export async function registerNextoreProject(input: {
 }): Promise<RegisterProjectResult> {
   let workspaceId = input.workspaceId ?? null;
   try {
+    const response = await input.client.workspaces<unknown>(input.accessToken);
+    const workspaces = wireArray(response, 'workspaces', 'Workspaces')
+      .map(normalizeWorkspace)
+      .filter((workspace): workspace is NextoreWorkspaceSummary => workspace !== null);
+
     if (workspaceId == null) {
-      const response = await input.client.workspaces<unknown>(input.accessToken);
-      workspaceId = pickWorkspaceId(
-        wireArray(response, 'workspaces', 'Workspaces')
-          .map(normalizeWorkspace)
-          .filter((workspace): workspace is NextoreWorkspaceSummary => workspace !== null),
-      );
+      workspaceId = pickWorkspaceId(workspaces);
+    } else {
+      // A caller-chosen workspace is only honoured when the module reports
+      // CanCreateFolder for it; the same rule the create call enforces, but
+      // checked first so a refusal is a 403 rather than a generic outage.
+      const target = workspaces.find((workspace) => workspace.id === workspaceId);
+      if (!target) {
+        return {
+          ok: false,
+          code: 'NO_WORKSPACE',
+          message: 'That workspace is not available to this member.',
+        };
+      }
+      if (!target.canCreateProject) {
+        return {
+          ok: false,
+          code: 'WORKSPACE_FORBIDDEN',
+          message: 'You cannot create projects in that workspace.',
+        };
+      }
     }
     if (workspaceId == null) {
       return {
@@ -92,11 +134,18 @@ export async function registerNextoreProject(input: {
     return { ok: true, nextoreProjectId: String(id), workspaceId };
   } catch (error) {
     // A taken project name is a user-fixable conflict, not an outage. Keep the
-    // distinction so the create route can answer 409 instead of 503.
+    // distinction so the create route can answer 409 instead of 503. A 403 is
+    // the module refusing DesignerCreateProject or workspace CanCreateFolder,
+    // which is a permission answer, not an outage.
     const upstreamCode = error instanceof NextoreClientError ? error.upstreamCode : undefined;
+    const forbidden = error instanceof NextoreClientError && error.statusCode === 403;
     return {
       ok: false,
-      code: upstreamCode === 'project_name_conflict' ? 'PROJECT_NAME_CONFLICT' : 'NEXTORE_ERROR',
+      code: upstreamCode === 'project_name_conflict'
+        ? 'PROJECT_NAME_CONFLICT'
+        : forbidden
+          ? 'WORKSPACE_FORBIDDEN'
+          : 'NEXTORE_ERROR',
       message: error instanceof Error ? error.message : String(error),
     };
   }

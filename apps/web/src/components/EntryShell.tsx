@@ -100,6 +100,9 @@ import { EntryNavRail, type EntryView as EntryViewKind } from './EntryNavRail';
 import { NEXTORE_WEB_EDITION, isFeatureEnabled } from '../nextore/features';
 import { TierToggle } from '../nextore/TierToggle';
 import { readStoredNextoreTier, writeStoredNextoreTier } from '../nextore/tier';
+import { useNextoreProjectListing } from '../nextore/listing-store';
+import { useNextoreSessionView } from '../nextore/session-view';
+import { clearNextoreWorkspaceSelection, useNextoreWorkspaceSelection } from '../nextore/workspace-selection';
 import {
   buildProjectSearchCatalog,
   ProjectSearchModal,
@@ -858,6 +861,35 @@ export function EntryShell({
     }),
     [projects, teamProjects.projects, workspaceContext],
   );
+  // NexTore edition: a selected workspace scopes the Projects view (NXD-D40).
+  // The sidebar is the only writer of the selection, so upstream is unaffected.
+  const nextoreListing = useNextoreProjectListing(NEXTORE_WEB_EDITION === 'nextore');
+  const nextoreWorkspace = useNextoreWorkspaceSelection();
+  const nextoreSession = useNextoreSessionView(NEXTORE_WEB_EDITION === 'nextore');
+  // T-D46: a member without DesignerCreateProject must not see a create entry.
+  // A not-yet-loaded session keeps the entry (it is a ceiling, not a gate).
+  const canCreateNextoreProject = NEXTORE_WEB_EDITION !== 'nextore'
+    || nextoreSession === null
+    || nextoreSession.rights.createProject
+    || nextoreSession.rights.admin;
+  const projectsViewList = useMemo(() => {
+    if (!nextoreListing || !nextoreWorkspace) return projects;
+    const visible = new Set(
+      nextoreListing.projects
+        .filter((project) => project.workspaceId === nextoreWorkspace.id)
+        .map((project) => project.designerProjectId),
+    );
+    return projects.filter((project) => visible.has(project.id));
+  }, [projects, nextoreListing, nextoreWorkspace]);
+  // A selection survives in sessionStorage across sign-ins. If the new member
+  // cannot see that workspace, drop it instead of showing an empty stale view.
+  useEffect(() => {
+    if (!nextoreListing || !nextoreWorkspace) return;
+    const exists = (nextoreListing.workspaces ?? []).some(
+      (workspace) => workspace.id === nextoreWorkspace.id,
+    );
+    if (!exists) clearNextoreWorkspaceSelection();
+  }, [nextoreListing, nextoreWorkspace]);
   // projectId → sharing member id, so a card in the 全部项目 / 草稿 grids can
   // resolve "{creator}创建" against the member directory. A project absent here
   // is the member's own local project → "我创建".
@@ -1836,10 +1868,12 @@ export function EntryShell({
               ) : (
                 <div className="entry-section">
                   <header className="entry-section__head">
-                    <h1 className="entry-section__title">{t('entry.navProjects')}</h1>
+                    <h1 className="entry-section__title">
+                      {nextoreWorkspace?.name || t('entry.navProjects')}
+                    </h1>
                   </header>
                   <DesignsTab
-                    projects={projects}
+                    projects={projectsViewList}
                     skills={skills}
                     designSystems={designSystems}
                     onOpen={onOpenProject}
@@ -1849,9 +1883,9 @@ export function EntryShell({
                     onRename={onRenameProject}
                     onRefresh={onProjectsRefresh}
                     isActive={view === 'projects'}
-                    onNewProject={() => {
+                    onNewProject={canCreateNextoreProject ? () => {
                       openNewProject();
-                    }}
+                    } : undefined}
                   />
                 </div>
               )}

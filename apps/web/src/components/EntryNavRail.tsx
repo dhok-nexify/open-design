@@ -1523,7 +1523,10 @@ export function EntryNavRail({
       <div className="entry-nav-rail__group">
 
         {NEXTORE_WEB_EDITION === 'nextore' ? (
-          <NextoreWorkspaceSidebar refreshKey={view} />
+          <NextoreWorkspaceSidebar
+            refreshKey={view}
+            onSelectWorkspace={() => onViewChange('projects')}
+          />
         ) : context ? (
           <div className="entry-nav-rail__team-wrap">
             <button

@@ -764,6 +764,8 @@ export async function createProject(
      * the local catalogue. Never accompanies `pluginId`/`appliedPluginSnapshotId`.
      */
     exampleReference?: CreateProjectExampleReference;
+    /** NexTore edition: create the record in this workspace. */
+    nextoreWorkspaceId?: number;
     workspaceContext?: WorkspaceCollabContext | null;
   },
   retryOptions: CreateProjectRetryOptions = {},

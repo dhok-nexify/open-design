@@ -1,4 +1,5 @@
 import type {
+  CreateNextoreTeamWorkspaceRequest,
   NextoreBrandingResponse,
   NextoreModuleHealthResponse,
 } from '@open-design/contracts';
@@ -59,6 +60,14 @@ export interface NextoreClient {
   workspaces<T>(accessToken: string, signal?: AbortSignal): Promise<T>;
   /** Projects the caller can read in one workspace (D08 listing). */
   workspaceProjects<T>(accessToken: string, workspaceId: number, signal?: AbortSignal): Promise<T>;
+  /** Every platform group for the team-workspace dialog (DesignerAdmin, NXD-D40). */
+  groups<T>(accessToken: string, signal?: AbortSignal): Promise<T>;
+  /** Creates a team workspace with per-group role grants (NXD-D40). */
+  createWorkspace<T>(
+    accessToken: string,
+    body: CreateNextoreTeamWorkspaceRequest,
+    signal?: AbortSignal,
+  ): Promise<T>;
   /** Creates the DesignProject record for a local project (D08). */
   createProject<T>(accessToken: string, body: NextoreProjectCreateInput, signal?: AbortSignal): Promise<T>;
   /** Deletes the DesignProject record; 404 is a no-op for the caller. */
@@ -205,6 +214,26 @@ export function createNextoreClient(options: NextoreClientOptions): NextoreClien
         'api/designer/workspaces/' + encodeURIComponent(String(workspaceId)) + '/projects',
         signal ? { accessToken, signal } : { accessToken },
       );
+    },
+
+    groups<T>(accessToken: string, signal?: AbortSignal) {
+      return request<T>(
+        'api/designer/groups',
+        signal ? { accessToken, signal } : { accessToken },
+      );
+    },
+
+    createWorkspace<T>(
+      accessToken: string,
+      body: CreateNextoreTeamWorkspaceRequest,
+      signal?: AbortSignal,
+    ) {
+      return request<T>('api/designer/workspaces', {
+        accessToken,
+        method: 'POST',
+        body,
+        ...(signal ? { signal } : {}),
+      });
     },
 
     createProject<T>(accessToken: string, body: NextoreProjectCreateInput, signal?: AbortSignal) {

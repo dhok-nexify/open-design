@@ -244,7 +244,7 @@ const MESSAGE_CENTER_STRING_FLAGS = new Set([
 ]);
 const MESSAGE_CENTER_BOOLEAN_FLAGS = new Set(['help', 'h', 'json']);
 const PROJECT_STRING_FLAGS = new Set([
-  'daemon-url', 'name', 'skill', 'design-system', 'plugin', 'metadata-json',
+  'daemon-url', 'name', 'skill', 'design-system', 'plugin', 'metadata-json', 'nextore-workspace',
   'pending-prompt', 'project', 'conversation', 'message', 'prompt',
   'prompt-file', 'task-execution', 'path', 'dir', 'as', 'url',
   'client-request-id',
@@ -401,6 +401,7 @@ const SUBCOMMAND_MAP = {
   brand: runBrand,
   brands: runBrand,
   project: runProject,
+  nextore: runNextore,
   strategy: runStrategy,
   workspace: runWorkspace,
   automation: runAutomation,
@@ -6997,12 +6998,109 @@ async function postImportFolderToDaemon(base, body, baseDir, workspaceHeaders = 
   return postJsonToDaemon(base, '/api/import/folder', body, headers);
 }
 
+function repeatedFlagValues(argv, name) {
+  const values = [];
+  const spaced = '--' + name;
+  const inline = spaced + '=';
+  for (let i = 0; i < argv.length; i++) {
+    const item = argv[i];
+    if (typeof item !== 'string') continue;
+    if (item === spaced) {
+      const next = argv[i + 1];
+      if (typeof next === 'string' && !next.startsWith('--')) {
+        values.push(next);
+        i++;
+      }
+      continue;
+    }
+    if (item.startsWith(inline)) {
+      values.push(item.slice(inline.length));
+    }
+  }
+  return values;
+}
+
+/**
+ * NexTore edition control plane (NXD-D40). Mirrors the web workspace sidebar:
+ * team workspace creation is the only command today, and it needs
+ * DesignerAdmin just like the dialog.
+ */
+async function runNextore(args) {
+  // Declared inside the function: SUBCOMMAND_MAP dispatches during module
+  // evaluation, before top-level consts below the map are initialized.
+  const NEXTORE_STRING_FLAGS = new Set(['daemon-url', 'name', 'group']);
+  const NEXTORE_BOOLEAN_FLAGS = new Set(['help', 'h', 'json']);
+
+  if (args.length === 0 || args[0] === 'help' || args.includes('--help') || args.includes('-h')) {
+    console.log(`Usage:
+  od nextore workspace create --name "<title>"
+                    --group <id:manager|editor|reader> [--group <id:role> ...]
+                    [--json]
+                    Create a NexTore Designer team workspace. Requires the
+                    DesignerAdmin right. Each --group grants that group the
+                    role preset's workspace rights.`);
+    return;
+  }
+
+  const sub = args[0];
+  const rest = args.slice(1);
+  const flags = parseFlags(rest, { string: NEXTORE_STRING_FLAGS, boolean: NEXTORE_BOOLEAN_FLAGS });
+  const base = (await cliDaemonBaseUrl(flags)).replace(/\/$/, '');
+
+  if (sub !== 'workspace') {
+    console.error('Unknown nextore command. Try: od nextore workspace create --help');
+    process.exit(2);
+  }
+
+  const action = positionalArgs(rest, NEXTORE_STRING_FLAGS)[0];
+  if (action !== 'create') {
+    console.error('Usage: od nextore workspace create --name "<title>" --group <id:role> [--json]');
+    process.exit(2);
+  }
+
+  const name = typeof flags.name === 'string' ? flags.name.trim() : '';
+  if (!name) {
+    console.error('--name is required');
+    process.exit(2);
+  }
+
+  const roles = new Set(['manager', 'editor', 'reader']);
+  const grants = [];
+  for (const raw of repeatedFlagValues(rest, 'group')) {
+    const separator = raw.lastIndexOf(':');
+    const groupId = Number(separator > 0 ? raw.slice(0, separator) : raw);
+    const role = separator > 0 ? raw.slice(separator + 1).trim() : '';
+    if (!Number.isInteger(groupId) || groupId <= 0 || !roles.has(role)) {
+      console.error('--group must look like <id:manager|editor|reader>');
+      process.exit(2);
+    }
+    grants.push({ groupId, role });
+  }
+  if (grants.length === 0) {
+    console.error('At least one --group <id:role> is required');
+    process.exit(2);
+  }
+
+  const resp = await fetch(base + '/api/nextore/workspaces', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ name, grants }),
+  });
+  const data = await resp.json().catch(() => ({}));
+  if (!resp.ok) {
+    console.error(`POST /api/nextore/workspaces failed: ${resp.status} ${JSON.stringify(data)}`);
+    process.exit(1);
+  }
+  if (flags.json) return process.stdout.write(JSON.stringify(data, null, 2) + '\n');
+  console.log(`[nextore] created team workspace ${data.name ?? name} (${data.id ?? '-'})`);
+}
+
 async function runProject(args) {
   if (args.length === 0 || args[0] === 'help' || args.includes('--help') || args.includes('-h')) {
     console.log(`Usage:
   od project create [--name "<title>"] [--skill <id>] [--design-system <id>]
                     [--plugin <id>] [--inputs <json>] [--metadata-json <path|->]
-                    [--mode design|chat|plan]
+                    [--mode design|chat|plan] [--nextore-workspace <id>]
   od project create-design-system <id> [--name "<title>"]
                     [--prompt "<text>" | --prompt-file <path|->] [--json]
                     Duplicate a project as a design-system workspace and seed
@@ -7338,6 +7436,14 @@ Common options:
       if (flags['metadata-json']) {
         const mj = safeReadJsonFile(flags['metadata-json']);
         if (mj && typeof mj === 'object') body.metadata = mj;
+      }
+      if (flags['nextore-workspace'] !== undefined) {
+        const workspaceId = Number(flags['nextore-workspace']);
+        if (!Number.isInteger(workspaceId) || workspaceId <= 0) {
+          console.error('--nextore-workspace must be a positive integer id');
+          process.exit(2);
+        }
+        body.nextoreWorkspaceId = workspaceId;
       }
       if (flags.plugin) body.pluginId = flags.plugin;
       if (flags.inputs) {

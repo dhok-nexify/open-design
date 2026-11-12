@@ -25,6 +25,12 @@ export interface NextoreSessionFeatures {
   shareLinks: boolean;
 }
 
+/** One group of the signed-in member, as the module reported it on bootstrap. */
+export interface NextoreSessionGroup {
+  id: number;
+  name: string;
+}
+
 export interface NextoreSessionMember {
   id: number;
   login: string;
@@ -44,6 +50,12 @@ export interface NextoreSessionMember {
    * rows written before NXD-D21 do not carry it; absent fails closed for MCP.
    */
   rights?: NextoreSessionRights;
+  /**
+   * Group membership from the last bootstrap. The team-workspace dialog only
+   * offers groups the member can already see; absent means "refreshed on the
+   * next revalidation", which is a few minutes at most.
+   */
+  groups?: NextoreSessionGroup[];
 }
 
 export interface NextoreSessionRights {
@@ -127,6 +139,19 @@ function toRights(value: unknown): NextoreSessionRights {
   };
 }
 
+function toGroups(value: unknown): NextoreSessionGroup[] {
+  if (!Array.isArray(value)) return [];
+  const groups: NextoreSessionGroup[] = [];
+  for (const entry of value) {
+    if (!entry || typeof entry !== 'object') continue;
+    const id = (entry as { id?: unknown }).id;
+    if (typeof id !== 'number' || !Number.isInteger(id) || id <= 0) continue;
+    const name = (entry as { name?: unknown }).name;
+    groups.push({ id, name: typeof name === 'string' ? name : '' });
+  }
+  return groups;
+}
+
 function toMember(raw: string): NextoreSessionMember | null {
   try {
     const value = JSON.parse(raw) as Partial<NextoreSessionMember> | null;
@@ -141,6 +166,7 @@ function toMember(raw: string): NextoreSessionMember | null {
       profileObjectId: typeof value.profileObjectId === 'number' ? value.profileObjectId : 0,
       features: toFeatures(value.features),
       ...(value.rights ? { rights: toRights(value.rights) } : {}),
+      groups: toGroups(value.groups),
     };
   } catch {
     return null;

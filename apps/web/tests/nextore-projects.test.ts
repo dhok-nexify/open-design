@@ -31,7 +31,7 @@ describe('groupProjectsByWorkspace', () => {
     const groups = groupProjectsByWorkspace({
       workspaces: [
         { id: 1, name: 'Me', type: 'personal' },
-        { id: 2, name: 'Team', type: 'team' },
+        { id: 2, name: 'admin Workspace', type: 'personal', sharedOnly: true },
       ],
       projects: [
         {
@@ -55,6 +55,7 @@ describe('groupProjectsByWorkspace', () => {
       localWithoutRemote: [],
     });
     expect(groups.map((group) => group.workspaceId)).toEqual([1, 2]);
+    expect(groups.map((group) => group.sharedOnly)).toEqual([false, true]);
     expect(groups.map((group) => group.projects.map((p) => p.designerProjectId)))
       .toEqual([['local-a'], ['remote-b']]);
   });
@@ -85,11 +86,16 @@ describe('fetchNextoreProjectListing', () => {
   it('normalises the payload', async () => {
     const fetchImpl = vi.fn().mockResolvedValue({
       ok: true,
-      json: async () => ({ projects: [{ nextoreProjectId: '1' }] }),
+      json: async () => ({
+        projects: [{ nextoreProjectId: '1' }],
+        workspaces: [{ id: 9, name: 'admin Workspace', type: 'personal', sharedOnly: true }],
+      }),
     } as unknown as Response);
     const result = await fetchNextoreProjectListing(fetchImpl as never);
     expect(result?.projects).toHaveLength(1);
-    expect(result?.workspaces).toEqual([]);
+    expect(result?.workspaces).toEqual([
+      { id: 9, name: 'admin Workspace', type: 'personal', sharedOnly: true },
+    ]);
     expect(result?.remoteWithoutLocal).toEqual([]);
     expect(fetchImpl).toHaveBeenCalledWith('/api/nextore/projects', expect.anything());
   });

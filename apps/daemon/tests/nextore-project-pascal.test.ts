@@ -77,8 +77,8 @@ describe('NexTore project wire compatibility', () => {
     });
 
     expect(listing.workspaces).toEqual([
-      { id: 286041, name: 'admin Workspace', type: 'personal', readable: true, projectIds: ['local-a'] },
-      { id: 286042, name: 'Team', type: 'team', readable: true, projectIds: ['remote-b'] },
+      { id: 286041, name: 'admin Workspace', type: 'personal', readable: true, projectIds: ['local-a'], sharedOnly: false },
+      { id: 286042, name: 'Team', type: 'team', readable: true, projectIds: ['remote-b'], sharedOnly: false },
     ]);
     expect(listing.projects[0]).toMatchObject({
       nextoreProjectId: '10',

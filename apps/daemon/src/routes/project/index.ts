@@ -3771,6 +3771,7 @@ export function registerProjectRoutes(app: Express, ctx: RegisterProjectRoutesDe
   const registerProjectWithNextore = async (
     res: Response,
     project: { id: string; name: string; designSystemId: string | null; skillId: string | null },
+    nextoreWorkspaceId?: number,
   ) => {
     const nextore = ctx.nextore;
     if (!nextore || resolveEdition(process.env.OD_EDITION) !== 'nextore') return null;
@@ -3783,7 +3784,12 @@ export function registerProjectRoutes(app: Express, ctx: RegisterProjectRoutesDe
         message: 'A NexTore session is required to create a project.',
       };
     }
-    const result = await registerNextoreProject({ client: nextore.client, accessToken, project });
+    const result = await registerNextoreProject({
+      client: nextore.client,
+      accessToken,
+      project,
+      ...(nextoreWorkspaceId ? { workspaceId: nextoreWorkspaceId } : {}),
+    });
     if (!result.ok) return result;
     const existing = getProject(db, project.id);
     updateProject(db, project.id, {
@@ -3838,8 +3844,16 @@ export function registerProjectRoutes(app: Express, ctx: RegisterProjectRoutesDe
         context: localProjectWorkspaceAttribution(req),
       };
       learnAssertedWorkspaceType(createWorkspace.context);
-      const { id, name, projectLocationId, skillId, designSystemId, pendingPrompt, metadata, customInstructions, skipDiscoveryBrief } =
+      const { id, name, projectLocationId, skillId, designSystemId, pendingPrompt, metadata, customInstructions, skipDiscoveryBrief, nextoreWorkspaceId } =
         req.body || {};
+      if (
+        nextoreWorkspaceId !== undefined
+        && (typeof nextoreWorkspaceId !== 'number'
+          || !Number.isInteger(nextoreWorkspaceId)
+          || nextoreWorkspaceId <= 0)
+      ) {
+        return sendApiError(res, 400, 'BAD_REQUEST', 'invalid nextoreWorkspaceId');
+      }
       if (typeof id !== 'string' || !isSafeId(id)) {
         return sendApiError(res, 400, 'BAD_REQUEST', 'invalid project id');
       }
@@ -4381,7 +4395,7 @@ export function registerProjectRoutes(app: Express, ctx: RegisterProjectRoutesDe
         name: name.trim(),
         designSystemId: normalizedDesignSystemId ?? null,
         skillId: normalizedSkillId ?? null,
-      });
+      }, typeof nextoreWorkspaceId === 'number' ? nextoreWorkspaceId : undefined);
       if (nextoreRegistration && !nextoreRegistration.ok) {
         await cancelRunsOwnedBy(design.runs, { projectId: id }).catch(() => {});
         dbDeleteProject(db, id);
@@ -4390,10 +4404,15 @@ export function registerProjectRoutes(app: Express, ctx: RegisterProjectRoutesDe
         // not an outage: 409 lets the client name the colliding project instead of
         // rendering a generic create failure after the optimistic frame bounces.
         const nameConflict = nextoreRegistration.code === 'PROJECT_NAME_CONFLICT';
+        const forbidden = nextoreRegistration.code === 'WORKSPACE_FORBIDDEN';
         return sendApiError(
           res,
-          nameConflict ? 409 : 503,
-          nameConflict ? 'PROJECT_NAME_CONFLICT' : 'NEXTORE_UNAVAILABLE',
+          nameConflict ? 409 : forbidden ? 403 : 503,
+          nameConflict
+            ? 'PROJECT_NAME_CONFLICT'
+            : forbidden
+              ? 'PROJECT_FORBIDDEN'
+              : 'NEXTORE_UNAVAILABLE',
           nextoreRegistration.message,
         );
       }

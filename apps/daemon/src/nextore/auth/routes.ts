@@ -24,6 +24,7 @@ import type {
   NextoreSessionMember,
   NextoreSessionRights,
   NextoreSessionStore,
+  NextoreSessionGroup,
 } from './session-store.js';
 
 export const PENDING_COOKIE = 'nxd_oauth';
@@ -118,9 +119,18 @@ interface BootstrapRights {
   ManageMcp?: unknown;
 }
 
+interface BootstrapGroup {
+  id?: unknown;
+  Id?: unknown;
+  name?: unknown;
+  Name?: unknown;
+}
+
 interface BootstrapPayload {
   member?: BootstrapMember;
   Member?: BootstrapMember;
+  groups?: BootstrapGroup[];
+  Groups?: BootstrapGroup[];
   features?: BootstrapFeatures;
   Features?: BootstrapFeatures;
   rights?: BootstrapRights;
@@ -325,8 +335,22 @@ function memberFrom(payload: BootstrapPayload): NextoreSessionMember | null {
     language: textField(member.language ?? member.Language),
     profileObjectId: integerField(member.profileObjectId ?? member.ProfileObjectId) ?? 0,
     features: featuresFrom(payload),
+    groups: groupsFrom(payload),
     rights: rightsFrom(payload),
   };
+}
+
+function groupsFrom(payload: BootstrapPayload): NextoreSessionGroup[] {
+  const raw = payload.groups ?? payload.Groups;
+  if (!Array.isArray(raw)) return [];
+  const groups: NextoreSessionGroup[] = [];
+  for (const entry of raw) {
+    if (!entry || typeof entry !== 'object') continue;
+    const id = integerField(entry.id ?? entry.Id);
+    if (id === null || groups.some((group) => group.id === id)) continue;
+    groups.push({ id, name: textField(entry.name ?? entry.Name) });
+  }
+  return groups;
 }
 
 function errorPage(res: Response, message: string, status = 400): void {

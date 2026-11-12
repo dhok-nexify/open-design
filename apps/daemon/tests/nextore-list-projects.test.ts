@@ -60,13 +60,31 @@ describe('listNextoreProjects', () => {
       workspaceName: 'Team',
     });
     expect(listing.workspaces).toEqual([
-      { id: 1, name: 'Me', type: 'personal', readable: true, projectIds: ['local-a'] },
-      { id: 2, name: 'Team', type: 'team', readable: true, projectIds: ['remote-b'] },
+      { id: 1, name: 'Me', type: 'personal', readable: true, projectIds: ['local-a'], sharedOnly: false },
+      { id: 2, name: 'Team', type: 'team', readable: true, projectIds: ['remote-b'], sharedOnly: false },
     ]);
+    expect(listing.workspaces.map((workspace) => workspace.sharedOnly)).toEqual([false, false]);
     expect(listing.remoteWithoutLocal).toEqual(['remote-b']);
     expect(listing.localWithoutRemote).toEqual(['local-c']);
     expect(workspaceProjects).toHaveBeenCalledWith('token', 1);
     expect(workspaceProjects).toHaveBeenCalledWith('token', 2);
+  });
+
+  it('carries the sharedOnly flag from the module', async () => {
+    const listing = await listNextoreProjects({
+      client: client({
+        workspaces: vi.fn().mockResolvedValue({
+          workspaces: [{ id: 9, name: 'admin Workspace', type: 'personal', sharedOnly: true }],
+        }),
+        workspaceProjects: vi.fn().mockResolvedValue({ projects: [] }),
+      }),
+      accessToken: 'token',
+      localProjectIds: [],
+    });
+
+    expect(listing.workspaces).toEqual([
+      { id: 9, name: 'admin Workspace', type: 'personal', readable: true, projectIds: [], sharedOnly: true },
+    ]);
   });
 
   it('dedupes a project that appears in more than one workspace', async () => {
@@ -102,8 +120,8 @@ describe('listNextoreProjects', () => {
     });
     expect(listing.projects.map((p) => p.designerProjectId)).toEqual(['remote-b']);
     expect(listing.workspaces).toEqual([
-      { id: 1, name: 'A', type: 'personal', readable: false, projectIds: [] },
-      { id: 2, name: 'B', type: 'team', readable: true, projectIds: ['remote-b'] },
+      { id: 1, name: 'A', type: 'personal', readable: false, projectIds: [], sharedOnly: false },
+      { id: 2, name: 'B', type: 'team', readable: true, projectIds: ['remote-b'], sharedOnly: false },
     ]);
   });
 
@@ -119,7 +137,7 @@ describe('listNextoreProjects', () => {
     });
     expect(listing.projects).toEqual([]);
     expect(listing.workspaces).toEqual([
-      { id: 3, name: 'Empty team', type: 'team', readable: true, projectIds: [] },
+      { id: 3, name: 'Empty team', type: 'team', readable: true, projectIds: [], sharedOnly: false },
     ]);
   });
 

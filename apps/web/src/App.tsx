@@ -68,6 +68,7 @@ import {
   isDesignerAccessRequired,
 } from './nextore/access-required';
 import { bootstrapBranding, refreshBranding } from './nextore/branding';
+import { getNextoreWorkspaceSelection } from './nextore/workspace-selection';
 import { BrandSplash } from './components/BrandSplash';
 import { TooltipLayer } from './components/TooltipLayer';
 import { UpdateDialog } from './components/UpdateDialog';
@@ -3084,6 +3085,7 @@ function AppInner() {
           openWorkspaceTab(optimisticRoute);
           navigate(optimisticRoute);
         }
+        const selectedNextoreWorkspaceId = getNextoreWorkspaceSelection()?.id;
         result = await createProject({
           ...(optimisticProjectId ? { id: optimisticProjectId } : {}),
           name: input.name,
@@ -3110,6 +3112,7 @@ function AppInner() {
           ...(input.exampleReference
             ? { exampleReference: input.exampleReference }
             : {}),
+          ...(selectedNextoreWorkspaceId ? { nextoreWorkspaceId: selectedNextoreWorkspaceId } : {}),
           workspaceContext: createWorkspaceContext,
         });
       } catch (err) {

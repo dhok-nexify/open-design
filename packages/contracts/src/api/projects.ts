@@ -483,6 +483,12 @@ export interface CreateProjectRequest {
   exampleReference?: CreateProjectExampleReference;
   /** Session mode for the default conversation seeded with the project. */
   conversationMode?: ChatSessionMode;
+  /**
+   * NexTore edition only: create the DesignProject inside this workspace
+   * instead of the caller's personal workspace. The module still enforces
+   * DesignerCreateProject and workspace CanCreateFolder.
+   */
+  nextoreWorkspaceId?: number;
   customInstructions?: string;
   /** Persisted to metadata.skipDiscoveryBrief for automated project runs. */
   skipDiscoveryBrief?: boolean;

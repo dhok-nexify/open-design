@@ -23,6 +23,12 @@ export interface NextoreWorkspaceEntry {
   id: number;
   name: string;
   type: string;
+  /**
+   * True when the member reaches this workspace only through a DesignProject
+   * shared with them (the workspace itself stays unreadable). The sidebar
+   * groups those under "Shared with you" instead of the member's own spaces.
+   */
+  sharedOnly?: boolean;
 }
 
 export interface NextoreProjectListing {
@@ -37,6 +43,7 @@ export interface NextoreProjectGroup {
   workspaceId: number | null;
   workspaceName: string;
   workspaceType: string;
+  sharedOnly: boolean;
   projects: NextoreProjectEntry[];
 }
 
@@ -64,6 +71,7 @@ export function groupProjectsByWorkspace(
       workspaceId: workspace.id,
       workspaceName: workspace.name?.trim() || '',
       workspaceType: workspace.type?.trim() || '',
+      sharedOnly: workspace.sharedOnly === true,
       projects: [],
     }));
   const byId = new Map<number, NextoreProjectGroup>(
@@ -73,6 +81,7 @@ export function groupProjectsByWorkspace(
     workspaceId: null,
     workspaceName: '',
     workspaceType: '',
+    sharedOnly: false,
     projects: [],
   };
   for (const project of listing.projects ?? []) {
@@ -84,6 +93,7 @@ export function groupProjectsByWorkspace(
         workspaceId,
         workspaceName: project.workspaceName?.trim() || '',
         workspaceType: project.workspaceType?.trim() || '',
+        sharedOnly: false,
         projects: [],
       };
       if (workspaceId == null) {
@@ -112,7 +122,22 @@ export async function fetchNextoreProjectListing(
     const body = (await response.json()) as Partial<NextoreProjectListing>;
     return {
       projects: Array.isArray(body.projects) ? body.projects : [],
-      workspaces: Array.isArray(body.workspaces) ? body.workspaces : [],
+      workspaces: Array.isArray(body.workspaces)
+        ? body.workspaces
+            .filter(
+              (workspace): workspace is NextoreWorkspaceEntry =>
+                Boolean(workspace)
+                && typeof workspace.id === 'number'
+                && Number.isInteger(workspace.id)
+                && workspace.id > 0,
+            )
+            .map((workspace) => ({
+              id: workspace.id,
+              name: workspace.name,
+              type: workspace.type,
+              sharedOnly: workspace.sharedOnly === true,
+            }))
+        : [],
       remoteWithoutLocal: Array.isArray(body.remoteWithoutLocal) ? body.remoteWithoutLocal : [],
       localWithoutRemote: Array.isArray(body.localWithoutRemote) ? body.localWithoutRemote : [],
     };

@@ -24,6 +24,8 @@ export interface ListedNextoreProject {
   workspaceId: number;
   workspaceName: string;
   workspaceType: string;
+  /** True when the caller reaches the workspace only through a shared project (NXD-D40). */
+  sharedOnly: boolean;
 }
 
 export interface ListedNextoreWorkspace {
@@ -34,6 +36,8 @@ export interface ListedNextoreWorkspace {
   readable: boolean;
   /** Deduped project ids that resolved into this workspace. */
   projectIds: string[];
+  /** True when only a shared project makes this workspace reachable (NXD-D40). */
+  sharedOnly: boolean;
 }
 
 function normalizeWorkspace(value: unknown): NextoreWorkspaceSummary | null {
@@ -43,6 +47,9 @@ function normalizeWorkspace(value: unknown): NextoreWorkspaceSummary | null {
     id,
     name: wireString(value, 'name', 'Name')?.trim() ?? '',
     type: wireString(value, 'type', 'Type')?.trim() ?? '',
+    sharedOnly:
+      (value as { sharedOnly?: unknown }).sharedOnly === true
+      || (value as { SharedOnly?: unknown }).SharedOnly === true,
   };
 }
 
@@ -97,6 +104,7 @@ export async function listNextoreProjects(input: {
     type: workspace.type?.trim() || '',
     readable: true,
     projectIds: [],
+    sharedOnly: workspace.sharedOnly === true,
   }));
 
   const summaries: Array<{
@@ -139,6 +147,7 @@ export async function listNextoreProjects(input: {
       workspaceId: workspace.id,
       workspaceName: workspace.name,
       workspaceType: workspace.type,
+      sharedOnly: workspace.sharedOnly === true,
     });
   }
 

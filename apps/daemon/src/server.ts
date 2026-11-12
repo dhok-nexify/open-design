@@ -426,6 +426,7 @@ import { registerNextoreMcpRoutes } from './nextore/mcp/routes.js';
 import { listNextoreMcpServers } from './nextore/mcp/store.js';
 import { hasValidShareGrant } from './nextore/share/service.js';
 import { registerNextoreShareRoutes } from './nextore/share/routes.js';
+import { registerNextoreWorkspaceRoutes } from './nextore/workspaces/routes.js';
 import { lazyNextoreSecrets } from './nextore/auth/secrets.js';
 import { createNextoreSessionStore } from './nextore/auth/session-store.js';
 import { migrateNextoreDatabase } from './nextore/db.js';
@@ -8240,6 +8241,8 @@ export async function startServer({
     registerNextoreRoutes(app, { client: nextoreClient });
     // Member directory for the transcript's author chips (NXD-D11).
     registerNextoreDirectoryRoutes(app);
+    // Team workspace creation for Designer admins (NXD-D40).
+    registerNextoreWorkspaceRoutes(app, { client: nextoreClient });
     // Per-user external MCP servers (NXD-D21). The upstream global
     // `mcp-config.json` surface stays closed in the edition.
     registerNextoreMcpRoutes(app, { db, secrets: nextoreSecrets });
