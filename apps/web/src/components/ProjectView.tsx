@@ -61,6 +61,7 @@ import {
   deletePreviewComment,
   fetchConnectorStatuses,
   fetchPreviewComments,
+  fetchProjectPreviewComments,
   fetchProjectDesignSystemPackageAudit,
   fetchLiveArtifacts,
   fetchProjectFiles,
@@ -72,6 +73,7 @@ import {
   projectRawUrl,
   uploadProjectFiles,
   upsertPreviewComment,
+  upsertProjectPreviewComment,
   writeProjectTextFile,
 } from '../providers/registry';
 import { useProjectFileEvents, type ProjectEvent } from '../providers/project-events';
@@ -4020,7 +4022,20 @@ export function ProjectView({
     if (!activeConversationId) {
       setMessages([]);
       setMessagesInitialized(false);
-      commitPreviewComments([]);
+      if (nextoreProjectReadOnly) {
+        // A read-only member has no conversation list, but comments are
+        // part of the promised review surface. Hydrate them from the
+        // project-scoped endpoint instead of clearing the panel.
+        const commentsGeneration = ++previewCommentsGenerationRef.current;
+        void fetchProjectPreviewComments(project.id, projectRunWorkspaceContext)
+          .then((comments) => {
+            if (previewCommentsGenerationRef.current !== commentsGeneration) return;
+            setPreviewComments(comments);
+          })
+          .catch(() => {});
+      } else {
+        commitPreviewComments([]);
+      }
       setAttachedComments([]);
       setMessagesConversationId(null);
       setFailedMessagesConversationId(null);
@@ -4108,11 +4123,10 @@ export function ProjectView({
         // contains) behind ChatPane's Loading gate. Keep both reads under this
         // effect's project/conversation/authority lifetime, but settle them
         // independently.
-        void fetchPreviewComments(
-          project.id,
-          activeConversationId,
-          requestWorkspaceContext,
-        ).then((comments) => {
+        const commentsRequest = activeConversationId
+          ? fetchPreviewComments(project.id, activeConversationId, requestWorkspaceContext)
+          : fetchProjectPreviewComments(project.id, requestWorkspaceContext);
+        void commentsRequest.then((comments) => {
           if (cancelled || previewCommentsGenerationRef.current !== commentsGeneration) return;
           setPreviewComments(comments);
         }).catch(() => {
@@ -4184,6 +4198,8 @@ export function ProjectView({
     commitPreviewComments,
     messageLoadRetryNonce,
     projectRunAuthorityKey,
+    nextoreProjectReadOnly,
+    projectRunWorkspaceContext,
   ]);
 
   useEffect(() => {
@@ -6124,12 +6140,16 @@ export function ProjectView({
   );
 
   const refreshPreviewComments = useCallback(async () => {
-    if (!activeConversationId) return;
     const commentsGeneration = ++previewCommentsGenerationRef.current;
-    const next = await fetchPreviewComments(
-      project.id,
-      activeConversationId,
-      projectRunWorkspaceContext,
+    const next = activeConversationId
+      ? await fetchPreviewComments(
+          project.id,
+          activeConversationId,
+          projectRunWorkspaceContext,
+        )
+      : await fetchProjectPreviewComments(
+          project.id,
+          projectRunWorkspaceContext,
     );
     if (previewCommentsGenerationRef.current !== commentsGeneration) return;
     setPreviewComments(next);
@@ -6194,16 +6214,6 @@ export function ProjectView({
       images: File[] = [],
       commentId?: string,
     ) => {
-      const commentConversationId = activeConversationId ?? routeConversationId;
-      if (!commentConversationId) {
-        setProjectActionsToast({
-          message: t('project.previewCommentSaveFailed'),
-          details: null,
-          tone: 'error',
-          ttlMs: 5000,
-        });
-        return null;
-      }
       if (projectCollab.materializationPending) return null;
       // Upload any attached images first so the saved comment carries durable
       // file paths — this is what lets the comment list / re-opened popover
@@ -6230,18 +6240,30 @@ export function ProjectView({
       const existing = commentId
         ? previewComments.find((comment) => comment.id === commentId)
         : undefined;
+      // Read-only members have no conversation list, so a project-scoped
+      // create resolves the conversation on the daemon. Edits always reuse
+      // the comment's own conversation.
+      const commentConversationId =
+        existing?.conversationId ?? activeConversationId ?? routeConversationId;
       const attachments = mergePreviewCommentAttachments(existing?.attachments, uploadedAttachments);
-      const saved = await upsertPreviewComment(
-        project.id,
-        commentConversationId,
-        {
-          ...(commentId ? { id: commentId } : {}),
-          target,
-          note,
-          ...(attachments.length > 0 ? { attachments } : {}),
-        },
-        projectRunWorkspaceContext,
-      );
+      const input = {
+        ...(commentId ? { id: commentId } : {}),
+        target,
+        note,
+        ...(attachments.length > 0 ? { attachments } : {}),
+      };
+      const saved = commentConversationId
+        ? await upsertPreviewComment(
+            project.id,
+            commentConversationId,
+            input,
+            projectRunWorkspaceContext,
+          )
+        : await upsertProjectPreviewComment(
+            project.id,
+            input,
+            projectRunWorkspaceContext,
+          );
       if (!saved) {
         // Do not fail silently (recvq5BVsolIxi follow-up): a missing/expired
         // workspace context 401s here with zero prior UI feedback, and the
@@ -6274,7 +6296,10 @@ export function ProjectView({
 
   const removePreviewComment = useCallback(
     async (commentId: string): Promise<boolean> => {
-      const commentConversationId = activeConversationId ?? routeConversationId;
+      const commentConversationId =
+        previewComments.find((comment) => comment.id === commentId)?.conversationId
+        ?? activeConversationId
+        ?? routeConversationId;
       if (!commentConversationId) {
         setProjectActionsToast({
           message: t('project.previewCommentSaveFailed'),
@@ -6309,6 +6334,7 @@ export function ProjectView({
       activeConversationId,
       routeConversationId,
       commitPreviewComments,
+      previewComments,
       projectRunWorkspaceContext,
       t,
       projectCollab.materializationPending,
@@ -6329,7 +6355,10 @@ export function ProjectView({
    */
   const reorderPreviewComment = useCallback(
     async (commentId: string, sortKey: number) => {
-      const commentConversationId = activeConversationId ?? routeConversationId;
+      const commentConversationId =
+        previewComments.find((comment) => comment.id === commentId)?.conversationId
+        ?? activeConversationId
+        ?? routeConversationId;
       if (!commentConversationId) {
         setProjectActionsToast({
           message: t('project.previewCommentReorderFailed'),
@@ -6366,6 +6395,7 @@ export function ProjectView({
       activeConversationId,
       routeConversationId,
       commitPreviewComments,
+      previewComments,
       projectRunWorkspaceContext,
       t,
       projectCollab.materializationPending,

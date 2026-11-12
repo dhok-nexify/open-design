@@ -193,6 +193,30 @@ export function registerProjectCommentRoutes(app: Express, ctx: RegisterProjectC
     return conversation?.projectId === projectId ? conversation : null;
   };
 
+  /**
+   * Resolve the conversation a project-scoped comment belongs to. Readers
+   * cannot list conversations, so the project-level comment route either
+   * honours an explicit id from the client or falls back to the newest
+   * routable conversation the project owns.
+   */
+  const resolveProjectCommentConversationId = (
+    projectId: string,
+    requested: string,
+  ): string | null => {
+    if (requested) {
+      return getRoutableConversation(projectId, requested) ? requested : null;
+    }
+    const rows = db.prepare(
+      `SELECT id FROM conversations WHERE project_id = ? ORDER BY updated_at DESC, created_at DESC`,
+    ).all(projectId) as Array<{ id?: unknown }>;
+    for (const row of rows) {
+      if (typeof row.id === 'string' && getRoutableConversation(projectId, row.id)) {
+        return row.id;
+      }
+    }
+    return null;
+  };
+
   function commentsAreProjectScoped(
     projectId: string,
     context: WorkspaceCollabContext | null,
@@ -465,7 +489,7 @@ export function registerProjectCommentRoutes(app: Express, ctx: RegisterProjectC
     });
   });
 
-  app.post('/api/projects/:id/conversations/:cid/comments', async (req, res) => {
+  const upsertConversationComment = async (req: any, res: any) => {
     if (!await allowCommentAction(
       req,
       res,
@@ -615,7 +639,68 @@ export function registerProjectCommentRoutes(app: Express, ctx: RegisterProjectC
     } catch (err: any) {
       res.status(400).json({ error: String(err?.message || err) });
     }
+  };
+
+  app.post('/api/projects/:id/conversations/:cid/comments', upsertConversationComment);
+
+  // Project-scoped comment surface. Read-only NexTore members can annotate a
+  // shared project but cannot list its conversations, so their comment panel
+  // must not depend on a conversation id supplied by the shell.
+  app.get('/api/projects/:id/comments', async (req, res) => {
+    if (!await allowCommentAction(req, res, req.params.id, { mode: 'read' })) return;
+    if (!getProject(db, req.params.id)) {
+      return res.status(404).json({ error: 'project not found' });
+    }
+    const workspaceResolution = await resolveReadRequestWorkspaceContext(
+      req,
+      req.params.id,
+    );
+    if (!workspaceResolution.ok) {
+      return sendWorkspaceResolutionError(res, workspaceResolution);
+    }
+    await ctx.onCommentsRead?.(
+      req.params.id,
+      workspaceResolution.context,
+      () => ctx.resolveFreshWorkspaceContext
+        ? ctx.resolveFreshWorkspaceContext(req, req.params.id)
+        : resolveRequestWorkspaceContext(req, req.params.id),
+    );
+    const fallbackConversationId = resolveProjectCommentConversationId(req.params.id, '');
+    const comments = typeof listProjectPreviewComments === 'function'
+      ? listProjectPreviewComments(db, req.params.id)
+      : fallbackConversationId
+        ? listPreviewComments(db, req.params.id, fallbackConversationId)
+        : [];
+    res.json({ comments });
   });
+
+  app.post('/api/projects/:id/comments', async (req, res) => {
+    const projectId = req.params.id;
+    const requested = typeof req.body?.conversationId === 'string'
+      ? req.body.conversationId.trim()
+      : '';
+    // An edit must stay in the comment's own conversation, even when the
+    // project's newest conversation has moved on.
+    const existingCommentId = typeof req.body?.id === 'string' ? req.body.id.trim() : '';
+    const existingConversationId = existingCommentId
+      ? (db.prepare(
+          'SELECT conversation_id FROM preview_comments WHERE project_id = ? AND id = ?',
+        ).get(projectId, existingCommentId) as { conversation_id?: unknown } | undefined)
+          ?.conversation_id
+      : null;
+    const conversationId =
+      typeof existingConversationId === 'string' && existingConversationId
+        ? existingConversationId
+        : resolveProjectCommentConversationId(projectId, requested);
+    if (!conversationId) {
+      return res.status(404).json({
+        error: { code: 'CONVERSATION_NOT_FOUND', message: 'No conversation is available for this project.' },
+      });
+    }
+    (req.params as Record<string, string>).cid = conversationId;
+    return upsertConversationComment(req, res);
+  });
+
 
   app.patch(
     '/api/projects/:id/conversations/:cid/comments/:commentId',

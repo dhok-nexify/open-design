@@ -99,7 +99,9 @@ async function startServer({
       getWorkspaceProjectByProjectId: () => null,
     } as any,
     conversations: {
-      getConversation: () => ({ id: CONVERSATION, projectId: PROJECT }),
+      getConversation: (_db: unknown, id: string) => (
+        id === CONVERSATION ? { id, projectId: PROJECT } : null
+      ),
       listPreviewComments,
       upsertPreviewComment,
       getPreviewComment,
@@ -416,5 +418,61 @@ describe('NexTore comment author migration', () => {
       { target: target(), note: 'edition note', authorNextoreMemberId: MEMBER },
     );
     expect(saved?.authorNextoreMemberId).toBe(MEMBER);
+  });
+});
+
+describe('project-scoped comment surface (NXD-D22)', () => {
+  it('lets a read-only member list and create comments without conversation access', async () => {
+    const api = await startServer({ canWrite: false, canRead: true });
+    const projectRoute = `/api/projects/${PROJECT}/comments`;
+
+    const empty = await api.json(projectRoute, { nextoreMember: MEMBER });
+    expect(empty.status).toBe(200);
+    expect(empty.body.comments).toEqual([]);
+
+    const created = await api.json(projectRoute, {
+      method: 'POST',
+      nextoreMember: MEMBER,
+      body: { target: target(), note: 'reader note' },
+    });
+    expect(created.status).toBe(200);
+    expect(created.body.comment.authorNextoreMemberId).toBe(MEMBER);
+    expect(created.body.comment.conversationId).toBe(CONVERSATION);
+
+    const listed = await api.json(projectRoute, { nextoreMember: MEMBER });
+    expect(listed.status).toBe(200);
+    expect(listed.body.comments).toHaveLength(1);
+    expect(listed.body.comments[0].note).toBe('reader note');
+  });
+
+  it('rejects an explicit conversation that does not belong to the project', async () => {
+    const api = await startServer({ canWrite: false, canRead: true });
+    const response = await api.json(`/api/projects/${PROJECT}/comments`, {
+      method: 'POST',
+      nextoreMember: MEMBER,
+      body: { target: target(), note: 'wrong conversation', conversationId: 'other-conversation' },
+    });
+    expect(response.status).toBe(404);
+    expect(response.body.error.code).toBe('CONVERSATION_NOT_FOUND');
+  });
+
+  it('edits through the project route without changing the author', async () => {
+    const api = await startServer({ canWrite: false, canRead: true });
+    const projectRoute = `/api/projects/${PROJECT}/comments`;
+    const created = await api.json(projectRoute, {
+      method: 'POST',
+      nextoreMember: MEMBER,
+      body: { target: target(), note: 'first' },
+    });
+    const commentId = created.body.comment.id;
+
+    const edited = await api.json(projectRoute, {
+      method: 'POST',
+      nextoreMember: MEMBER,
+      body: { id: commentId, target: target(), note: 'first v2' },
+    });
+    expect(edited.status).toBe(200);
+    expect(edited.body.comment.note).toBe('first v2');
+    expect(edited.body.comment.authorNextoreMemberId).toBe(MEMBER);
   });
 });

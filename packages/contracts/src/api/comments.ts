@@ -169,6 +169,13 @@ export interface PreviewCommentUpsertRequest {
    * even if the same author comments on the same element again.
    */
   id?: string;
+  /**
+   * Project-scoped creates only: the conversation the comment belongs to.
+   * When omitted the daemon attaches the comment to the project's most
+   * recently updated conversation. Read-only members use this so annotating a
+   * shared project never requires conversation-history access.
+   */
+  conversationId?: string;
   target: PreviewCommentTarget;
   note: string;
   attachments?: PreviewCommentAttachment[];

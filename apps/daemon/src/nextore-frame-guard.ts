@@ -18,6 +18,7 @@ export function isEmbeddablePath(pathname: string): boolean {
 
 export interface FrameGuardTarget {
   setHeader(name: string, value: string): unknown;
+  getHeader?(name: string): string | number | readonly string[] | undefined;
   removeHeader?(name: string): unknown;
 }
 
@@ -39,16 +40,35 @@ export function applyFrameDenyHeaders(
 }
 
 /**
- * Raw project files are embedded by the Designer shell. They are same-origin
- * previews, not the shell itself, so allow only the shell's origin to frame
- * them and drop the shell-wide DENY header.
+ * Merge the preview framing allowance into any CSP a route handler already
+ * wrote. Overwriting the header here used to drop the preview's
+ * `connect-src 'none'` isolation, letting artifact scripts call the
+ * authenticated daemon API with the viewer's session.
  */
+function mergePreviewCsp(existing: string | undefined): string {
+  const directives = String(existing ?? '')
+    .split(';')
+    .map((directive) => directive.trim())
+    .filter(Boolean)
+    .filter((directive) => !directive.toLowerCase().startsWith('frame-ancestors'));
+  const names = new Set(
+    directives.map((directive) => directive.split(/\s+/u)[0]?.toLowerCase() ?? ''),
+  );
+  if (!names.has('connect-src')) directives.push("connect-src 'none'");
+  directives.push("frame-ancestors 'self'");
+  return directives.join('; ');
+}
+
 export function applySameOriginPreviewFrameHeaders(
   edition: Edition,
   target: FrameGuardTarget,
 ): boolean {
   if (edition !== 'nextore') return false;
-  target.setHeader('Content-Security-Policy', "frame-ancestors 'self'");
+  const existing = target.getHeader?.('Content-Security-Policy');
+  target.setHeader(
+    'Content-Security-Policy',
+    mergePreviewCsp(Array.isArray(existing) ? existing.join('; ') : String(existing ?? '')),
+  );
   target.removeHeader?.('X-Frame-Options');
   return true;
 }

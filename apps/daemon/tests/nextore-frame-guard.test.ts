@@ -43,17 +43,43 @@ describe('applyFrameDenyHeaders', () => {
 
 describe('applySameOriginPreviewFrameHeaders', () => {
   it('allows only the shell origin to frame raw previews', () => {
-    const target = { setHeader: vi.fn(), removeHeader: vi.fn() };
+    const target = { setHeader: vi.fn(), getHeader: vi.fn(), removeHeader: vi.fn() };
     expect(applySameOriginPreviewFrameHeaders('nextore', target)).toBe(true);
     expect(target.setHeader).toHaveBeenCalledWith(
       'Content-Security-Policy',
-      "frame-ancestors 'self'",
+      "connect-src 'none'; frame-ancestors 'self'",
     );
     expect(target.removeHeader).toHaveBeenCalledWith('X-Frame-Options');
   });
 
+  it('preserves the route handler CSP instead of dropping connect-src', () => {
+    const target = {
+      setHeader: vi.fn(),
+      getHeader: vi.fn(() => "sandbox allow-scripts; default-src 'self'; connect-src 'none'; frame-ancestors 'none'"),
+      removeHeader: vi.fn(),
+    };
+    expect(applySameOriginPreviewFrameHeaders('nextore', target)).toBe(true);
+    expect(target.setHeader).toHaveBeenCalledWith(
+      'Content-Security-Policy',
+      "sandbox allow-scripts; default-src 'self'; connect-src 'none'; frame-ancestors 'self'",
+    );
+  });
+
+  it('adds connect-src isolation when the existing CSP omits it', () => {
+    const target = {
+      setHeader: vi.fn(),
+      getHeader: vi.fn(() => "default-src 'self'"),
+      removeHeader: vi.fn(),
+    };
+    applySameOriginPreviewFrameHeaders('nextore', target);
+    expect(target.setHeader).toHaveBeenCalledWith(
+      'Content-Security-Policy',
+      "default-src 'self'; connect-src 'none'; frame-ancestors 'self'",
+    );
+  });
+
   it('does nothing upstream', () => {
-    const target = { setHeader: vi.fn(), removeHeader: vi.fn() };
+    const target = { setHeader: vi.fn(), getHeader: vi.fn(), removeHeader: vi.fn() };
     expect(applySameOriginPreviewFrameHeaders('upstream', target)).toBe(false);
     expect(target.setHeader).not.toHaveBeenCalled();
   });
