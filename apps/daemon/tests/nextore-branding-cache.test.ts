@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { createBrandingCache } from '../src/nextore/branding-cache.js';
+import {
+  createBrandingCache,
+  DEFAULT_BRANDING_TTL_MS,
+} from '../src/nextore/branding-cache.js';
 import type { NextoreClient } from '../src/nextore/client.js';
 
 const SNAPSHOT = {
@@ -19,6 +22,12 @@ function clientOf(branding: NextoreClient['branding']): NextoreClient {
 }
 
 describe('createBrandingCache', () => {
+  it('refreshes the default cache within a minute so a saved brand shows up', () => {
+    // Guards the regression where a five-minute TTL left an edited brand
+    // invisible long after the settings page said it was saved.
+    expect(DEFAULT_BRANDING_TTL_MS).toBe(60_000);
+  });
+
   it('serves the cached snapshot within the TTL', async () => {
     let now = 1_000;
     const branding = vi.fn().mockResolvedValue(SNAPSHOT);

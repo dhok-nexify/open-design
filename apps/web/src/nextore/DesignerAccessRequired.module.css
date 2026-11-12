@@ -14,6 +14,25 @@
   text-align: center;
 }
 
+.logo {
+  justify-self: center;
+  height: auto;
+  width: auto;
+  max-height: 40px;
+  max-width: 180px;
+  object-fit: contain;
+}
+
+/* Brand-coloured rule: the only place the installation primary colour appears on
+   this page. It is decorative, so a light brand colour is not a contrast bug. */
+.accent {
+  justify-self: center;
+  width: 32px;
+  height: 3px;
+  border-radius: 999px;
+  background: var(--nexTore-brand-primary, #4f46e5);
+}
+
 .brand {
   font-size: 12px;
   letter-spacing: 0.12em;

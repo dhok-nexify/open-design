@@ -1,7 +1,13 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { applyBranding, bootstrapBranding, resetBrandingCache } from '../src/nextore/branding';
+import {
+  applyBranding,
+  bootstrapBranding,
+  brandingLogoUrl,
+  refreshBranding,
+  resetBrandingCache,
+} from '../src/nextore/branding';
 
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -42,6 +48,50 @@ describe('applyBranding', () => {
     });
     expect(document.title).toBe('Existing');
     expect(document.querySelector('link[rel="icon"]')).toBeNull();
+  });
+});
+
+describe('brandingLogoUrl', () => {
+  const branding = {
+    siteTitle: '',
+    brandName: '',
+    primaryColor: '',
+    logoLight: '/light.svg',
+    logoDark: '/dark.svg',
+    version: 1,
+  };
+
+  it('prefers the variant drawn for the surface', () => {
+    expect(brandingLogoUrl(branding, 'light')).toContain('/light.svg');
+    expect(brandingLogoUrl(branding, 'dark')).toContain('/dark.svg');
+  });
+
+  it('falls back to the other variant and then to nothing', () => {
+    expect(brandingLogoUrl({ ...branding, logoDark: '' }, 'dark')).toContain('/light.svg');
+    expect(brandingLogoUrl({ ...branding, logoLight: '' }, 'light')).toContain('/dark.svg');
+    expect(brandingLogoUrl(null, 'light')).toBeNull();
+  });
+});
+
+describe('refreshBranding', () => {
+  it('revalidates past the browser cache and applies a saved brand', async () => {
+    vi.stubEnv('NEXT_PUBLIC_OD_EDITION', 'nextore');
+    vi.resetModules();
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ siteTitle: 'Acme', brandName: 'Acme', primaryColor: '#123456', version: 9 }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const mod = await import('../src/nextore/branding');
+    const branding = await mod.refreshBranding();
+
+    expect(branding?.version).toBe(9);
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/branding',
+      expect.objectContaining({ cache: 'no-cache' }),
+    );
+    expect(document.title).toBe('Acme');
   });
 });
 

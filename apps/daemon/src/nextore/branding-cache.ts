@@ -18,21 +18,22 @@ export interface BrandingCache {
   clear(): void;
 }
 
-const DEFAULT_TTL_MS = 5 * 60_000;
-
 /**
- * TTL cache over the module branding endpoint (DESIGN §12.1).
+ * How long a snapshot is served before the daemon asks the module again.
  *
- * The shell asks for branding on every boot; NexTore does not need a round trip per request, but a
- * settings change must become visible without restarting the daemon. A five-minute TTL matches the
- * documented branding cache, and a failed refresh keeps serving the last good snapshot (flagged
- * stale) instead of blanking the product.
+ * Kept at one minute on purpose: an administrator who saves a new brand expects
+ * it to reach the Designer on the next refresh, and a failed refresh keeps
+ * serving the last good snapshot (flagged stale) instead of blanking the
+ * product. The same cache feeds prompt composition, so one small anonymous GET
+ * per minute also keeps agent-facing text current.
  */
+export const DEFAULT_BRANDING_TTL_MS = 60_000;
+
 export function createBrandingCache(
   client: NextoreClient,
   options: BrandingCacheOptions = {},
 ): BrandingCache {
-  const ttlMs = options.ttlMs ?? DEFAULT_TTL_MS;
+  const ttlMs = options.ttlMs ?? DEFAULT_BRANDING_TTL_MS;
   const now = options.now ?? Date.now;
   let cached: { at: number; value: NextoreBrandingResponse } | null = null;
   let inflight: Promise<NextoreBrandingResponse> | null = null;

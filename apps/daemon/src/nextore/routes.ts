@@ -89,7 +89,10 @@ export function registerNextoreRoutes(
     }
 
     const etag = 'W/"' + snapshot.value.version + '"';
-    res.setHeader('Cache-Control', 'public, max-age=300');
+    // Revalidate instead of trusting a five-minute browser cache: the body is
+    // tiny and an unchanged brand still costs only a 304, while a saved brand
+    // change shows up on the next page load rather than minutes later.
+    res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('ETag', etag);
     if (snapshot.stale) res.setHeader('X-Branding-Stale', '1');
 

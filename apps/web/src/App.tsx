@@ -49,7 +49,6 @@ import {
   memoryToastSubscriptionMode,
 } from './components/MemoryToast';
 import { Toast } from './components/Toast';
-import { CenteredLoader } from './components/Loading';
 import { PetOverlay, type PetTaskCenter } from './components/pet/PetOverlay';
 import { buildPetTaskCenter } from './components/pet/taskCenter';
 import { migrateCustomPetAtlas } from './components/pet/pets';
@@ -68,7 +67,8 @@ import {
   DESIGNER_ACCESS_REQUIRED_EVENT,
   isDesignerAccessRequired,
 } from './nextore/access-required';
-import { bootstrapBranding } from './nextore/branding';
+import { bootstrapBranding, refreshBranding } from './nextore/branding';
+import { BrandSplash } from './components/BrandSplash';
 import { TooltipLayer } from './components/TooltipLayer';
 import { UpdateDialog } from './components/UpdateDialog';
 import { UpdaterPopup } from './components/UpdaterPopup';
@@ -1886,9 +1886,29 @@ function AppInner() {
   // is running. Settings is irrelevant to visibility; the banner sits above
   // the modal-backdrop layer in index.css so opening Settings does not hide
   // it.
-  // NEXTORE: pull the module's brand payload once per boot (DESIGN §12.1).
+  // NEXTORE: pull the module's brand payload at boot (DESIGN §12.1), then
+  // revalidate on window focus so a brand saved in the module settings page
+  // reaches an open tab. The revision bump re-renders so `{brandName}` text is
+  // re-interpolated; the daemon answers 304 while the version is unchanged.
+  const [, setBrandingRevision] = useState(0);
   useEffect(() => {
-    void bootstrapBranding();
+    let cancelled = false;
+    const bump = () => {
+      if (!cancelled) setBrandingRevision((revision) => revision + 1);
+    };
+    void bootstrapBranding().then((branding) => {
+      if (branding) bump();
+    });
+    const handleFocus = () => {
+      void refreshBranding().then((branding) => {
+        if (branding) bump();
+      });
+    };
+    window.addEventListener('focus', handleFocus);
+    return () => {
+      cancelled = true;
+      window.removeEventListener('focus', handleFocus);
+    };
   }, []);
 
   const showPrivacyConsent =
@@ -5123,7 +5143,7 @@ function AppInner() {
   if (pendingFirstRunOnboardingRoute) {
     appMain = (
       <div className="entry-shell entry-shell--no-header">
-        <CenteredLoader label={t('entry.loadingWorkspace')} />
+        <BrandSplash />
       </div>
     );
   } else if (route.kind === 'share') {
@@ -5236,7 +5256,7 @@ function AppInner() {
     ) {
       appMain = (
         <div className="entry-shell entry-shell--no-header">
-          <CenteredLoader label={t('entry.loadingWorkspace')} />
+          <BrandSplash />
         </div>
       );
     } else if (routeSurfaceState !== 'ready') {
