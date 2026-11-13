@@ -6,6 +6,7 @@ import { Icon } from '../components/Icon';
 import { useT } from '../i18n';
 import { groupProjectsByWorkspace, type NextoreProjectGroup } from '../nextore-projects';
 import { useNextoreProjectListing } from './listing-store';
+import { clearProjectScope } from './project-scope';
 import { useNextoreSessionView } from './session-view';
 import { NextoreTeamWorkspaceDialog } from './TeamWorkspaceDialog';
 import {
@@ -103,6 +104,9 @@ export function NextoreWorkspaceSwitcher({
       workspaceId: group.workspaceId,
       name: group.workspaceName,
     });
+    // A pinned scope would otherwise keep the Projects view on the workspace
+    // the member just left. Choosing an identity releases the filter.
+    clearProjectScope();
     closeMenu();
   }
 

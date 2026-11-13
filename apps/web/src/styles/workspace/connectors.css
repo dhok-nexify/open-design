@@ -654,6 +654,35 @@
 .tab-panel-toolbar.designs-toolbar {
   background: transparent;
 }
+/* NexTore edition: projects in the active scope whose content lives on another
+   device have no card here, so their count is stated instead of missing
+   silently (NXD-D40). */
+.designs-remote-note {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0 0 10px;
+  padding: 8px 12px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-subtle);
+  color: var(--text-soft);
+  font-size: 12px;
+}
+.designs-remote-note__title {
+  font-weight: 600;
+  color: var(--text-strong);
+}
+.designs-remote-note__count {
+  padding: 0 6px;
+  border-radius: var(--radius-pill);
+  background: var(--bg-elevated);
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.designs-remote-note__hint {
+  color: var(--text-faint);
+}
 .tab-panel-toolbar .toolbar-search .toolbar-search-clear {
   position: absolute;
   right: 6px;

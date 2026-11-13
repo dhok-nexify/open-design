@@ -104,9 +104,15 @@ import { groupProjectsByWorkspace } from '../nextore-projects';
 import { useNextoreProjectListing } from '../nextore/listing-store';
 import { useNextoreSessionView } from '../nextore/session-view';
 import {
+  setProjectScope,
   useNextoreProjectScope,
   type NextoreProjectScope,
 } from '../nextore/project-scope';
+import {
+  buildWorkspaceLabelMap,
+  countRemoteOnlyProjects,
+  scopeProjectIds,
+} from '../nextore/workspace-labels';
 import { useNextoreWorkspaceContext } from '../nextore/workspace-context';
 import {
   buildProjectSearchCatalog,
@@ -872,7 +878,7 @@ export function EntryShell({
   const nextoreListing = useNextoreProjectListing(NEXTORE_WEB_EDITION === 'nextore');
   const nextoreWorkspaceContext = useNextoreWorkspaceContext();
   const nextoreSession = useNextoreSessionView(NEXTORE_WEB_EDITION === 'nextore');
-  const { scope: urlScope, setScope: setUrlScope } = useNextoreProjectScope();
+  const urlScope = useNextoreProjectScope();
   // T-D46: a member without DesignerCreateProject must not see a create entry.
   // A not-yet-loaded session keeps the entry (it is a ceiling, not a gate).
   const canCreateNextoreProject = NEXTORE_WEB_EDITION !== 'nextore'
@@ -881,11 +887,15 @@ export function EntryShell({
     || nextoreSession.rights.admin;
   const nextoreGroups = useMemo(() => groupProjectsByWorkspace(nextoreListing), [nextoreListing]);
   // The URL is the browsing scope; with no parameter the Projects view follows
-  // the workspace the switcher is standing in (NXD-D40).
-  const nextoreScope: NextoreProjectScope = urlScope
-    ?? (nextoreWorkspaceContext
+  // the workspace the switcher is standing in (NXD-D40). Memoized because a
+  // fresh object each render would rebuild the filtered list and hand
+  // DesignsTab a new array on every pass.
+  const nextoreScope: NextoreProjectScope = useMemo(
+    () => urlScope ?? (nextoreWorkspaceContext
       ? { kind: 'workspace', id: nextoreWorkspaceContext.workspaceId }
-      : { kind: 'all' });
+      : { kind: 'all' }),
+    [urlScope, nextoreWorkspaceContext],
+  );
   const nextoreScopeGroup = nextoreScope.kind === 'workspace'
     ? nextoreGroups.find((group) => group.workspaceId === nextoreScope.id)
     : undefined;
@@ -898,17 +908,21 @@ export function EntryShell({
     if (NEXTORE_WEB_EDITION !== 'nextore') return projects;
     // Do not blank the grid while the listing is still landing.
     if (!nextoreListing) return projects;
-    const visible = new Set<string>();
-    for (const group of nextoreGroups) {
-      if (nextoreScope.kind === 'shared' && !group.sharedOnly) continue;
-      if (
-        nextoreScope.kind === 'workspace'
-        && group.workspaceId !== nextoreScope.id
-      ) continue;
-      for (const project of group.projects) visible.add(project.designerProjectId);
-    }
+    const visible = scopeProjectIds(nextoreGroups, nextoreScope);
     return projects.filter((project) => visible.has(project.id));
   }, [projects, nextoreListing, nextoreGroups, nextoreScope]);
+  // One map for both surfaces: Home keeps its recents global and labels every
+  // card with its workspace; the Projects view does the same inside its scope.
+  const nextoreWorkspaceLabels = useMemo(
+    () => buildWorkspaceLabelMap(nextoreGroups),
+    [nextoreGroups],
+  );
+  // Projects in the active scope with no content on this device have no card
+  // to render, so their count is stated instead of silently missing.
+  const nextoreRemoteOnlyCount = useMemo(
+    () => (nextoreListing ? countRemoteOnlyProjects(nextoreGroups, nextoreScope) : 0),
+    [nextoreGroups, nextoreListing, nextoreScope],
+  );
   // projectId → sharing member id, so a card in the 全部项目 / 草稿 grids can
   // resolve "{creator}创建" against the member directory. A project absent here
   // is the member's own local project → "我创建".
@@ -1898,7 +1912,7 @@ export function EntryShell({
                             type="button"
                             className="nextore-scope-tabs__tab"
                             aria-pressed={nextoreScope.kind === 'workspace'}
-                            onClick={() => setUrlScope(nextoreWorkspaceContext
+                            onClick={() => setProjectScope(nextoreWorkspaceContext
                               ? { kind: 'workspace', id: nextoreWorkspaceContext.workspaceId }
                               : null)}
                           >
@@ -1908,7 +1922,7 @@ export function EntryShell({
                             type="button"
                             className="nextore-scope-tabs__tab"
                             aria-pressed={nextoreScope.kind === 'all'}
-                            onClick={() => setUrlScope({ kind: 'all' })}
+                            onClick={() => setProjectScope({ kind: 'all' })}
                           >
                             {t('nextoreWorkspace.allProjects')}
                           </button>
@@ -1916,7 +1930,7 @@ export function EntryShell({
                             type="button"
                             className="nextore-scope-tabs__tab"
                             aria-pressed={nextoreScope.kind === 'shared'}
-                            onClick={() => setUrlScope({ kind: 'shared' })}
+                            onClick={() => setProjectScope({ kind: 'shared' })}
                           >
                             {t('nextoreShared.title')}
                           </button>
@@ -1926,6 +1940,12 @@ export function EntryShell({
                   </header>
                   <DesignsTab
                     projects={projectsViewList}
+                    {...(NEXTORE_WEB_EDITION === 'nextore'
+                      ? {
+                          projectWorkspaceLabels: nextoreWorkspaceLabels,
+                          remoteOnlyCount: nextoreRemoteOnlyCount,
+                        }
+                      : {})}
                     skills={skills}
                     designSystems={designSystems}
                     onOpen={onOpenProject}

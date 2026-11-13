@@ -122,6 +122,13 @@ interface Props {
 	onNewProject?: () => void;
 	onRefresh?: () => Promise<void> | void;
 	isActive?: boolean;
+	/** NexTore edition: projectId -> the workspace that owns it (NXD-D40). The
+	 *  Projects view can be scoped to "all" or "shared", so each card has to say
+	 *  where the project actually lives. */
+	projectWorkspaceLabels?: ReadonlyMap<string, string>;
+	/** NexTore edition: projects inside this scope whose content lives on another
+	 *  device and therefore has no card here. Named instead of hidden. */
+	remoteOnlyCount?: number;
 }
 
 export function DesignsTab({
@@ -136,6 +143,8 @@ export function DesignsTab({
 	onNewProject,
 	onRefresh,
 	isActive = true,
+	projectWorkspaceLabels,
+	remoteOnlyCount = 0,
 }: Props) {
 	const renameTitleId = useId();
 	const confirmTitleId = useId();
@@ -781,6 +790,13 @@ export function DesignsTab({
 					</div>
 				</div>
 			</div>
+			{remoteOnlyCount > 0 ? (
+				<p className="designs-remote-note">
+					<span className="designs-remote-note__title">{t("nextoreRemote.title")}</span>
+					<span className="designs-remote-note__count">{remoteOnlyCount}</span>
+					<span className="designs-remote-note__hint">{t("nextoreRemote.hint")}</span>
+				</p>
+			) : null}
 			{filtered.length === 0 ? (
 				<div className="tab-empty">
 					{projects.length === 0 ? (
@@ -1077,6 +1093,14 @@ export function DesignsTab({
 										) : (
 											<ProjectTag category={projectCategory(p)} />
 										)}
+										{projectWorkspaceLabels?.get(p.id) ? (
+											<span
+												className="project-card-workspace"
+												title={projectWorkspaceLabels.get(p.id)}
+											>
+											{projectWorkspaceLabels.get(p.id)}
+											</span>
+										) : null}
 									</div>
 									<div className="design-card-name" title={p.name}>
 										{p.name}

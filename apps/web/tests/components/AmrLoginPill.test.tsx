@@ -198,7 +198,7 @@ describe('AmrAccountControl', () => {
     });
 
     expect(screen.getByRole('alert').textContent).toBe('command failed');
-    expect(screen.queryByText('Sign-in failed.')).toBeNull();
+    expect(screen.queryByText(/sign-in failed\./i)).toBeNull();
     expect(screen.getByRole('button', { name: 'Sign in' })).toBeTruthy();
   });
 });
@@ -565,7 +565,7 @@ describe('AmrLoginPill', () => {
     expect(screen.getByRole('alert').textContent).toBe(
       'profile "prod" api URL: is not configured',
     );
-    expect(screen.queryByText('Sign-in failed.')).toBeNull();
+    expect(screen.queryByText(/sign-in failed\./i)).toBeNull();
     expect(screen.queryByText('Signing in…')).toBeNull();
   });
 
@@ -1117,7 +1117,7 @@ describe('AmrLoginPill', () => {
           }),
       ),
     ).toBe(true);
-    expect(screen.getByText('Sign-in failed.')).toBeTruthy();
+    expect(screen.getByText(/sign-in failed\./i)).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Sign in' })).toBeTruthy();
     expect(screen.queryByText('Signing in…')).toBeNull();
   });

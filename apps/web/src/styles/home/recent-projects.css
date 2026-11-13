@@ -398,7 +398,8 @@
   overflow: hidden;
   white-space: nowrap;
 }
-.recent-projects__card-workspace {
+/* Owning workspace chip, shared by the Home recents and the Projects grid. */
+.project-card-workspace {
   min-width: 0;
   max-width: 140px;
   overflow: hidden;

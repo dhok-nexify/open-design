@@ -1971,7 +1971,9 @@ describe('EntryShell onboarding NexTore Designer AMR runtime', () => {
         body: JSON.stringify({ authAttemptId }),
       }),
     );
-    expect(screen.getByText('Sign-in failed.')).toBeTruthy();
+    // The compact error names the product, so match the sentence instead of an
+    // exact string that breaks on every rebrand.
+    expect(screen.getByText(/sign-in failed\./i)).toBeTruthy();
     expect(screen.queryByText('Signing in…')).toBeNull();
     expect(
       screen

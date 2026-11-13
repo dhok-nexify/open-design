@@ -99,8 +99,6 @@ import {
   requiredInputsAreUserFillable,
 } from '../utils/pluginRequiredInputs';
 import { HomeHero, type ExamplePromptInfo, type HomeHeroHandle } from './HomeHero';
-import { groupProjectsByWorkspace } from '../nextore-projects';
-import { useNextoreProjectListing } from '../nextore/listing-store';
 import { NextoreWorkspaceSwitcher } from '../nextore/WorkspaceSwitcher';
 import { useNextoreWorkspaceContext } from '../nextore/workspace-context';
 import { AppWashKineticGrid } from './AppWashKineticGrid';
@@ -281,6 +279,12 @@ interface Props {
    * DesignerCreateProject. Defaults to true so upstream is unchanged.
    */
   canCreateProject?: boolean;
+  /**
+   * NexTore edition: projectId -> the workspace that owns it (NXD-D40). Home
+   * keeps its recents global, so the card label is what tells the member that
+   * switching workspace did not delete anything.
+   */
+  projectWorkspaceLabels?: ReadonlyMap<string, string>;
   projectsLoading?: boolean;
   designSystems?: DesignSystemSummary[];
   designSystemsLoading?: boolean;
@@ -505,6 +509,7 @@ export function HomeView({
   isActive = true,
   projects,
   canCreateProject = true,
+  projectWorkspaceLabels,
   projectsLoading,
   designSystems = EMPTY_DESIGN_SYSTEMS,
   designSystemsLoading = false,
@@ -3082,17 +3087,7 @@ export function HomeView({
   // NexTore edition (NXD-D40): Home keeps its recents global, so every card
   // carries the workspace it belongs to, and the current workspace — which is
   // where a new project lands — is stated once above the composer.
-  const nextoreListing = useNextoreProjectListing(NEXTORE_WEB_EDITION === 'nextore');
   const nextoreWorkspace = useNextoreWorkspaceContext();
-  const nextoreWorkspaceLabels = useMemo(() => {
-    const labels = new Map<string, string>();
-    if (!nextoreListing) return labels;
-    for (const group of groupProjectsByWorkspace(nextoreListing)) {
-      if (!group.workspaceName) continue;
-      for (const project of group.projects) labels.set(project.designerProjectId, group.workspaceName);
-    }
-    return labels;
-  }, [nextoreListing]);
   const [workspaceAnnouncement, setWorkspaceAnnouncement] = useState('');
   const announcedWorkspaceIdRef = useRef<number | null>(null);
   useEffect(() => {
@@ -3288,7 +3283,7 @@ export function HomeView({
         projects={projects}
         designSystems={designSystems}
         heading={t('recentProjects.title')}
-        {...(NEXTORE_WEB_EDITION === 'nextore' ? { projectWorkspaceLabels: nextoreWorkspaceLabels } : {})}
+        {...(projectWorkspaceLabels ? { projectWorkspaceLabels } : {})}
         {...(isSharedProject ? { isSharedProject } : {})}
         {...(onProjectShared ? { onProjectShared } : {})}
         {...(onProjectShareFailed ? { onProjectShareFailed } : {})}

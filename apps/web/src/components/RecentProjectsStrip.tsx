@@ -1903,7 +1903,7 @@ export function RecentProjectsStrip({
                       )}
                       {projectWorkspaceLabels?.get(project.id) ? (
                         <span
-                          className="recent-projects__card-workspace"
+                          className="project-card-workspace"
                           title={projectWorkspaceLabels.get(project.id)}
                         >
                           {projectWorkspaceLabels.get(project.id)}

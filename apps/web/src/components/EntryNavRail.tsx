@@ -1862,6 +1862,14 @@ export function EntryNavRail({
             </NavButton>
           </>
         )}
+        {/* The account state callouts (sign-in / syncing / recovering) are
+            computed by EntryShell and handed in as `footerNotice`. They ride at
+            the bottom of the rail list, which is where the account row they
+            stand in for used to live; without this mount the prop is accepted
+            and silently dropped. */}
+        {footerNotice ? (
+          <div className="entry-nav-rail__notice">{footerNotice}</div>
+        ) : null}
       </div>
       </div>
 

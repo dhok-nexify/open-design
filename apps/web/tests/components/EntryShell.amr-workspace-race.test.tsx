@@ -97,6 +97,45 @@ function amrAgent(): AgentInfo {
   };
 }
 
+/**
+ * A controllable EventSource double.
+ *
+ * `useEventStream` reads the global constructor, and jsdom has none, so without
+ * this the shared stream never exists and the documented foreground catch-up
+ * ("a reconnect/foreground edge re-reads once") cannot be observed at all.
+ * Only the test that asserts that edge installs it, so the tests that count
+ * exact fetch numbers stay untouched.
+ */
+class MockEventSource {
+  static instances: MockEventSource[] = [];
+  readonly url: string;
+  readyState = 0;
+  onopen: (() => void) | null = null;
+  onerror: (() => void) | null = null;
+  closed = false;
+
+  constructor(url: string | URL) {
+    this.url = String(url);
+    MockEventSource.instances.push(this);
+    // The daemon's `ready` handshake is the connect signal; fire onopen on a
+    // microtask so the subscriber registers first.
+    queueMicrotask(() => {
+      if (this.closed) return;
+      this.readyState = 1;
+      this.onopen?.();
+    });
+  }
+
+  addEventListener(): void {}
+
+  removeEventListener(): void {}
+
+  close(): void {
+    this.closed = true;
+    this.readyState = 2;
+  }
+}
+
 function amrConfig(): AppConfig {
   return {
     mode: 'daemon',
@@ -125,6 +164,8 @@ describe('EntryShell AMR workspace precheck race', () => {
   afterEach(() => {
     vi.useRealTimers();
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+    MockEventSource.instances = [];
     cleanup();
     globalThis.fetch = originalFetch;
     globalThis.ResizeObserver = originalResizeObserver;
@@ -350,6 +391,9 @@ describe('EntryShell AMR workspace precheck race', () => {
     }) as typeof fetch;
     mockedCheckAmrBalanceGate.mockResolvedValue({ kind: 'allow' });
     const onCreateProject = vi.fn(async () => true);
+    // Mounted before render: the shared stream reads the global constructor at
+    // subscribe time, so stubbing later would leave this test with no stream.
+    vi.stubGlobal('EventSource', MockEventSource);
 
     render(
       <I18nProvider initial="en">
