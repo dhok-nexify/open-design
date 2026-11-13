@@ -63,6 +63,14 @@ afterEach(() => {
 });
 
 describe('NextoreWorkspaceSwitcher', () => {
+  it('shows a loading chip until the listing and session resolve', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, json: async () => ({}) }) as unknown as Response));
+    render(<NextoreWorkspaceSwitcher variant="chip" />);
+
+    expect(await screen.findByRole('status')).toBeTruthy();
+    expect(screen.queryByTestId('nextore-workspace-switcher')).toBeNull();
+  });
+
   it('shows only the current workspace and never lists projects in the rail', async () => {
     stubFetch(true);
     render(<NextoreWorkspaceSwitcher />);

@@ -3141,10 +3141,14 @@ export function HomeView({
         />
       ) : null}
       {isActive ? <AppWashKineticGrid clipBottomTo=".home-hero" /> : null}
-      {NEXTORE_WEB_EDITION === 'nextore' && nextoreWorkspace ? (
+      {NEXTORE_WEB_EDITION === 'nextore' ? (
+        // Rendered unconditionally in the edition: the switcher itself resolves
+        // the workspace, so the bar cannot wait on a value only it can produce.
         <div className="home-workspace-bar" data-testid="home-workspace-bar">
           <NextoreWorkspaceSwitcher variant="chip" />
-          <span className="home-workspace-bar__hint">{t('nextoreWorkspace.createHint')}</span>
+          {nextoreWorkspace ? (
+            <span className="home-workspace-bar__hint">{t('nextoreWorkspace.createHint')}</span>
+          ) : null}
           <span className="sr-only" role="status" aria-live="polite">{workspaceAnnouncement}</span>
         </div>
       ) : null}

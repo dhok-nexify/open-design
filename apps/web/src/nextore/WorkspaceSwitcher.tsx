@@ -135,18 +135,16 @@ export function NextoreWorkspaceSwitcher({
     first?.focus();
   }, [open]);
 
-  if (ownedGroups.length === 0) {
-    // Nothing to stand in yet: the listing is still loading, or NexTore has no
-    // workspace for this member. Say so instead of rendering an empty control.
-    if (variant === 'chip') {
-      return listing === null
-        ? <span className="nextore-chip is-loading" role="status">{t('common.loading')}</span>
-        : null;
-    }
-    return null;
+  // Nothing to stand in yet — the listing or the session is still landing, or
+  // NexTore has no workspace for this member. Say so instead of rendering a
+  // control that claims an unselected workspace.
+  if (!effective) {
+    return variant === 'chip'
+      ? <span className="nextore-chip is-loading" role="status">{t('common.loading')}</span>
+      : null;
   }
 
-  const currentName = effective?.name || t('nextoreWorkspace.currentUnknown');
+  const currentName = effective.name || t('nextoreWorkspace.currentUnknown');
   const isAdmin = session?.rights.admin === true;
   const personalGroups = ownedGroups.filter((group) => group.workspaceType === 'personal');
   const teamGroups = ownedGroups.filter((group) => group.workspaceType !== 'personal');
