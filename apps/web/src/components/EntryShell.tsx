@@ -145,6 +145,7 @@ import {
   retryUnavailableAmrBalanceGate,
   type AmrBalanceGateScope,
 } from '../runtime/amr-balance-gate';
+import { amrBillingWorkspaceAuthority } from '../runtime/amr-billing-authority';
 import { HomeView, seedHomeComposerPrompt } from './HomeView';
 import { entryStrategyRoutingFields } from './entry-strategy-routing';
 import { EntryBlankState } from './EntryBlankState';
@@ -1491,9 +1492,15 @@ export function EntryShell({
       for (let scopeAttempt = 0; scopeAttempt < 2; scopeAttempt += 1) {
         const gateAccountGeneration = currentWorkspaceAccountGeneration();
         const gateWorkspaceState = workspaceContextStateRef.current;
-        const gateWorkspaceContext = gateWorkspaceState.failure === 'unsupported'
-          ? null
-          : workspaceResourceReadContext(gateWorkspaceState);
+        // Two endpoints, two questions: the context read says which workspace
+        // this client stands on, the directory read says which workspaces the
+        // signed-in account can actually claim. A daemon that 404s the latter
+        // cannot answer the second, so the retained selection is a claim rather
+        // than a verified billing authority and spend falls back to the account
+        // wallet - the only one an old daemon can charge. The re-check below
+        // goes through the same helper, or every old-daemon submit would look
+        // like a stale identity and be dropped.
+        const gateWorkspaceContext = amrBillingWorkspaceAuthority(gateWorkspaceState);
         const gateWorkspaceIdentity = workspaceIdentityCacheKey(gateWorkspaceContext);
         const gateScope = amrBalanceGateScopeForWorkspaceContext(gateWorkspaceContext);
         let gate = await retryUnavailableAmrBalanceGate(
@@ -1548,9 +1555,7 @@ export function EntryShell({
         if (
           currentWorkspaceAccountGeneration() !== gateAccountGeneration
           || workspaceIdentityCacheKey(
-            workspaceContextStateRef.current.failure === 'unsupported'
-              ? null
-              : workspaceResourceReadContext(workspaceContextStateRef.current),
+            amrBillingWorkspaceAuthority(workspaceContextStateRef.current),
           ) !== gateWorkspaceIdentity
         ) {
           continue;

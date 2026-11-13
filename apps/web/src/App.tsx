@@ -192,6 +192,7 @@ import {
   amrBalanceGateScopesMatch,
   type AmrBalanceGateScope,
 } from './runtime/amr-balance-gate';
+import { amrBillingWorkspaceAuthority } from './runtime/amr-billing-authority';
 import {
   AMR_AUTH_RETRY_CONTINUATION_TTL_MS,
   amrAuthRetryMatchesRouteContext,
@@ -3037,7 +3038,12 @@ function AppInner() {
           input.amrGatePrecheckWitness &&
           !amrBalanceGateScopesMatch(
             input.amrGatePrecheckWitness,
-            amrBalanceGateScopeForWorkspaceContext(createWorkspaceContext),
+            // The witness was taken through the billing authority helper, so it
+            // is compared against the same rule - not against the attribution
+            // snapshot above, which deliberately stays more permissive.
+            amrBalanceGateScopeForWorkspaceContext(
+              amrBillingWorkspaceAuthority(createWorkspaceState),
+            ),
           )
         ) {
           throw new Error('AMR_WORKSPACE_GATE_STALE');

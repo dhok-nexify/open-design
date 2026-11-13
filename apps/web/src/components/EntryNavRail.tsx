@@ -49,6 +49,7 @@ import {
   formatVelaBalanceUsd,
   velaLogout,
 } from '../providers/daemon';
+import { noteWorkspaceDirectorySupport } from '../collab/workspace-directory-support';
 import { resetCloudSignInTipDismissal } from './CloudSignInTip';
 import { SignOutConfirmDialog } from './SignOutConfirmDialog';
 import { notifyAmrLoginStatusChanged } from './amrLoginPolling';
@@ -1344,7 +1345,19 @@ export function EntryNavRail({
       if (options.force) evictCoalescedGet(cacheKey);
       const readDirectory = async () => {
         const response = await fetch('/api/workspace/directory', { cache: 'no-store' });
-        if (!response.ok) throw new Error(`directory ${response.status}`);
+        if (response.status === 404) {
+          // The daemon has no directory endpoint, so it cannot say which
+          // workspaces this account may claim. The billing gate demotes to the
+          // account scope on this verdict.
+          noteWorkspaceDirectorySupport('unsupported');
+          throw new Error('directory 404');
+        }
+        if (!response.ok) {
+          // A blip is not a verdict. 'unknown' must never move spend.
+          noteWorkspaceDirectorySupport('unknown');
+          throw new Error(`directory ${response.status}`);
+        }
+        noteWorkspaceDirectorySupport('supported');
         const body = (await response.json()) as WorkspaceDirectoryResponse;
         return body.items ?? [];
       };

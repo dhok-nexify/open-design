@@ -15,6 +15,7 @@ import {
   resetWorkspaceBillingCache,
   resetWorkspaceContextCache,
 } from '../../src/collab/useWorkspaceContext';
+import { resetWorkspaceDirectorySupport } from '../../src/collab/workspace-directory-support';
 import { I18nProvider } from '../../src/i18n';
 import { checkAmrBalanceGate } from '../../src/runtime/amr-balance-gate';
 import { ProjectCreateError } from '../../src/state/projects';
@@ -159,6 +160,9 @@ describe('EntryShell AMR workspace precheck race', () => {
     resetWorkspaceContextCache();
     resetWorkspaceBillingCache();
     resetTeamProjectsCache();
+    // The directory verdict is module state keyed by identity; without this a
+    // 404 in one test would demote the billing gate in the next.
+    resetWorkspaceDirectorySupport();
   });
 
   afterEach(() => {
