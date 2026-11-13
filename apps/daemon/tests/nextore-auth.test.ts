@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { NextoreClientError, type NextoreClient } from '../src/nextore/client.js';
 import type { NextoreConfig } from '../src/nextore/config.js';
 import { migrateNextoreDatabase } from '../src/nextore/db.js';
+import { createNextoreSelfTestHandler } from '../src/nextore/routes.js';
 import {
   createNextoreAuth,
   safeReturnTo,
@@ -68,7 +69,10 @@ async function closeServer(): Promise<void> {
   });
 }
 
-function client(overrides: { bootstrap?: (token: string) => Promise<unknown> } = {}): NextoreClient {
+function client(overrides: {
+  bootstrap?: (token: string) => Promise<unknown>;
+  tierModels?: (token: string, tier: string) => Promise<unknown>;
+} = {}): NextoreClient {
   return {
     health: async () => ({ moduleVersion: '1.0.0' }),
     branding: async () => ({
@@ -78,6 +82,10 @@ function client(overrides: { bootstrap?: (token: string) => Promise<unknown> } =
       version: 1,
     }),
     bootstrap: (overrides.bootstrap ?? (async () => ({ member }))) as NextoreClient['bootstrap'],
+    tierModels: (overrides.tierModels ?? (async (_token: string, tier: string) => ({
+      object: 'list',
+      data: [{ id: tier, object: 'model' }],
+    }))) as NextoreClient['tierModels'],
     projectAccess: async <T>() => ({} as T),
     projectPermissionUrl: async <T>() => ({} as T),
     workspaces: async <T>() => ({} as T),
@@ -414,5 +422,163 @@ describe('Nextore OAuth routes', () => {
     expect(response.status).toBe(401);
     await expect(response.json()).resolves.toEqual({ signedIn: false });
     expect(store.find(session.sid)).toBeNull();
+  });
+});
+
+function buildSelfTestApp(nextoreClient: NextoreClient = client()): express.Express {
+  const app = express();
+  const auth = createNextoreAuth({
+    config,
+    client: nextoreClient,
+    store,
+    secrets: () => secrets,
+    now: () => clock,
+  });
+  app.use('/api', auth.gate);
+  app.get('/api/nextore/self-test', createNextoreSelfTestHandler(nextoreClient));
+  return app;
+}
+
+describe('NexTore self-test session resolution', () => {
+  it('answers anonymously when no session cookie arrives', async () => {
+    await listen(buildSelfTestApp());
+
+    const response = await nativeFetch(baseUrl + '/api/nextore/self-test');
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      ok: true,
+      checks: {
+        authentication: { status: 'pending_session', code: 'session_required' },
+        llm: { status: 'pending_session', code: 'session_required' },
+      },
+    });
+  });
+
+  it('resolves the session and probes both tiers with its token', async () => {
+    const session = store.create({
+      memberId: member.id,
+      member,
+      accessToken: 'access-1',
+      refreshToken: 'refresh-1',
+      tokenExpiresAt: clock + 60 * 60 * 1000,
+    });
+    const tierModels = vi.fn(async (token: string, tier: string) => {
+      expect(token).toBe('access-1');
+      return { object: 'list', data: [{ id: tier, object: 'model' }] };
+    });
+    await listen(buildSelfTestApp(client({
+      bootstrap: async () => ({ member }),
+      tierModels,
+    })));
+
+    const response = await nativeFetch(baseUrl + '/api/nextore/self-test', {
+      headers: { cookie: sessionCookie(session.sid) },
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      ok: true,
+      checks: {
+        authentication: { status: 'ok' },
+        llm: { status: 'ok', tiers: { fast: { status: 'ok' }, expert: { status: 'ok' } } },
+      },
+    });
+    expect(tierModels).toHaveBeenCalledTimes(2);
+  });
+
+  it('marks the request as diagnostic for downstream business middleware', async () => {
+    const session = store.create({
+      memberId: member.id,
+      member,
+      accessToken: 'access-1',
+      refreshToken: 'refresh-1',
+      tokenExpiresAt: clock + 60 * 60 * 1000,
+    });
+    const app = express();
+    const auth = createNextoreAuth({
+      config,
+      client: client(),
+      store,
+      secrets: () => secrets,
+      now: () => clock,
+    });
+    app.use('/api', auth.gate);
+    app.get('/api/nextore/self-test', (_req, res) => {
+      res.json({
+        diagnostic: res.locals.nextoreDiagnostic === true,
+        resolved: Boolean(res.locals.nextoreSession),
+      });
+    });
+    await listen(app);
+
+    const response = await nativeFetch(baseUrl + '/api/nextore/self-test', {
+      headers: { cookie: sessionCookie(session.sid) },
+    });
+
+    await expect(response.json()).resolves.toEqual({ diagnostic: true, resolved: true });
+  });
+
+  it('refuses to resolve a session for a foreign origin', async () => {
+    const session = store.create({
+      memberId: member.id,
+      member,
+      accessToken: 'access-1',
+      refreshToken: 'refresh-1',
+      tokenExpiresAt: clock + 60 * 60 * 1000,
+    });
+    const bootstrap = vi.fn(async () => ({ member }));
+    const tierModels = vi.fn(async () => ({ object: 'list', data: [] }));
+    await listen(buildSelfTestApp(client({ bootstrap, tierModels })));
+
+    const response = await nativeFetch(baseUrl + '/api/nextore/self-test', {
+      headers: { cookie: sessionCookie(session.sid), origin: 'http://evil.test' },
+    });
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toMatchObject({ error: { code: 'ORIGIN_REJECTED' } });
+    expect(bootstrap).not.toHaveBeenCalled();
+    expect(tierModels).not.toHaveBeenCalled();
+  });
+
+  it('reuses the gate refresh instead of reporting an expired session', async () => {
+    const session = store.create({
+      memberId: member.id,
+      member,
+      accessToken: 'expired-access',
+      refreshToken: 'refresh-1',
+      tokenExpiresAt: clock - 1000,
+    });
+    const tokenFetch = vi.fn(async () => new Response(JSON.stringify({
+      access_token: 'fresh-access',
+      refresh_token: 'refresh-2',
+      expires_in: 3600,
+    }), { status: 200, headers: { 'content-type': 'application/json' } }));
+    vi.stubGlobal('fetch', tokenFetch);
+    const tierModels = vi.fn(async (token: string) => {
+      expect(token).toBe('fresh-access');
+      return { object: 'list', data: [{ id: 'fast', object: 'model' }] };
+    });
+    await listen(buildSelfTestApp(client({
+      bootstrap: async (token: string) => {
+        expect(token).toBe('fresh-access');
+        return { member };
+      },
+      tierModels,
+    })));
+
+    const response = await nativeFetch(baseUrl + '/api/nextore/self-test', {
+      headers: { cookie: sessionCookie(session.sid) },
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      checks: {
+        authentication: { status: 'ok' },
+        llm: { status: 'ok' },
+      },
+    });
+    expect(tokenFetch).toHaveBeenCalledTimes(1);
+    expect(store.find(session.sid)?.accessToken).toBe('fresh-access');
   });
 });

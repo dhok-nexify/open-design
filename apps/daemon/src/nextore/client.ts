@@ -2,6 +2,7 @@ import type {
   CreateNextoreTeamWorkspaceRequest,
   NextoreBrandingResponse,
   NextoreModuleHealthResponse,
+  NextoreTier,
 } from '@open-design/contracts';
 import type { NextoreConfig } from './config.js';
 
@@ -47,6 +48,14 @@ export interface NextoreClient {
   health(signal?: AbortSignal): Promise<NextoreModuleHealthResponse>;
   branding(signal?: AbortSignal): Promise<NextoreBrandingResponse>;
   bootstrap<T>(accessToken: string, signal?: AbortSignal): Promise<T>;
+  /**
+   * OpenAI-shaped model list for one tier. The module answers 200 with an
+   * empty `data` array when the tier has no model configured, 403 when the
+   * caller may not use Designer, and 401 when the credential is rejected.
+   * Only the self-test diagnostics call this; runs go through the provider
+   * base URL instead.
+   */
+  tierModels<T>(accessToken: string, tier: NextoreTier, signal?: AbortSignal): Promise<T>;
   /** Effective rights for one DesignProject, as the module computes them. */
   projectAccess<T>(accessToken: string, projectId: string, signal?: AbortSignal): Promise<T>;
   /** Deep link into the site's permission editor for one DesignProject. */
@@ -250,6 +259,13 @@ export function createNextoreClient(options: NextoreClientOptions): NextoreClien
       return request<T>(
         'api/designer/projects/' + encodeURIComponent(projectId),
         { accessToken, method: 'DELETE', ...(signal ? { signal } : {}) },
+      );
+    },
+
+    tierModels<T>(accessToken: string, tier: NextoreTier, signal?: AbortSignal) {
+      return request<T>(
+        'api/designer/llm/' + encodeURIComponent(tier) + '/v1/models',
+        signal ? { accessToken, signal } : { accessToken },
       );
     },
 

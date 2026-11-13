@@ -185,7 +185,11 @@ export interface NextoreAuthOptions {
 export interface NextoreAuth {
   /** Mounts /auth/start, /auth/callback, /auth/logout and /auth/me. */
   registerRoutes(app: Express): void;
-  /** Requires a NexTore session on /api and generated-asset requests that are not public. */
+  /**
+   * Requires a NexTore session on /api and generated-asset requests that are
+   * not public. The self-test path resolves a session opportunistically and
+   * records the outcome in res.locals instead of rejecting.
+   */
   gate: RequestHandler;
 }
 
@@ -612,11 +616,45 @@ export function createNextoreAuth(options: NextoreAuthOptions): NextoreAuth {
       return;
     }
 
-    if (
-      req.baseUrl === '/api'
-      && (PUBLIC_API_PATHS.has(req.path) || req.path === PUBLIC_API_SELF_TEST)
-    ) {
+    if (req.baseUrl === '/api' && PUBLIC_API_PATHS.has(req.path)) {
       next();
+      return;
+    }
+
+    if (req.baseUrl === '/api' && req.path === PUBLIC_API_SELF_TEST) {
+      // The self-test must stay callable without a session so deployment
+      // probes keep working, but it should report real authentication and
+      // model results when the caller does have a session. Resolve the
+      // session only when a cookie arrived, and never answer 401/503 from
+      // here: the probe describes its own state, and a rejection would hide
+      // that state from the caller.
+      res.locals.nextoreDiagnostic = true;
+      if (!req.headers.cookie?.includes(SESSION_COOKIE + '=')) {
+        next();
+        return;
+      }
+      // Resolving can refresh a token and touch the session row, so it needs
+      // the same origin guarantee as every other credentialed request.
+      if (!isAllowedDesignerOrigin(req, config)) {
+        res.status(403).json({
+          error: {
+            code: 'ORIGIN_REJECTED',
+            message: 'Requests must come from the Designer origin.',
+          },
+        });
+        return;
+      }
+      void resolve(req)
+        .then((result) => {
+          res.locals.nextoreSessionLookup = result.kind;
+          if (result.kind === 'ok') {
+            stripClientIdentity(req, result.session.member.id);
+            res.locals.nextoreSession = result.session;
+            refreshSessionCookieIfStale(res, result.issuedAt, result.session.sid);
+          }
+          next();
+        })
+        .catch(next);
       return;
     }
 

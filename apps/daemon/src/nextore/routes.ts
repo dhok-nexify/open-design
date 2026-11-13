@@ -1,5 +1,11 @@
 import type { Express, RequestHandler, Response } from 'express';
-import type { NextoreSelfTestCheck, NextoreSelfTestResponse } from '@open-design/contracts';
+import {
+  NEXTORE_TIERS,
+  type NextoreSelfTestCheck,
+  type NextoreSelfTestResponse,
+  type NextoreTier,
+  type NextoreTierModelsResponse,
+} from '@open-design/contracts';
 import { NextoreClientError, type NextoreClient } from './client.js';
 import { createBrandingCache, type BrandingCache } from './branding-cache.js';
 import { registerBrandingSource } from './branding-state.js';
@@ -13,11 +19,14 @@ function failedCheck(error: unknown): NextoreSelfTestCheck {
   if (error instanceof NextoreClientError) {
     return {
       status: 'unavailable',
-      message: error.code,
+      // The upstream code is what an operator acts on (for example
+      // designer_access_required). The raw module sentence can carry
+      // internals, and this endpoint is reachable anonymously.
+      code: error.upstreamCode ?? error.code,
       ...(error.statusCode === undefined ? {} : { statusCode: error.statusCode }),
     };
   }
-  return { status: 'unavailable', message: 'nextore_request_failed' };
+  return { status: 'unavailable', code: 'nextore_request_failed' };
 }
 
 export function nextoreHealthMetadata(edition: 'upstream' | 'nextore', version: unknown) {
@@ -31,37 +40,141 @@ export function nextoreHealthMetadata(edition: 'upstream' | 'nextore', version: 
   };
 }
 
+interface SelfTestSessionView {
+  accessToken?: string;
+}
+
+type SelfTestSessionLookup = 'ok' | 'signed_out' | 'unavailable';
+
+function pendingSessionCheck(): NextoreSelfTestCheck {
+  return {
+    status: 'pending_session',
+    code: 'session_required',
+    message: 'Sign in through NexTore to check authentication and models.',
+  };
+}
+
+function unavailableSessionCheck(): NextoreSelfTestCheck {
+  return {
+    status: 'unavailable',
+    code: 'session_unavailable',
+    message: 'NexTore could not confirm the session; try again shortly.',
+  };
+}
+
+function readSession(res: Response): SelfTestSessionView | null {
+  const session = (res.locals as { nextoreSession?: SelfTestSessionView }).nextoreSession;
+  if (!session || typeof session.accessToken !== 'string' || !session.accessToken.trim()) {
+    return null;
+  }
+  return session;
+}
+
+function readLookup(res: Response): SelfTestSessionLookup | undefined {
+  const value = (res.locals as { nextoreSessionLookup?: unknown }).nextoreSessionLookup;
+  return value === 'ok' || value === 'signed_out' || value === 'unavailable' ? value : undefined;
+}
+
+/**
+ * A resolved session is already proof: the gate rejected expired credentials,
+ * renewed them when due, revalidated the member on schedule, and dropped
+ * revoked rows before this handler ran. Calling bootstrap again would repeat
+ * work without proving anything the gate did not.
+ */
+function authenticationCheck(res: Response): NextoreSelfTestCheck {
+  if (readSession(res)) return { status: 'ok' };
+  if (readLookup(res) === 'unavailable') return unavailableSessionCheck();
+  return pendingSessionCheck();
+}
+
+async function probeTier(
+  client: NextoreClient,
+  accessToken: string,
+  tier: NextoreTier,
+): Promise<NextoreSelfTestCheck> {
+  try {
+    const body = await client.tierModels<NextoreTierModelsResponse>(accessToken, tier);
+    if (!body || !Array.isArray(body.data)) {
+      return { status: 'unavailable', code: 'nextore_response_invalid' };
+    }
+    if (body.data.length === 0) {
+      return {
+        status: 'unavailable',
+        code: 'tier_not_configured',
+        message: 'The ' + tier + ' model tier has no model configured.',
+      };
+    }
+    return { status: 'ok' };
+  } catch (error) {
+    return failedCheck(error);
+  }
+}
+
+/**
+ * The models route proves what the run path needs before a run exists: the
+ * session credential is accepted as an API key, DesignerAccess is granted,
+ * and the tier resolves to a configured model. It deliberately does not send
+ * a chat completion, so the probe spends no tokens and stays deterministic.
+ */
+async function probeLlm(
+  client: NextoreClient,
+  session: SelfTestSessionView | null,
+  authentication: NextoreSelfTestCheck,
+): Promise<NextoreSelfTestResponse['checks']['llm']> {
+  const accessToken = session?.accessToken?.trim();
+  if (!accessToken) {
+    // A session the gate could not confirm never reached the probe; repeat
+    // that reason instead of claiming no session exists.
+    return authentication.status === 'unavailable' ? authentication : pendingSessionCheck();
+  }
+
+  const [fast, expert] = await Promise.all([
+    probeTier(client, accessToken, 'fast'),
+    probeTier(client, accessToken, 'expert'),
+  ]);
+  const tiers = { fast, expert };
+  const failing = NEXTORE_TIERS.filter((tier) => tiers[tier].status !== 'ok');
+  const firstTier = failing[0];
+  if (!firstTier) return { status: 'ok', tiers };
+
+  const first = tiers[firstTier];
+  return {
+    status: 'unavailable',
+    ...(first.code === undefined ? {} : { code: first.code }),
+    ...(first.statusCode === undefined ? {} : { statusCode: first.statusCode }),
+    message: failing.length === 1
+      ? 'The ' + firstTier + ' model tier is unavailable.'
+      : 'Both model tiers are unavailable.',
+    tiers,
+  };
+}
+
 export function createNextoreSelfTestHandler(
   client: NextoreClient,
 ): RequestHandler {
   return async (_req, res: Response) => {
-    const [moduleResult, brandingResult] = await Promise.allSettled([
-      client.health(),
-      client.branding(),
+    const session = readSession(res);
+    const authentication = authenticationCheck(res);
+
+    const [module, branding, llm] = await Promise.all([
+      client.health().then(
+        () => ({ status: 'ok' }) as NextoreSelfTestCheck,
+        (error: unknown) => failedCheck(error),
+      ),
+      client.branding().then(
+        () => ({ status: 'ok' }) as NextoreSelfTestCheck,
+        (error: unknown) => failedCheck(error),
+      ),
+      probeLlm(client, session, authentication),
     ]);
 
-    const moduleCheck: NextoreSelfTestCheck = moduleResult.status === 'fulfilled'
-      ? { status: 'ok' }
-      : failedCheck(moduleResult.reason);
-    const brandingCheck: NextoreSelfTestCheck = brandingResult.status === 'fulfilled'
-      ? { status: 'ok' }
-      : failedCheck(brandingResult.reason);
-
+    const checks: NextoreSelfTestResponse['checks'] = { module, branding, authentication, llm };
     const response: NextoreSelfTestResponse = {
-      ok: moduleCheck.status === 'ok' && brandingCheck.status === 'ok',
+      // Pending checks mean "not run", not "failed": only an executed probe
+      // can turn the overall verdict false.
+      ok: Object.values(checks).every((check) => check.status !== 'unavailable'),
       edition: 'nextore',
-      checks: {
-        module: moduleCheck,
-        branding: brandingCheck,
-        authentication: {
-          status: 'pending_session',
-          message: 'Authentication checks are available after the OAuth session is established.',
-        },
-        llm: {
-          status: 'pending_session',
-          message: 'Model checks require an authenticated NexTore session.',
-        },
-      },
+      checks,
     };
 
     res.setHeader('Cache-Control', 'no-store');

@@ -3274,9 +3274,15 @@ export async function startServer({
         res: import('express').Response,
         next: import('express').NextFunction,
       ) => {
-        const session = (res.locals as {
+        const locals = res.locals as {
           nextoreSession?: { member?: { rights?: { access?: unknown } } };
-        }).nextoreSession;
+          /** Set by the auth gate for probes that describe their own state. */
+          nextoreDiagnostic?: boolean;
+        };
+        // The self-test reports "session ok, DesignerAccess missing" itself;
+        // a bare 403 here would hide the diagnosis the caller asked for.
+        if (locals.nextoreDiagnostic === true) return next();
+        const session = locals.nextoreSession;
         if (!session?.member?.rights) return next();
         if (session.member.rights.access === true) return next();
         res.status(403).json({
