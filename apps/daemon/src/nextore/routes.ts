@@ -29,13 +29,22 @@ function failedCheck(error: unknown): NextoreSelfTestCheck {
   return { status: 'unavailable', code: 'nextore_request_failed' };
 }
 
-export function nextoreHealthMetadata(edition: 'upstream' | 'nextore', version: unknown) {
+export function nextoreHealthMetadata(
+  edition: 'upstream' | 'nextore',
+  version: unknown,
+  oauthClientId?: string,
+) {
   if (edition !== 'nextore') return {};
   return {
     edition,
     compat: {
       module: '>=1.0 <2',
     },
+    // ND-R11-04: the module settings row and this environment value are two places that must
+    // agree, and a silent divergence is invisible because sign-in keeps working either way.
+    // Publishing the value the host actually signs in with makes the comparison one HTTP call;
+    // a client id is public - it already appears in the authorize URL.
+    ...(oauthClientId ? { oauthClientId } : {}),
     version,
   };
 }

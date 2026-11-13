@@ -8230,7 +8230,7 @@ export async function startServer({
     res.json({
       ok: true,
       version: versionInfo.version,
-      ...nextoreHealthMetadata(edition, versionInfo.version),
+      ...nextoreHealthMetadata(edition, versionInfo.version, nextoreConfig?.oauthClientId),
       ...(sandbox ? { sandbox } : {}),
       amrTerminalReporter: {
         status: 'active',

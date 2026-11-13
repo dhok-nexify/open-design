@@ -23,6 +23,13 @@ describe('nextoreHealthMetadata', () => {
   it('keeps upstream health unchanged', () => {
     expect(nextoreHealthMetadata('upstream', '1.2.3')).toEqual({});
   });
+
+  it('publishes the client id the host actually signs in with (ND-R11-04)', () => {
+    expect(
+      nextoreHealthMetadata('nextore', '1.2.3', 'nx-0123456789abcdef0123456789abcdef'),
+    ).toMatchObject({ oauthClientId: 'nx-0123456789abcdef0123456789abcdef' });
+    expect(nextoreHealthMetadata('nextore', '1.2.3')).not.toHaveProperty('oauthClientId');
+  });
 });
 
 function modelsFor(...tiers: NextoreTier[]): NextoreTierModelsResponse {
