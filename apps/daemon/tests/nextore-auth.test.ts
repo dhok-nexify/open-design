@@ -636,3 +636,48 @@ describe('NexTore session lifetime policy', () => {
     expect(bootstrap).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('NexTore silent re-authentication window', () => {
+  function newSession() {
+    return store.create({
+      memberId: member.id,
+      member: {
+        ...member,
+        rights: { access: true, createProject: true, admin: false, manageMcp: false },
+      },
+      accessToken: 'access-1',
+      refreshToken: 'refresh-1',
+      tokenExpiresAt: clock + 60 * 60 * 1000,
+    });
+  }
+
+  async function readMe(sid: string): Promise<{ status: number; reauthDue: unknown }> {
+    const response = await nativeFetch(baseUrl + '/auth/me', {
+      headers: { cookie: sessionCookie(sid) },
+    });
+    const body = (await response.json()) as { reauthDue?: unknown };
+    return { status: response.status, reauthDue: body.reauthDue };
+  }
+
+  it('does not ask a fresh session to repeat the handshake', async () => {
+    const session = newSession();
+    await listen(buildApp());
+
+    const result = await readMe(session.sid);
+
+    expect(result.status).toBe(200);
+    expect(result.reauthDue).toBe(false);
+  });
+
+  it('asks the shell to re-authenticate once the session is an hour old', async () => {
+    const session = newSession();
+    db.prepare('UPDATE nextore_sessions SET created_at = ? WHERE sid = ?')
+      .run(clock - 61 * 60 * 1000, session.sid);
+    await listen(buildApp());
+
+    const result = await readMe(session.sid);
+
+    expect(result.status).toBe(200);
+    expect(result.reauthDue).toBe(true);
+  });
+});

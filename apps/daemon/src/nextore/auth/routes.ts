@@ -58,6 +58,20 @@ const REVALIDATE_MS = 5 * 60 * 1000;
  */
 const MUTATION_REVALIDATE_MS = 60 * 1000;
 
+/**
+ * How old a session may get before the shell is asked to re-run the OAuth
+ * handshake silently.
+ *
+ * A sign-out at the site cannot reach this daemon, and the browser will not
+ * hand the site's session cookie to a cross-site subresource, so no fetch can
+ * detect one either. A top-level navigation to /auth/start does carry it: with
+ * a live site session and a trusted client the site answers with a code and no
+ * consent page, and the callback replaces this session row. Re-running the
+ * handshake on a schedule is therefore the only way an account switch at the
+ * site takes effect here without a platform change. See DESIGN §14.3.1.
+ */
+const SILENT_REAUTH_AFTER_MS = 60 * 60 * 1000;
+
 /** Refresh the access token this long before it expires. */
 const REFRESH_LEAD_MS = 60 * 1000;
 
@@ -899,6 +913,9 @@ export function createNextoreAuth(options: NextoreAuthOptions): NextoreAuth {
         fullName: result.session.member.fullName,
         language: result.session.member.language,
       },
+      // The daemon owns the window; the shell decides when to act on it, and
+      // never while the tab is hidden.
+      reauthDue: now() - result.session.createdAt >= SILENT_REAUTH_AFTER_MS,
     });
   }
 

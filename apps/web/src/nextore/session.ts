@@ -13,6 +13,13 @@
  */
 
 import { NEXTORE_WEB_EDITION } from './features';
+import {
+  lastSilentReauthAttempt,
+  markSilentReauthAttempt,
+  shouldSilentlyRevalidate,
+  silentReauthAllowed,
+  silentReauthUrl,
+} from './silent-reauth';
 import { isSignedOut } from './sign-out';
 
 const SESSION_REQUIRED = 'SESSION_REQUIRED';
@@ -89,8 +96,24 @@ export function installNextoreSessionRedirect(): void {
   window.setInterval(() => {
     void window
       .fetch('/auth/me', { cache: 'no-store', headers: { accept: 'application/json' } })
-      .then((response) => {
-        if (response.status === 401) goToSignIn();
+      .then(async (response) => {
+        if (response.status === 401) {
+          goToSignIn();
+          return;
+        }
+        if (!response.ok) return;
+
+        // The account behind the site session can change without this daemon
+        // ever learning about it. Once the daemon says the session has aged
+        // out, re-run the handshake while the person is looking at the tab, so
+        // the identity that comes back belongs to whoever is at the keyboard.
+        const body = (await response.json().catch(() => null)) as { reauthDue?: unknown } | null;
+        if (!shouldSilentlyRevalidate(body?.reauthDue === true, document.visibilityState)) return;
+        if (!silentReauthAllowed(lastSilentReauthAttempt(), Date.now())) return;
+
+        markSilentReauthAttempt();
+        const here = window.location.pathname + window.location.search + window.location.hash;
+        window.location.assign(silentReauthUrl(here || '/'));
       })
       .catch(() => {
         // A transient daemon/network failure must not sign the user out.

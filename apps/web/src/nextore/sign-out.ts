@@ -9,6 +9,7 @@
  * at the keyboard needs a control that ends *this* session, and a page that
  * stays ended instead of bouncing straight back into OAuth.
  */
+import { authStartUrl } from './auth-entry';
 import { NEXTORE_WEB_EDITION } from './features';
 
 const SIGNED_OUT_KEY = 'nxd:signed-out';
@@ -49,10 +50,9 @@ export function clearSignedOut(): void {
   setSignedOut(false);
 }
 
-/** The OAuth entry point. `return` must stay a same-origin path. */
+/** The OAuth entry point. See `auth-entry.ts` for why the path is filtered. */
 export function signInUrl(returnTo = '/'): string {
-  const path = returnTo.startsWith('/') && !returnTo.startsWith('//') ? returnTo : '/';
-  return '/auth/start?return=' + encodeURIComponent(path);
+  return authStartUrl(returnTo);
 }
 
 /**
