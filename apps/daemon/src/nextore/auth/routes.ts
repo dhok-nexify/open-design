@@ -36,8 +36,27 @@ const PENDING_TTL_MS = 10 * 60 * 1000;
 /** Sliding session lifetime. The NexTore connection itself outlives it. */
 const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 
+/**
+ * Absolute session lifetime, counted from sign-in instead of from the last
+ * request.
+ *
+ * The sliding window above never closes for a tab that keeps getting used, and
+ * the OAuth credential behind it renews itself until an administrator revokes
+ * the connection. So signing out of NexTore — or signing in there as somebody
+ * else — leaves this Designer session live indefinitely without this cap. One
+ * re-authentication per workday is the price of that boundary.
+ */
+const SESSION_MAX_AGE_MS = 8 * 60 * 60 * 1000;
+
 /** Re-check rights and revocation this often, per session. */
 const REVALIDATE_MS = 5 * 60 * 1000;
+
+/**
+ * A tighter freshness budget for state-changing calls. Revoking a right,
+ * disabling a member or deleting a profile has to stop a mutation inside a
+ * minute; a read may still ride the five-minute window.
+ */
+const MUTATION_REVALIDATE_MS = 60 * 1000;
 
 /** Refresh the access token this long before it expires. */
 const REFRESH_LEAD_MS = 60 * 1000;
@@ -227,6 +246,11 @@ function clearCookie(res: Response, name: string, config: NextoreConfig): void {
   res.append('Set-Cookie', `${name}=; Max-Age=0; ${cookieAttributes(config)}`);
 }
 
+/** Methods that change nothing, so a slightly stale validation may serve them. */
+function isSafeMethod(method: string | undefined): boolean {
+  return method === 'GET' || method === 'HEAD' || method === 'OPTIONS';
+}
+
 /**
  * Browser traffic must come from this exact origin.
  *
@@ -237,7 +261,7 @@ function clearCookie(res: Response, name: string, config: NextoreConfig): void {
  * methods fail closed (the run-scoped tool lane is handled before this).
  */
 function isAllowedDesignerOrigin(req: Request, config: NextoreConfig): boolean {
-  const safeMethod = req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS';
+  const safeMethod = isSafeMethod(req.method);
   const origin = req.headers.origin;
   if (typeof origin !== 'string' || origin.length === 0) return safeMethod;
   // Sandboxed preview iframes send an opaque origin. Their GET requests still
@@ -553,10 +577,23 @@ export function createNextoreAuth(options: NextoreAuthOptions): NextoreAuth {
       return { kind: 'signed_out' };
     }
 
+    if (checkedAt - session.createdAt > SESSION_MAX_AGE_MS) {
+      // Idle time alone does not end a session that keeps being used, and the
+      // credential outlives a sign-out at the site. This is what stops a tab
+      // left open after an account switch from acting as the old member.
+      store.remove(session.sid);
+      return { kind: 'signed_out' };
+    }
+
     // A session written before the rights cache landed has no rights; refresh
     // it immediately instead of leaving MCP off until the five-minute timer.
+    // Writes carry a tighter budget: revocation must stop a mutation inside a
+    // minute, while a read may still ride the five-minute window.
+    const validationBudget = isSafeMethod(req.method)
+      ? REVALIDATE_MS
+      : MUTATION_REVALIDATE_MS;
     const validationDue =
-      checkedAt - session.lastValidatedAt >= REVALIDATE_MS
+      checkedAt - session.lastValidatedAt >= validationBudget
       || !session.member.rights;
     const expiring = session.tokenExpiresAt !== null
       && session.tokenExpiresAt - checkedAt < REFRESH_LEAD_MS;

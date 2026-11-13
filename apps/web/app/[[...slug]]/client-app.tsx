@@ -9,6 +9,8 @@ import { installChatScrollExperiments } from '../../src/runtime/chat-scroll-expe
 import { installChatScrollTakeover } from '../../src/runtime/chat-scroll-takeover';
 import { installNextoreSessionRedirect } from '../../src/nextore/session';
 import { installNextoreAccessRequiredGuard } from '../../src/nextore/access-required';
+import { DesignerSignedOut } from '../../src/nextore/DesignerSignedOut';
+import { isSignedOut } from '../../src/nextore/sign-out';
 
 // Install browser exception handlers at module-load time, before any other
 // client code can throw. The hooks buffer events until AnalyticsProvider
@@ -66,5 +68,10 @@ const App = dynamic(() => import('../../src/App').then((m) => m.App), {
 });
 
 export function ClientApp() {
+  // A deliberate sign-out ends this tab's session, and the session wrapper
+  // holds off on bouncing back into OAuth while that marker stands. Mounting
+  // the shell anyway would only report SESSION_REQUIRED on every call, so this
+  // is the page the user is left on until they choose to sign in again.
+  if (isSignedOut()) return <DesignerSignedOut />;
   return <App />;
 }

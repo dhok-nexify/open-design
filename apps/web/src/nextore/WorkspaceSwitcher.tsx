@@ -5,6 +5,7 @@ import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 
 import { Icon } from '../components/Icon';
 import { useT } from '../i18n';
 import { groupProjectsByWorkspace, type NextoreProjectGroup } from '../nextore-projects';
+import { NextoreAccountActions } from './AccountActions';
 import { useNextoreProjectListing } from './listing-store';
 import { clearProjectScope } from './project-scope';
 import { useNextoreSessionView } from './session-view';
@@ -242,6 +243,7 @@ export function NextoreWorkspaceSwitcher({
               </button>
             </div>
           ) : null}
+          <NextoreAccountActions />
         </div>
       ) : null}
 

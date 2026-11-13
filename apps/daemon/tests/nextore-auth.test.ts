@@ -582,3 +582,57 @@ describe('NexTore self-test session resolution', () => {
     expect(store.find(session.sid)?.accessToken).toBe('fresh-access');
   });
 });
+
+describe('NexTore session lifetime policy', () => {
+  const rightsMember = {
+    ...member,
+    rights: { access: true, createProject: true, admin: false, manageMcp: false },
+  };
+
+  function signIn() {
+    return store.create({
+      memberId: member.id,
+      member: rightsMember,
+      accessToken: 'access-1',
+      refreshToken: 'refresh-1',
+      tokenExpiresAt: clock + 60 * 60 * 1000,
+    });
+  }
+
+  it('ends a session that has passed its absolute lifetime even while it is in use', async () => {
+    const session = signIn();
+    // Nine hours of steady activity: the sliding window never closed and the
+    // credential still validates. Only the absolute cap may end this session.
+    db.prepare('UPDATE nextore_sessions SET created_at = ? WHERE sid = ?')
+      .run(clock - 9 * 60 * 60 * 1000, session.sid);
+    await listen(buildApp());
+
+    const response = await nativeFetch(baseUrl + '/api/probe', {
+      headers: { cookie: sessionCookie(session.sid) },
+    });
+
+    expect(response.status).toBe(401);
+    expect(store.find(session.sid)).toBeNull();
+  });
+
+  it('revalidates a write long before the read window closes', async () => {
+    const session = signIn();
+    db.prepare('UPDATE nextore_sessions SET last_validated_at = ? WHERE sid = ?')
+      .run(clock - 2 * 60 * 1000, session.sid);
+    const bootstrap = vi.fn(async () => ({ member: rightsMember }));
+    await listen(buildApp(client({ bootstrap })));
+
+    const read = await nativeFetch(baseUrl + '/api/probe', {
+      headers: { cookie: sessionCookie(session.sid) },
+    });
+    expect(read.status).toBe(200);
+    expect(bootstrap).not.toHaveBeenCalled();
+
+    const write = await nativeFetch(baseUrl + '/api/probe', {
+      method: 'POST',
+      headers: { cookie: sessionCookie(session.sid), origin: config.designerBaseUrl },
+    });
+    expect(write.status).toBe(200);
+    expect(bootstrap).toHaveBeenCalledTimes(1);
+  });
+});

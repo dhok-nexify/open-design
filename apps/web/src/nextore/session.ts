@@ -13,6 +13,7 @@
  */
 
 import { NEXTORE_WEB_EDITION } from './features';
+import { isSignedOut } from './sign-out';
 
 const SESSION_REQUIRED = 'SESSION_REQUIRED';
 const REDIRECT_FLAG = 'nxd:session-redirect';
@@ -41,6 +42,10 @@ function markRedirecting(): void {
 }
 
 function goToSignIn(): void {
+  // An explicit sign-out is a choice, not a failure. Bouncing straight back
+  // into OAuth would re-create the session the person just ended, so this tab
+  // stays on the signed-out page until they ask to sign in again.
+  if (isSignedOut()) return;
   if (alreadyRedirecting()) return;
   markRedirecting();
 

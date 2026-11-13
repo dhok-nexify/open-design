@@ -73,6 +73,12 @@ export interface Dict {
   /** NexTore edition: a signed-in member without the Designer access right. */
   'accessRequired.title': string;
   'accessRequired.body': string;
+  'nextoreAccount.switchAccount': string;
+  'nextoreAccount.signOut': string;
+  'nextoreAccount.signOutFailed': string;
+  'signedOut.title': string;
+  'signedOut.body': string;
+  'signedOut.action': string;
 
   /** NexTore projects whose files live on another device. */
   'nextoreRemote.title': string;
