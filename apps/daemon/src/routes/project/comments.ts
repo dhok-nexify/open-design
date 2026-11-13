@@ -753,6 +753,19 @@ export function registerProjectCommentRoutes(app: Express, ctx: RegisterProjectC
             capability: 'writeFiles',
           })
         ) return;
+        // This route is the status lifecycle only. Without a guard the storage
+        // helper rejects a missing status with "invalid comment status", which
+        // reads as if the caller sent a bad value when the real mistake is that
+        // note edits belong to the POST upsert. Blank counts as missing: an empty
+        // string is the same client error, not a status the module forgot to list.
+        const requestedStatus = typeof req.body?.status === 'string' ? req.body.status.trim() : '';
+        if (!requestedStatus) {
+          const message = 'This endpoint changes a comment status; edit the note through the comment upsert.';
+          if (ctx.sendApiError) {
+            return ctx.sendApiError(res, 400, 'COMMENT_STATUS_REQUIRED', message);
+          }
+          return res.status(400).json({ error: 'COMMENT_STATUS_REQUIRED', message });
+        }
         const syncEnabled = isLocalTeamRelayCandidate(
           req.params.id,
           workspaceContext,

@@ -335,6 +335,42 @@ describe('preview comment permission gating', () => {
     expect(api.updated).toEqual([comment.id]);
   });
 
+  it('says what a status patch is missing instead of blaming a status value', async () => {
+    const api = await startServer();
+    const comment = await api.createComment('m-author');
+
+    // A client that edits the note through this route gets a pointer to the
+    // upsert, not "invalid comment status" for a value it never sent. This
+    // harness wires no sendApiError, so it pins the route's own fallback shape;
+    // the structured shape is the shared helper's own concern.
+    const statusRoute = `/api/projects/${PROJECT}/conversations/${CONVERSATION}/comments/${comment.id}`;
+    const noStatus = await api.json(statusRoute, {
+      method: 'PATCH',
+      member: 'm-author',
+      body: { note: 'edited here instead' },
+    });
+    expect(noStatus.status).toBe(400);
+    expect(noStatus.body.error).toBe('COMMENT_STATUS_REQUIRED');
+    expect(String(noStatus.body.message)).toContain('comment upsert');
+
+    // A blank status is the same client error, not an unknown enum value.
+    const blankStatus = await api.json(statusRoute, {
+      method: 'PATCH',
+      member: 'm-author',
+      body: { status: '   ' },
+    });
+    expect(blankStatus.status).toBe(400);
+    expect(blankStatus.body.error).toBe('COMMENT_STATUS_REQUIRED');
+
+    // A status that really is unknown still reports the honest reason.
+    const badStatus = await api.json(
+      `/api/projects/${PROJECT}/conversations/${CONVERSATION}/comments/${comment.id}`,
+      { method: 'PATCH', member: 'm-author', body: { status: 'not-a-status' } },
+    );
+    expect(badStatus.status).toBe(400);
+    expect(String(badStatus.body.error)).toContain('invalid comment status');
+  });
+
   it('the project owner can change status on and delete another member\'s comment', async () => {
     const api = await startServer();
     const comment = await api.createComment('m-author');
