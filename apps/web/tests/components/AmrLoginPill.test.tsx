@@ -278,7 +278,7 @@ describe('AmrLoginPill', () => {
 
     expect(screen.getByText('leaf@example.com')).toBeTruthy();
     expect(screen.getByText('TEST')).toBeTruthy();
-    expect(screen.getByRole('link', { name: 'Manage' }).getAttribute('href')).toBe(
+    expect(screen.getByRole('link', { name: /Manage/i }).getAttribute('href')).toBe(
       'https://open-design.powerformer.net/cloud/dashboard?source=open_design',
     );
   });
@@ -293,7 +293,7 @@ describe('AmrLoginPill', () => {
     });
 
     expect(screen.getByText('LOCAL')).toBeTruthy();
-    expect(screen.getByRole('link', { name: 'Manage' }).getAttribute('href')).toBe(
+    expect(screen.getByRole('link', { name: /Manage/i }).getAttribute('href')).toBe(
       'http://localhost:5173/dashboard?source=open_design',
     );
   });
@@ -308,7 +308,7 @@ describe('AmrLoginPill', () => {
     });
 
     expect(screen.queryByText('PROD')).toBeNull();
-    expect(screen.getByRole('link', { name: 'Manage' }).getAttribute('href')).toBe(
+    expect(screen.getByRole('link', { name: /Manage/i }).getAttribute('href')).toBe(
       'https://open-design.ai/cloud/dashboard?source=open_design',
     );
   });
@@ -342,7 +342,7 @@ describe('AmrLoginPill', () => {
       </I18nProvider>,
     );
 
-    const link = screen.getByRole('link', { name: 'Manage' }) as HTMLAnchorElement;
+    const link = screen.getByRole('link', { name: /Manage/i }) as HTMLAnchorElement;
     fireEvent.click(link);
 
     const url = new URL(link.href);
@@ -392,7 +392,7 @@ describe('AmrLoginPill', () => {
       showConsoleAction: true,
     });
 
-    const link = screen.getByRole('link', { name: 'Manage' }) as HTMLAnchorElement;
+    const link = screen.getByRole('link', { name: /Manage/i }) as HTMLAnchorElement;
     expect(link.href).toBe('https://feature.example/dashboard?source=open_design');
     fireEvent.click(link);
 
