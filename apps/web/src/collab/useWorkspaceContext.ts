@@ -17,6 +17,7 @@ import {
 } from '@open-design/contracts';
 import { coalescedGet, forceCoalescedGet } from '../lib/coalesced-get';
 import { BackoffController, type BackoffOptions } from '../lib/backoff';
+import { isFeatureEnabled } from '../nextore/features';
 import {
   markProjectDisplaySnapshotsDirty,
   patchProjectDisplaySnapshots,
@@ -45,6 +46,29 @@ import {
   retainWorkspaceBillingInterest,
   workspaceBillingInterestHeaders,
 } from './workspace-billing-interests';
+
+/**
+ * Whether this edition has OpenDesign Cloud workspaces at all.
+ *
+ * NEXTORE: the edition derives identity from the NexTore member session and
+ * keeps projects local, so the whole `/api/workspace/*` read path is
+ * meaningless there. It is not merely useless: every mounted consumer holds
+ * its own copy of this hook, each with its own 30s timer, so the shell kept
+ * spending a 401/404 per tick against an endpoint the edition can never
+ * answer — and re-published a fresh state object on every tick, which churned
+ * the DOM while UI acceptance tooling was trying to observe it.
+ *
+ * Resolving the state once — settled, unscoped, `unsupported` — keeps every
+ * consumer on the same legal "no cloud workspace" branch without issuing a
+ * single request. `unsupported` is reused deliberately: it is already the
+ * branch every consumer treats as "no workspace scope, proceed unscoped", so
+ * the edition does not need a new failure kind threaded through all of them.
+ *
+ * `collab-cloud` is the contract-level name for this surface — the edition
+ * disables workspaces and collaboration together, so the flag that closes
+ * `/api/collab` is also the right gate for its directory and context reads.
+ */
+const WORKSPACE_CLOUD_ENABLED = isFeatureEnabled('collab-cloud');
 
 // One shared read of the workspace context (`GET /api/workspace/context`) for the
 // navigation shell. The daemon proxies B's `CurrentWorkspaceContext`; `context`
@@ -650,8 +674,9 @@ export function useWorkspaceContext(): WorkspaceContextState {
             generation: cachedWorkspaceContextGeneration,
           }
         : null,
-    loading: cachedWorkspaceContext === null,
+    loading: WORKSPACE_CLOUD_ENABLED && cachedWorkspaceContext === null,
     identityChangePending: workspaceContextIdentityChangePending,
+    ...(WORKSPACE_CLOUD_ENABLED ? null : { failure: 'unsupported' as const }),
   }));
   const mountedRef = useRef(true);
   // A forced workspace switch can overtake an older ambient read. Keep request
@@ -704,6 +729,7 @@ export function useWorkspaceContext(): WorkspaceContextState {
       exactScopeOnly?: boolean;
     } = {},
   ) => {
+    if (!WORKSPACE_CLOUD_ENABLED) return;
     const requestEpoch = ++requestEpochRef.current;
     const requestGeneration = workspaceContextRequestToken;
     if (options.markLoading && mountedRef.current) {
@@ -882,6 +908,7 @@ export function useWorkspaceContext(): WorkspaceContextState {
   }, []);
 
   useEffect(() => {
+    if (!WORKSPACE_CLOUD_ENABLED) return;
     void loadContext();
   }, [loadContext]);
 
@@ -909,6 +936,7 @@ export function useWorkspaceContext(): WorkspaceContextState {
   );
 
   useEffect(() => {
+    if (!WORKSPACE_CLOUD_ENABLED) return;
     // Poll-as-floor: slow the poll while the SSE is delivering, run it at full
     // cadence when the stream is unavailable so there is no regression.
     const intervalMs = sseConnected ? WORKSPACE_CONTEXT_SSE_FLOOR_MS : WORKSPACE_CONTEXT_POLL_MS;
@@ -925,6 +953,7 @@ export function useWorkspaceContext(): WorkspaceContextState {
   }, [loadContext, sseConnected]);
 
   useEffect(() => {
+    if (!WORKSPACE_CLOUD_ENABLED) return;
     const refresh = () => {
       void loadContext(sseConnected ? { exactScopeOnly: true } : undefined);
     };
@@ -2005,7 +2034,7 @@ export function useTeamProjects(): TeamProjectsState {
     identity: initialCachedCatalog ? catalogScopeKey : null,
     projects: initialCachedCatalog ?? [],
   }));
-  const [loading, setLoading] = useState(initialCachedCatalog === null);
+  const [loading, setLoading] = useState(WORKSPACE_CLOUD_ENABLED && initialCachedCatalog === null);
   const [nonce, setNonce] = useState(0);
   const mountedRef = useRef(true);
   const catalogScopeRef = useRef(catalogScopeKey);
@@ -2208,6 +2237,7 @@ export function useTeamProjects(): TeamProjectsState {
 
   // Initial load + manual reload (nonce bump).
   useEffect(() => {
+    if (!WORKSPACE_CLOUD_ENABLED) return;
     if (
       (workspaceContextLoading || identityChangePending)
       && !resourceReadIdentity
@@ -2258,6 +2288,10 @@ export function useTeamProjects(): TeamProjectsState {
   // is delivering, run it at full cadence when the stream is unavailable so a
   // client whose SSE never connects has zero regression.
   useEffect(() => {
+    // NEXTORE: with no cloud workspace there is no team catalog to poll, and the
+    // empty-catalog branch below would still publish a fresh state object on
+    // every tick.
+    if (!WORKSPACE_CLOUD_ENABLED) return;
     const intervalMs = sseConnected ? TEAM_PROJECTS_SSE_FLOOR_MS : TEAM_PROJECTS_POLL_MS;
     const interval = setInterval(() => {
       // Only poll while the tab is actually visible — an idle/backgrounded tab
