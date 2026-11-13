@@ -342,6 +342,7 @@ import type { AnchorWriteBack } from '../comments';
 import { PluginDetailsModal } from './PluginDetailsModal';
 import { DesignSystemPreviewModal } from './DesignSystemPreviewModal';
 import { ChatPane } from './ChatPane';
+import { ChatLockedState } from './chat/ChatLockedState';
 import type { ChatSendMeta, ChatSendOutcome } from './ChatComposer';
 import {
   CritiqueTheaterMount,
@@ -14011,6 +14012,12 @@ export function ProjectView({
                 />
               )}
             />
+          ) : nextoreProjectReadOnly ? (
+            // A member who may only read a NexTore project gets no
+            // conversations: the conversations endpoint answers 403 and the
+            // list effect clears state without an error. A spinner here would
+            // promise a transcript that is never coming.
+            <ChatLockedState />
           ) : (
             <div className="pane" data-testid="chat-pane-loading">
               <CenteredLoader />

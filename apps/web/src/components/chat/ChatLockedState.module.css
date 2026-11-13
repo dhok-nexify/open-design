@@ -1,0 +1,74 @@
+/*
+ * Read-only shared project: the chat column has no transcript to show.
+ * Every value comes from the chat seam (--chat-*), never a global token.
+ *
+ * The pane itself keeps the shell's regular material (global .pane), so this
+ * module only owns the centering and the content, not a second background.
+ */
+.pane {
+  padding: 24px;
+}
+
+.inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  max-width: 304px;
+  margin: auto;
+  text-align: center;
+  animation: locked-enter var(--chat-dur-enter) var(--chat-ease-out) both;
+}
+
+.badge {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  margin-bottom: 6px;
+  border: var(--chat-stroke) solid var(--chat-border);
+  border-radius: var(--chat-radius-pill);
+  background: var(--chat-bg-subtle);
+  color: var(--chat-text-muted);
+}
+
+.title {
+  margin: 0;
+  font-family: var(--chat-font-sans);
+  font-size: var(--chat-t-lead);
+  font-weight: 600;
+  line-height: var(--chat-lh-tight);
+  color: var(--chat-text-strong);
+}
+
+.body {
+  margin: 0;
+  font-size: var(--chat-t-body);
+  line-height: var(--chat-lh-body);
+  color: var(--chat-text-muted);
+}
+
+.hint {
+  margin: 2px 0 0;
+  font-size: var(--chat-t-cap);
+  line-height: var(--chat-lh-row);
+  color: var(--chat-text-muted);
+}
+
+@keyframes locked-enter {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .inner {
+    animation: none;
+  }
+}

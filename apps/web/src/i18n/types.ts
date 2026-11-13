@@ -1169,6 +1169,9 @@ export interface Dict {
   'entry.mailAria': string;
   'entry.accountSettings': string;
   'chat.collapsePane': string;
+  'chat.lockedTitle': string;
+  'chat.lockedBody': string;
+  'chat.lockedHint': string;
   'collabPresence.ariaOne': string;
   'collabPresence.aria': string;
   'collabPresence.ariaWithSelfOne': string;
