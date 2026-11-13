@@ -42,6 +42,17 @@ export function requiresAmrReauthentication(
   return amrSessionState === 'reauth_required' || workspaceFailure === 'reauth-required';
 }
 
+export interface EntryRailAccountFooterOptions {
+  /**
+   * Whether the OpenDesign Cloud account surfaces exist at all.
+   *
+   * The NexTore edition disables the `cloud-amr` feature, so the Cloud callout
+   * there would offer an account model the product does not have, and every
+   * action it exposes calls a route the edition kill switch answers with 404.
+   */
+  cloudAccountUi?: boolean;
+}
+
 /**
  * Decide what the rail may claim about the Cloud account.
  *
@@ -56,7 +67,11 @@ export function resolveEntryRailAccountFooterState(
   workspaceState: WorkspaceContextState,
   amrLoggedIn: boolean | null | undefined,
   amrSessionState?: import('@open-design/contracts').AmrSessionState,
+  options: EntryRailAccountFooterOptions = {},
 ): EntryRailAccountFooterState {
+  // NEXTORE: the edition has no OpenDesign Cloud account, so the rail must not
+  // claim a sign-in / syncing / recovering state for it.
+  if (options.cloudAccountUi === false) return 'hidden';
   if (requiresAmrReauthentication(amrSessionState, workspaceState.failure)) return 'sign-in';
   if (workspaceState.context) return 'hidden';
   if (workspaceState.loading) return 'syncing';

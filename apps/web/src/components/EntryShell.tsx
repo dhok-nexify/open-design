@@ -691,6 +691,10 @@ export function EntryShell({
     workspaceContextState,
     amrLoggedIn,
     amrSessionState,
+    // NEXTORE: the edition has no Cloud account, so its rail callout (the
+    // "OpenDesign Cloud 版 / sign in" card) must never mount. The upstream
+    // component stays intact; only this mount point is gated.
+    { cloudAccountUi: isFeatureEnabled('cloud-amr') },
   );
   const railWorkspaceContext = accountFooterState === 'sign-in'
     ? null

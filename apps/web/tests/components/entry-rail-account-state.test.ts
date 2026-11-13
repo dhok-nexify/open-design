@@ -75,6 +75,26 @@ describe('resolveEntryRailAccountFooterState', () => {
       failure: 'unsupported',
     }, true)).toBe('sign-in');
   });
+
+  it('never renders a Cloud account callout where the edition has no cloud-amr', () => {
+    // NexTore edition: no OpenDesign Cloud account exists, so neither a
+    // signed-out invitation nor a transient outage card may mount.
+    expect(resolveEntryRailAccountFooterState({
+      context: null,
+      loading: false,
+      failure: 'unsupported',
+    }, true, undefined, { cloudAccountUi: false })).toBe('hidden');
+    expect(resolveEntryRailAccountFooterState({
+      context: null,
+      loading: false,
+      failure: 'unavailable',
+    }, null, undefined, { cloudAccountUi: false })).toBe('hidden');
+    expect(resolveEntryRailAccountFooterState({
+      context: null,
+      loading: false,
+      failure: 'reauth-required',
+    }, true, 'reauth_required', { cloudAccountUi: false })).toBe('hidden');
+  });
 });
 
 describe('requiresAmrReauthentication', () => {
