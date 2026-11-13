@@ -790,9 +790,11 @@ export function createNextoreAuth(options: NextoreAuthOptions): NextoreAuth {
     authorize.searchParams.set('response_type', 'code');
     authorize.searchParams.set('client_id', config.oauthClientId);
     authorize.searchParams.set('redirect_uri', callbackUrl(config));
-    // The only scope the authorization server issues; a different token is
-    // refused before anyone is asked to approve anything.
-    authorize.searchParams.set('scope', 'mcp:tools');
+    // No scope parameter on purpose: the authorization server grants the scope the client was
+    // registered for, and a registration is a ceiling - asking for one it does not carry is
+    // refused before anyone is asked to approve anything. Omitting it is also what lets one daemon
+    // build serve both an older pairing (mcp:tools) and a trusted first-party one (designer)
+    // without knowing which it was given.
     authorize.searchParams.set('state', state);
     authorize.searchParams.set('code_challenge', pkceChallenge(verifier));
     authorize.searchParams.set('code_challenge_method', 'S256');

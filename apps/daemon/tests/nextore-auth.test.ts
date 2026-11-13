@@ -222,6 +222,10 @@ describe('Nextore OAuth routes', () => {
     expect(authorize.searchParams.get('client_id')).toBe('designer-client');
     expect(authorize.searchParams.get('redirect_uri')).toBe('http://designer.test/auth/callback');
     expect(authorize.searchParams.get('code_challenge_method')).toBe('S256');
+    // The scope is deliberately absent: the authorization server grants what this client was
+    // registered for, so one daemon build serves both an 'mcp:tools' pairing and a trusted
+    // 'designer' one. Naming either explicitly refuses the other.
+    expect(authorize.searchParams.has('scope')).toBe(false);
     const state = authorize.searchParams.get('state') ?? '';
     expect(state.length).toBeGreaterThan(20);
 
