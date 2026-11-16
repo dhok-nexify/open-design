@@ -1,7 +1,7 @@
 {
   "upstreamRef": "upstream/main",
   "budgets": {
-    "upstreamOwnedFiles": 508,
+    "upstreamOwnedFiles": 488,
     "mergeConflicts": 71,
     "modifyDeleteConflicts": 3
   },
