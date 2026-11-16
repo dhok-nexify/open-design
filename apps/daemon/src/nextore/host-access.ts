@@ -14,6 +14,10 @@ import { lazyNextoreSecrets, type NextoreSecrets } from './auth/secrets.js';
 import { createNextoreSessionStore } from './auth/session-store.js';
 import type { NextoreClient } from './client.js';
 import type { NextoreConfig } from './config.js';
+import { registerNextoreMcpRoutes } from './mcp/routes.js';
+import { registerNextoreRoutes } from './routes.js';
+import { registerNextoreWorkspaceRoutes } from './workspaces/routes.js';
+import { registerNextoreDirectoryRoutes } from '../routes/nextore-directory.js';
 
 type SessionDb = ReturnType<Parameters<typeof createNextoreSessionStore>[0]>;
 
@@ -108,4 +112,30 @@ export function mountNextoreAccess(options: NextoreAccessOptions): NextoreAccess
   }
 
   return { auth, secrets };
+}
+
+export type NextoreApiRouteOptions = {
+  app: Express;
+  client: NextoreClient | null;
+  /** Route registration runs after the database is open, so it is never null here. */
+  db: NonNullable<SessionDb>;
+  secrets: (() => NextoreSecrets) | null;
+};
+
+/**
+ * Register the edition's API surface once the auth host is mounted. Kept out of
+ * `startServer` so upstream route changes do not collide with this wiring.
+ */
+export function registerNextoreApiRoutes(options: NextoreApiRouteOptions): void {
+  const { app, client, db, secrets } = options;
+  if (!client || !secrets) return;
+
+  registerNextoreRoutes(app, { client });
+  // Member directory for the transcript's author chips (NXD-D11).
+  registerNextoreDirectoryRoutes(app);
+  // Team workspace creation for Designer admins (NXD-D40).
+  registerNextoreWorkspaceRoutes(app, { client });
+  // Per-user external MCP servers (NXD-D21). The upstream global
+  // `mcp-config.json` surface stays closed in the edition.
+  registerNextoreMcpRoutes(app, { db, secrets });
 }

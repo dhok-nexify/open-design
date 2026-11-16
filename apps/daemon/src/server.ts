@@ -415,24 +415,18 @@ import { resolveEdition } from './edition/index.js';
 import { resolveSandboxProvider, SandboxUnavailableError } from './sandbox/index.js';
 import { checkBwrap } from './sandbox/self-check.js';
 import { createNextoreClient } from './nextore/client.js';
-import { mountNextoreAccess } from './nextore/host-access.js';
+import { mountNextoreAccess, registerNextoreApiRoutes } from './nextore/host-access.js';
 import { normalizeAccess } from './nextore/wire.js';
 import { resolveProductBrandName } from './nextore/branding-state.js';
 import { readNextoreConfig } from './nextore/config.js';
-import { registerNextoreDirectoryRoutes } from './routes/nextore-directory.js';
 import { applyFrameDenyHeaders } from './nextore-frame-guard.js';
 import { previewScopeMemberMismatch } from './preview-scope-member.js';
 import { addDesignerOrigin } from './nextore-allowed-origin.js';
-import { registerNextoreMcpRoutes } from './nextore/mcp/routes.js';
 import { listNextoreMcpServers } from './nextore/mcp/store.js';
 import { hasValidShareGrant } from './nextore/share/service.js';
 import { registerNextoreShareRoutes } from './nextore/share/routes.js';
-import { registerNextoreWorkspaceRoutes } from './nextore/workspaces/routes.js';
 import { migrateNextoreDatabase } from './nextore/db.js';
-import {
-  nextoreHealthMetadata,
-  registerNextoreRoutes,
-} from './nextore/routes.js';
+import { nextoreHealthMetadata } from './nextore/routes.js';
 import {
   authorizeCreatedProjectWorkspace,
   bindCreatedProjectToWorkspace,
@@ -8183,16 +8177,12 @@ export async function startServer({
     });
   });
 
-  if (nextoreClient && nextoreSecrets) {
-    registerNextoreRoutes(app, { client: nextoreClient });
-    // Member directory for the transcript's author chips (NXD-D11).
-    registerNextoreDirectoryRoutes(app);
-    // Team workspace creation for Designer admins (NXD-D40).
-    registerNextoreWorkspaceRoutes(app, { client: nextoreClient });
-    // Per-user external MCP servers (NXD-D21). The upstream global
-    // `mcp-config.json` surface stays closed in the edition.
-    registerNextoreMcpRoutes(app, { db, secrets: nextoreSecrets });
-  }
+  registerNextoreApiRoutes({
+    app,
+    client: nextoreClient,
+    db,
+    secrets: nextoreSecrets,
+  });
 
   app.get('/api/ready', async (_req, res) => {
     const versionInfo = await readCurrentAppVersionInfo();
