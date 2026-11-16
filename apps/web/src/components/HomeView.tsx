@@ -3173,6 +3173,7 @@ export function HomeView({
     >
       {/* `active` gates the portal-escaping campaign dialog to the ACTIVE home
           view: EntryShell only hides inactive views with display:none, which a
+          document.body portal ignores. */}
       {variant === 'dock' || !isFeatureEnabled('campaigns') ? null : (
         <DeepSeekV4FlashCampaign
           audience={deepSeekV4FlashCampaignAudience}
