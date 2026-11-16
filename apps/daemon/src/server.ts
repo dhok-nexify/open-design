@@ -416,12 +416,12 @@ import { resolveSandboxProvider, SandboxUnavailableError } from './sandbox/index
 import { checkBwrap } from './sandbox/self-check.js';
 import { createNextoreClient } from './nextore/client.js';
 import { mountNextoreAccess, registerNextoreApiRoutes } from './nextore/host-access.js';
+import { resolveRunMcpServers } from './nextore/mcp/run-servers.js';
 import { resolveProductBrandName } from './nextore/branding-state.js';
 import { readNextoreConfig } from './nextore/config.js';
 import { applyFrameDenyHeaders } from './nextore-frame-guard.js';
 import { previewScopeMemberMismatch } from './preview-scope-member.js';
 import { addDesignerOrigin } from './nextore-allowed-origin.js';
-import { listNextoreMcpServers } from './nextore/mcp/store.js';
 import { registerNextoreShareRoutes } from './nextore/share/routes.js';
 import { migrateNextoreDatabase } from './nextore/db.js';
 import { nextoreHealthMetadata } from './nextore/routes.js';
@@ -710,7 +710,6 @@ import {
   isManagedProjectCwd,
   readMcpConfig,
   writeMcpConfig,
-  type McpServerConfig,
 } from './mcp-config.js';
 import {
   resolveExternalMcpServersForRun,
@@ -11383,37 +11382,14 @@ export async function startServer({
         );
       }
     }
-    // The edition injects only the signed-in member's servers, and ignores any
-    // client-supplied toolBundle MCP list. A revoked MCP right or module switch
-    // turns the list off for the next run.
-    let nextoreMemberMcpServers: McpServerConfig[] = [];
-    if (
-      edition === 'nextore'
-      && run?.nextoreMcpEnabled === true
-      && typeof run.nextoreMemberId === 'number'
-      && run.nextoreMemberId > 0
-      && nextoreSecrets
-    ) {
-      try {
-        nextoreMemberMcpServers = listNextoreMcpServers(
-          db,
-          nextoreSecrets(),
-          run.nextoreMemberId,
-        );
-      } catch (err) {
-        console.warn(
-          '[nextore-mcp] member server read failed:',
-          err && err.message ? err.message : err,
-        );
-      }
-    }
-    const runScopedMcpServers = edition === 'nextore'
-      ? nextoreMemberMcpServers
-      : (
-          Array.isArray(run?.toolBundle?.mcpServers)
-            ? run.toolBundle.mcpServers
-            : []
-        );
+    const runScopedMcpServers = resolveRunMcpServers({
+      edition,
+      memberId: typeof run?.nextoreMemberId === 'number' ? run.nextoreMemberId : null,
+      memberMcpEnabled: run?.nextoreMcpEnabled === true,
+      toolBundleServers: run?.toolBundle?.mcpServers,
+      secrets: nextoreSecrets,
+      db,
+    });
     const {
       enabledServers: enabledExternalMcp,
       persistedTokenServerIds,
