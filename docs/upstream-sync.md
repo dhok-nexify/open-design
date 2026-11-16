@@ -112,7 +112,7 @@ numbers below are measured against the current merge base, not estimates:
 | File | Downstream hunks | Added lines | Shape |
 | --- | ---: | ---: | --- |
 | `apps/daemon/src/server.ts` | 55 | 256 | spread through the ~15k-line `startServer` (imports, auth, ACL, routes, health, shutdown); the auth/middleware block already moved to `nextore/host-access.ts` |
-| `apps/web/src/App.tsx` | 24 | 113 | imports plus state and hooks scattered through `AppInner`; branding bootstrap already moved to `nextore/use-branding.ts` |
+| `apps/web/src/App.tsx` | 24 | 89 | imports plus state and hooks scattered through `AppInner`; branding bootstrap and the access gate already moved to `nextore/use-branding.ts` and `nextore/use-designer-access.ts` |
 
 These are not one contiguous block, so collapsing them is a real refactor, not a
 move. The target shape is one mount point per side:
