@@ -411,13 +411,11 @@ import {
 } from './design-systems/team-project-share.js';
 import { prepareDesignTokenContractRebuild } from './design-systems/token-contract-rebuild.js';
 import { registerBrandRoutes } from './brand-routes.js';
-import {
-  createEditionRouteKillSwitch,
-  resolveEdition,
-} from './edition/index.js';
+import { resolveEdition } from './edition/index.js';
 import { resolveSandboxProvider, SandboxUnavailableError } from './sandbox/index.js';
 import { checkBwrap } from './sandbox/self-check.js';
 import { createNextoreClient } from './nextore/client.js';
+import { mountNextoreAccess } from './nextore/host-access.js';
 import { normalizeAccess } from './nextore/wire.js';
 import { resolveProductBrandName } from './nextore/branding-state.js';
 import { readNextoreConfig } from './nextore/config.js';
@@ -425,14 +423,11 @@ import { registerNextoreDirectoryRoutes } from './routes/nextore-directory.js';
 import { applyFrameDenyHeaders } from './nextore-frame-guard.js';
 import { previewScopeMemberMismatch } from './preview-scope-member.js';
 import { addDesignerOrigin } from './nextore-allowed-origin.js';
-import { createNextoreAuth } from './nextore/auth/routes.js';
 import { registerNextoreMcpRoutes } from './nextore/mcp/routes.js';
 import { listNextoreMcpServers } from './nextore/mcp/store.js';
 import { hasValidShareGrant } from './nextore/share/service.js';
 import { registerNextoreShareRoutes } from './nextore/share/routes.js';
 import { registerNextoreWorkspaceRoutes } from './nextore/workspaces/routes.js';
-import { lazyNextoreSecrets } from './nextore/auth/secrets.js';
-import { createNextoreSessionStore } from './nextore/auth/session-store.js';
 import { migrateNextoreDatabase } from './nextore/db.js';
 import {
   nextoreHealthMetadata,
@@ -3230,85 +3225,21 @@ export async function startServer({
     app.set('trust proxy', trustProxy);
   }
   installRouteRegistrationGuard(app);
-  // NEXTORE: the edition signs the browser in through the site's
-  // OAuthServerModule (code + PKCE) and keeps the resulting NexTore API key in
-  // an encrypted session row. Upstream keeps its API-token gate untouched.
-  // One lazy secret loader is shared by sessions, per-user MCP headers, and
-  // anything else that needs at-rest encryption in the edition.
-  const nextoreSecrets = nextoreConfig
-    ? lazyNextoreSecrets(nextoreConfig.secretFile)
-    : null;
-  const nextoreAuth = nextoreConfig && nextoreClient && nextoreSecrets
-    ? createNextoreAuth({
-        config: nextoreConfig,
-        client: nextoreClient,
-        secrets: nextoreSecrets,
-        store: createNextoreSessionStore(() => db, nextoreSecrets),
-        allowRequest: (req) => {
-          // A run-scoped export tool authenticates with its own signed token.
-          // That request is not a browser session and must not be forced
-          // through an OAuth redirect.
-          return req.baseUrl === '/api'
-            && req.method === 'POST'
-            && PROJECT_RUN_SCOPED_EXPORT_PATH_RE.test(req.path)
-            && toolTokenRegistry.validate(bearerTokenFromRequest(req), {
-              endpoint: PROJECT_EXPORT_TOOL_ENDPOINT,
-              operation: 'project:export',
-            }).ok;
-        },
-      })
-    : null;
-  // NEXTORE: disabled product surfaces fail closed before body parsers and
-  // route registrars, while an unset OD_EDITION leaves upstream behavior intact.
-  app.use(createEditionRouteKillSwitch(edition));
-  if (nextoreAuth) {
-    // Authenticate before the large body parsers below: an anonymous caller
-    // must not be able to make the daemon buffer a 128 MB clipper capture.
-    // The gate also verifies the browser Origin before it resolves a session,
-    // so a cross-site request cannot trigger a token refresh or touch a row.
-    app.use('/api', nextoreAuth.gate);
-    app.use('/artifacts', nextoreAuth.gate);
-    app.use('/frames', nextoreAuth.gate);
-    if (edition === 'nextore') {
-      // The session row can outlive a revoked DesignerAccess right. Reject
-      // those requests before any business route runs, including stale rows
-      // created before the callback enforced the bootstrap right.
-      const requireDesignerAccess = (
-        _req: import('express').Request,
-        res: import('express').Response,
-        next: import('express').NextFunction,
-      ) => {
-        const locals = res.locals as {
-          nextoreSession?: { member?: { rights?: { access?: unknown } } };
-          /** Set by the auth gate for probes that describe their own state. */
-          nextoreDiagnostic?: boolean;
-        };
-        // The self-test reports "session ok, DesignerAccess missing" itself;
-        // a bare 403 here would hide the diagnosis the caller asked for.
-        if (locals.nextoreDiagnostic === true) return next();
-        const session = locals.nextoreSession;
-        if (!session?.member?.rights) return next();
-        if (session.member.rights.access === true) return next();
-        res.status(403).json({
-          error: {
-            code: 'DESIGNER_ACCESS_REQUIRED',
-            message: 'Your NexTore account does not have access to Designer.',
-          },
-        });
-      };
-      app.use('/api', requireDesignerAccess);
-      app.use('/artifacts', requireDesignerAccess);
-      app.use('/frames', requireDesignerAccess);
-      // '/auth/me' is outside the /api gate. Anonymous callers must keep the
-      // route's 200 { signedIn: false } contract, so only invoke the session
-      // gate when a session cookie is actually present.
-      app.use('/auth/me', (req, res, next) => {
-        if (!req.headers.cookie?.includes('nxd_session=')) return next();
-        return nextoreAuth.gate(req, res, next);
-      });
-      app.use('/auth/me', requireDesignerAccess);
-    }
-  }
+  const { auth: nextoreAuth, secrets: nextoreSecrets } = mountNextoreAccess({
+    app,
+    edition,
+    config: nextoreConfig,
+    client: nextoreClient,
+    getDb: () => db,
+    isRunScopedExportRequest: (req) =>
+      req.baseUrl === '/api'
+      && req.method === 'POST'
+      && PROJECT_RUN_SCOPED_EXPORT_PATH_RE.test(req.path)
+      && toolTokenRegistry.validate(bearerTokenFromRequest(req), {
+        endpoint: PROJECT_EXPORT_TOOL_ENDPOINT,
+        operation: 'project:export',
+      }).ok,
+  });
   // Clipper page captures are self-contained HTML with inlined images plus a
   // Figma IR, which for an image-heavy site (The Economist, news front pages)
   // runs to tens of MB — far past a normal JSON body. Give the ingest route a
