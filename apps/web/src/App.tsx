@@ -67,7 +67,7 @@ import {
   DESIGNER_ACCESS_REQUIRED_EVENT,
   isDesignerAccessRequired,
 } from './nextore/access-required';
-import { bootstrapBranding, refreshBranding } from './nextore/branding';
+import { useBrandingRevision } from './nextore/use-branding';
 import { getNextoreWorkspaceContext } from './nextore/workspace-context';
 import { refreshNextoreProjectListing } from './nextore/listing-store';
 import { NEXTORE_WEB_EDITION } from './nextore/features';
@@ -1891,30 +1891,7 @@ function AppInner() {
   // is running. Settings is irrelevant to visibility; the banner sits above
   // the modal-backdrop layer in index.css so opening Settings does not hide
   // it.
-  // NEXTORE: pull the module's brand payload at boot (DESIGN §12.1), then
-  // revalidate on window focus so a brand saved in the module settings page
-  // reaches an open tab. The revision bump re-renders so `{brandName}` text is
-  // re-interpolated; the daemon answers 304 while the version is unchanged.
-  const [, setBrandingRevision] = useState(0);
-  useEffect(() => {
-    let cancelled = false;
-    const bump = () => {
-      if (!cancelled) setBrandingRevision((revision) => revision + 1);
-    };
-    void bootstrapBranding().then((branding) => {
-      if (branding) bump();
-    });
-    const handleFocus = () => {
-      void refreshBranding().then((branding) => {
-        if (branding) bump();
-      });
-    };
-    window.addEventListener('focus', handleFocus);
-    return () => {
-      cancelled = true;
-      window.removeEventListener('focus', handleFocus);
-    };
-  }, []);
+  useBrandingRevision();
 
   const showPrivacyConsent =
     isFeatureEnabled('privacy-consent') &&
