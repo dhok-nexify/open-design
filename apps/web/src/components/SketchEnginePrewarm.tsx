@@ -1,14 +1,7 @@
-import dynamic from 'next/dynamic';
 import { useEffect, useState } from 'react';
+import { Excalidraw } from '@excalidraw/excalidraw';
 import styles from './SketchEnginePrewarm.module.css';
 import { shouldPrewarmSketchEngine } from './sketch-engine-warm';
-
-// Loaded only when the warm-up actually runs, so this module never anchors
-// Excalidraw into the workspace bundle.
-const Excalidraw = dynamic(
-  () => import('@excalidraw/excalidraw').then((module) => module.Excalidraw),
-  { ssr: false },
-);
 
 /**
  * Warms up the Excalidraw engine during idle time so the first sketch a user

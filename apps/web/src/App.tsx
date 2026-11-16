@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { flushSync } from 'react-dom';
-import dynamic from 'next/dynamic';
 import { AnimatePresence, motion, MotionConfig } from 'motion/react';
 import { Button } from '@open-design/components';
 import { reportAgentDetectDiagnostics } from './analytics/agent-detect';
@@ -54,17 +53,10 @@ import { PetOverlay, type PetTaskCenter } from './components/pet/PetOverlay';
 import { buildPetTaskCenter } from './components/pet/taskCenter';
 import { migrateCustomPetAtlas } from './components/pet/pets';
 import {
+  ProjectView,
   type ProjectRenameFenceToken,
   type ProjectNameAuthorityResolution,
 } from './components/ProjectView';
-
-// ProjectView owns the workspace shell (three.js, lexical, shiki - about 4 MB
-// decoded). Disabling SSR keeps it out of the static-export entry graph; the
-// chunk arrives only when a project route renders.
-const ProjectView = dynamic(() => import('./components/ProjectView').then((module) => module.ProjectView), {
-  ssr: false,
-  loading: () => <div className="viewer-empty" />,
-});
 import { ProjectCreationPendingView } from './components/ProjectCreationPendingView';
 import { AmrArtifactUpgradeGate } from './components/AmrArtifactUpgradeGate';
 import { AmrArtifactUpgradeHomeCard } from './components/AmrArtifactUpgradeHomeCard';
@@ -90,14 +82,10 @@ import {
 } from './components/WorkspaceTabsBar';
 import { WorkspaceTopRightAccountCluster } from './components/EntryNavRail';
 import { ProjectWorkspaceRecoveryTip } from './components/ProjectWorkspaceRecoveryTip';
-const DesignSystemCreationFlow = dynamic(
-  () => import('./components/DesignSystemFlow').then((module) => module.DesignSystemCreationFlow),
-  { ssr: false, loading: () => <div className="viewer-empty" /> },
-);
-const DesignSystemDetailView = dynamic(
-  () => import('./components/DesignSystemFlow').then((module) => module.DesignSystemDetailView),
-  { ssr: false, loading: () => <div className="viewer-empty" /> },
-);
+import {
+  DesignSystemCreationFlow,
+  DesignSystemDetailView,
+} from './components/DesignSystemFlow';
 import {
   IframeKeepAliveProvider,
   useIframeKeepAlivePool,
