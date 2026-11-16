@@ -14,7 +14,7 @@ import {
   finalizeActiveAssistantMessagesOnStop,
   resolveRetryTarget,
   resolveSucceededRunStatus,
-} from '../ProjectView';
+} from '../chat-run-helpers';
 import type {
   AgentEvent,
   AgentInfo,

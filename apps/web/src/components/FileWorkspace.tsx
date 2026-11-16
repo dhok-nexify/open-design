@@ -11,6 +11,7 @@ import {
   type ReactNode,
 } from 'react';
 import { Button } from '@open-design/components';
+import dynamic from 'next/dynamic';
 import { createPortal } from 'react-dom';
 import type { DesignSystemEditClickProps, TrackingArtifactKind, TrackingProjectKind } from '@open-design/contracts/analytics';
 import { useAnalytics } from '../analytics/provider';
@@ -161,7 +162,12 @@ import { LiveArtifactBadges } from './LiveArtifactBadges';
 import { MissingBrandFontsBanner } from './MissingBrandFontsBanner';
 import { LibraryPicker } from './LibraryPicker';
 import { QuickSwitcher } from './QuickSwitcher';
-import { SketchEditor } from './SketchEditor';
+// Excalidraw is several megabytes; keep it out of the workspace chunk until a
+// sketch tab is opened.
+const SketchEditor = dynamic(() => import('./SketchEditor').then((module) => module.SketchEditor), {
+  ssr: false,
+  loading: () => <div className="viewer-empty" />,
+});
 import { SketchEnginePrewarm } from './SketchEnginePrewarm';
 import { useWorkspaceTabsDockRef } from './workspaceTabsDock';
 import {
