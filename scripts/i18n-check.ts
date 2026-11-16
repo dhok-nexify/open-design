@@ -1,10 +1,10 @@
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { LOCALE_LABEL, LOCALES, type Locale } from "../apps/web/src/i18n/types.ts";
+import { extractObjectKeys } from "./lib/locale-registry.ts";
 
 const repoRoot = path.resolve(import.meta.dirname, "..");
 const localesDirectory = path.join(repoRoot, "apps/web/src/i18n/locales");
-const i18nIndexPath = path.join(repoRoot, "apps/web/src/i18n/index.tsx");
 // English canonical docs (README.md, CONTRIBUTING.md, ...) stay at repo root for
 // GitHub project-page visibility; their translations live under docs/i18n/.
 const translationsDir = "docs/i18n";
@@ -46,13 +46,18 @@ async function pathExists(filePath: string): Promise<boolean> {
   }
 }
 
-function extractDictKeys(indexSource: string): string[] {
-  const match = indexSource.match(/const DICTS:\s*Record<Locale, Dict>\s*=\s*{([\s\S]*?)};/);
-  if (!match?.[1]) return [];
+const localeRegistryPath = path.join(repoRoot, "apps/web/src/i18n/nextore/registry.ts");
 
-  return Array.from(match[1].matchAll(/["']([^"']+)["']\s*:/g))
-    .map((entry) => entry[1])
-    .filter((entry): entry is string => entry != null && entry.length > 0);
+// Dictionaries are registered through the eager/lazy maps in the locale
+// registry (eager: first-paint languages, lazy: chunk-loaded ones). The maps
+// are parsed as text because the app module graph is bundler-resolved and must
+// not be pulled into the NodeNext scripts program.
+async function registeredLocaleKeys(): Promise<Set<string>> {
+  const registrySource = await readFile(localeRegistryPath, "utf8");
+  return new Set([
+    ...extractObjectKeys(registrySource, "eagerDicts"),
+    ...extractObjectKeys(registrySource, "dictLoaders"),
+  ]);
 }
 
 async function checkUiLocaleRegistration(): Promise<CheckResult> {
@@ -60,8 +65,7 @@ async function checkUiLocaleRegistration(): Promise<CheckResult> {
   const localeSet = new Set<string>(LOCALES);
   const localeFiles = (await readdir(localesDirectory)).filter((fileName) => fileName.endsWith(".ts")).sort();
   const localeFileSet = new Set(localeFiles);
-  const dictKeys = extractDictKeys(await readFile(i18nIndexPath, "utf8"));
-  const dictKeySet = new Set(dictKeys);
+  const dictKeySet = await registeredLocaleKeys();
 
   for (const locale of LOCALES) {
     const fileName = localeFileName(locale);
@@ -74,7 +78,7 @@ async function checkUiLocaleRegistration(): Promise<CheckResult> {
     }
 
     if (!dictKeySet.has(locale)) {
-      errors.push(`${locale} is listed in LOCALES but DICTS has no entry in ${repositoryPath(i18nIndexPath)}.`);
+      errors.push(`${locale} is listed in LOCALES but has no entry in apps/web/src/i18n/nextore/registry.ts.`);
     }
   }
 
@@ -85,9 +89,9 @@ async function checkUiLocaleRegistration(): Promise<CheckResult> {
     }
   }
 
-  for (const dictKey of dictKeys) {
+  for (const dictKey of dictKeySet) {
     if (!localeSet.has(dictKey)) {
-      errors.push(`DICTS contains ${dictKey}, but ${dictKey} is not listed in LOCALES.`);
+      errors.push(`The locale registry contains ${dictKey}, but ${dictKey} is not listed in LOCALES.`);
     }
   }
 
