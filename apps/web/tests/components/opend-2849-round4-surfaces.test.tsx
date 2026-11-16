@@ -61,7 +61,7 @@ function stubQuietFetch() {
 }
 
 describe('S04 / S06 发送前弹窗', () => {
-  it('S04 未登录:标题「Open Design 尚未登录」+ 正文,登录按钮保留', () => {
+  it('S04 未登录:标题「NexTore Designer 尚未登录」+ 正文,登录按钮保留', () => {
     stubQuietFetch();
     zh(
       <AmrBalanceDialog
@@ -76,7 +76,7 @@ describe('S04 / S06 发送前弹窗', () => {
       />,
     );
     const dialog = screen.getByTestId('amr-balance-dialog');
-    expect(within(dialog).getByRole('heading', { level: 2 }).textContent).toBe('Open Design 尚未登录');
+    expect(within(dialog).getByRole('heading', { level: 2 }).textContent).toBe('NexTore Designer 尚未登录');
     expect(within(dialog).getByText('请先登录，以便查看项目和继续对话。')).toBeTruthy();
     expect(within(dialog).getByRole('button', { name: '立即登录' })).toBeTruthy();
   });
@@ -99,7 +99,7 @@ describe('S04 / S06 发送前弹窗', () => {
     expect(within(dialog).getByRole('heading', { level: 2 }).textContent).toBe('可用额度不足');
     expect(within(dialog).getByText('当前额度不足，请充值或升级套餐后再试。')).toBeTruthy();
     expect(dialog.textContent).not.toContain('$0.00');
-    expect(within(dialog).getByText('OpenDesign Cloud 为你提供')).toBeTruthy();
+    expect(within(dialog).getByText('NexTore Designer Cloud 为你提供')).toBeTruthy();
     expect(within(dialog).getByRole('button', { name: '暂不需要' })).toBeTruthy();
   });
 

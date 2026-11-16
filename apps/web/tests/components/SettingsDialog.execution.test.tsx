@@ -115,7 +115,7 @@ import type { AgentRefreshOptions, SettingsSection } from '../../src/components/
 import { reconcileAmrModelChoice } from '../../src/components/SettingsDialog';
 import { reconcileAmrProfileEnv } from '../../src/components/SettingsDialog';
 import { providerModelsCacheKey } from '../../src/components/providerModelsCache';
-import { I18nProvider } from '../../src/i18n';
+import { I18nProvider, interpolateMessage } from '../../src/i18n';
 import { LOCALES } from '../../src/i18n/types';
 import { MAX_MAX_TOKENS, MIN_MAX_TOKENS } from '../../src/state/maxTokens';
 import { workspaceDirectoryFixture } from '../helpers/workspace-context';
@@ -2929,12 +2929,12 @@ describe('SettingsDialog execution settings Local CLI interactions', () => {
       'https://github.com/MoonshotAI/kimi-cli',
     );
     expect(
-      screen.getByText(en['settings.agentInstall.stepAuth']),
+      screen.getByText('Authenticate with the vendor CLI (sign in or add API credentials) before returning to NexTore Designer.'),
     ).toBeTruthy();
     expect(
       screen.getByText(en['settings.agentInstall.stepSelect']),
     ).toBeTruthy();
-    expect(screen.getByText(en['settings.agentInstall.pathHint'])).toBeTruthy();
+    expect(screen.getByText(/ensure the tool's bin directory is on the PATH the NexTore Designer daemon inherits/)).toBeTruthy();
 
     fireEvent.click(codexCard);
     const selectedCard = codexCard.closest('.agent-card') as HTMLElement;
@@ -6451,10 +6451,10 @@ describe('SettingsDialog about interactions', () => {
     await waitFor(() => {
       expect(quit).toHaveBeenCalledTimes(1);
     });
-    expect(screen.getByRole('button', { name: en['updater.quitButton'] })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Quit NexTore Designer' })).toBeTruthy();
     expect(screen.getAllByText(en['updater.quitFailedTitle']).length).toBeGreaterThan(0);
 
-    fireEvent.click(screen.getByRole('button', { name: en['updater.quitButton'] }));
+    fireEvent.click(screen.getByRole('button', { name: 'Quit NexTore Designer' }));
 
     await waitFor(() => {
       expect(quit).toHaveBeenCalledTimes(2);
