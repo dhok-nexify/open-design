@@ -18,6 +18,7 @@ import { useI18n, type Locale } from '../i18n';
 import { Icon } from './Icon';
 import { Toast } from './Toast';
 import { readDefaultSketchToolColor } from './sketch-colors';
+import { markSketchEngineUsed } from './sketch-engine-warm';
 import {
   emptySketchScene,
   sanitizeExcalidrawAppState,
@@ -101,6 +102,12 @@ export function SketchEditor({
   savedAt,
   fileName,
 }: Props) {
+  // Opening a sketch is the signal that the idle Excalidraw prewarm is worth
+  // its bandwidth for this browser.
+  useEffect(() => {
+    markSketchEngineUsed();
+  }, []);
+
   const { t, locale } = useI18n();
   const apiRef = useRef<ExcalidrawImperativeAPI | null>(null);
   const [resetNonce, setResetNonce] = useState(0);

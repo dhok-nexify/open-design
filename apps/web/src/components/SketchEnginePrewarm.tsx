@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Excalidraw } from '@excalidraw/excalidraw';
 import styles from './SketchEnginePrewarm.module.css';
+import { shouldPrewarmSketchEngine } from './sketch-engine-warm';
 
 /**
  * Warms up the Excalidraw engine during idle time so the first sketch a user
@@ -28,6 +29,10 @@ export function SketchEnginePrewarm() {
   // lacked it); fall back to a short timeout.
   useEffect(() => {
     if (phase !== 'idle') return;
+    if (!shouldPrewarmSketchEngine()) {
+      setPhase('done');
+      return undefined;
+    }
     let cancelled = false;
     const start = () => {
       if (!cancelled) setPhase('warming');
