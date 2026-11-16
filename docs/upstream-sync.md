@@ -103,3 +103,24 @@ Once the seam is small, the sync can run unattended:
 
 Do not automate this before the seam is reduced: automation over a large seam only
 makes the churn faster.
+
+## Remaining seam (measured 2026-11-16)
+
+Two upstream-owned host files still carry most of the downstream wiring. The
+numbers below are measured against the current merge base, not estimates:
+
+| File | Downstream hunks | Added lines | Shape |
+| --- | ---: | ---: | --- |
+| `apps/daemon/src/server.ts` | 55 | 418 | spread through the ~15k-line `startServer` (imports, auth, ACL, routes, health, shutdown) |
+| `apps/web/src/App.tsx` | 24 | ~120 | imports plus state and hooks scattered through `AppInner` |
+
+These are not one contiguous block, so collapsing them is a real refactor, not a
+move. The target shape is one mount point per side:
+
+```
+daemon:  createNextoreHost(deps).mount(app)   // one call in startServer
+web:     <NextoreWebLayer>{children}</NextoreWebLayer>   // one wrapper in App
+```
+
+Do that work against a clean checkpoint, with the daemon and web suites green
+before and after; it is the only part of this plan with rollback risk.
