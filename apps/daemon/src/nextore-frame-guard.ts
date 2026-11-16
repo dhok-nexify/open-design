@@ -1,4 +1,5 @@
 import type { Edition } from '@open-design/contracts';
+import type { Express } from 'express';
 
 /**
  * The Designer shell must never be framed (NXD-D25).
@@ -71,4 +72,16 @@ export function applySameOriginPreviewFrameHeaders(
   );
   target.removeHeader?.('X-Frame-Options');
   return true;
+}
+
+/**
+ * Mount the frame guard on the static shell. Upstream registers nothing, so the
+ * upstream header policy is untouched.
+ */
+export function mountFrameDenyMiddleware(app: Express, edition: Edition): void {
+  if (edition !== 'nextore') return;
+  app.use((req, res, next) => {
+    applyFrameDenyHeaders(edition, req.path, res);
+    next();
+  });
 }

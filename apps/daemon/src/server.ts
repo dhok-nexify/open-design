@@ -419,7 +419,7 @@ import { readSandboxHealth } from './nextore/health-sandbox.js';
 import { resolveRunMcpServers } from './nextore/mcp/run-servers.js';
 import { resolveProductBrandName } from './nextore/branding-state.js';
 import { readNextoreConfig } from './nextore/config.js';
-import { applyFrameDenyHeaders } from './nextore-frame-guard.js';
+import { mountFrameDenyMiddleware } from './nextore-frame-guard.js';
 import { previewScopeMemberMismatch } from './preview-scope-member.js';
 import { addDesignerOrigin } from './nextore-allowed-origin.js';
 import { registerNextoreShareRoutes } from './nextore/share/routes.js';
@@ -3764,12 +3764,7 @@ export async function startServer({
   if (fs.existsSync(staticDir)) {
     // NEXTORE: refuse to be framed; artifacts/frames stay embeddable for the
     // shell's own previews (NXD-D25). Upstream keeps its headers.
-    if (edition === 'nextore') {
-      app.use((req, res, next) => {
-        applyFrameDenyHeaders(edition, req.path, res);
-        next();
-      });
-    }
+    mountFrameDenyMiddleware(app, edition);
     // Serve the build-time `.gz` siblings first; `express.static` keeps
     // ownership of ETag/304/Range for the rewritten request.
     app.use(createPrecompressedStaticMiddleware(staticDir));

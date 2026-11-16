@@ -111,7 +111,7 @@ numbers below are measured against the current merge base, not estimates:
 
 | File | Downstream hunks | Added lines | Shape |
 | --- | ---: | ---: | --- |
-| `apps/daemon/src/server.ts` | 55 | 261 | spread through the ~15k-line `startServer` (imports, auth, ACL, routes, health, shutdown); the auth/middleware block already moved to `nextore/host-access.ts` |
+| `apps/daemon/src/server.ts` | 55 | 256 | spread through the ~15k-line `startServer` (imports, auth, ACL, routes, health, shutdown); the auth/middleware block already moved to `nextore/host-access.ts` |
 | `apps/web/src/App.tsx` | 24 | ~120 | imports plus state and hooks scattered through `AppInner` |
 
 These are not one contiguous block, so collapsing them is a real refactor, not a
@@ -132,6 +132,7 @@ kill switch mount through `mountNextoreAccess()` in
 through `createProjectAuthorizer()` in `nextore/acl/authorizer-host.ts`, and
 per-run MCP selection through `resolveRunMcpServers()` in
 `nextore/mcp/run-servers.ts`; the health sandbox probe lives in
-`nextore/health-sandbox.ts`.
+`nextore/health-sandbox.ts`, and the frame guard mounts through
+`mountFrameDenyMiddleware()`.
 Covered by the daemon auth, API-token, nextore-startup, and project-lifecycle
 suites.

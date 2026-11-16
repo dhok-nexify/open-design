@@ -1,9 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import type { Express } from 'express';
+
 import {
   applyFrameDenyHeaders,
   applySameOriginPreviewFrameHeaders,
   isEmbeddablePath,
+  mountFrameDenyMiddleware,
 } from '../src/nextore-frame-guard.js';
 
 describe('isEmbeddablePath', () => {
@@ -82,5 +85,18 @@ describe('applySameOriginPreviewFrameHeaders', () => {
     const target = { setHeader: vi.fn(), getHeader: vi.fn(), removeHeader: vi.fn() };
     expect(applySameOriginPreviewFrameHeaders('upstream', target)).toBe(false);
     expect(target.setHeader).not.toHaveBeenCalled();
+  });
+});
+
+describe('mountFrameDenyMiddleware', () => {
+  it('registers nothing upstream and one middleware in the edition', () => {
+    const use = vi.fn();
+    const app = { use } as unknown as Express;
+
+    mountFrameDenyMiddleware(app, 'upstream');
+    expect(use).not.toHaveBeenCalled();
+
+    mountFrameDenyMiddleware(app, 'nextore');
+    expect(use).toHaveBeenCalledTimes(1);
   });
 });
