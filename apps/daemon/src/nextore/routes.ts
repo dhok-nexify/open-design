@@ -201,7 +201,7 @@ export function registerNextoreRoutes(
   // already anonymous; the daemon caches it so every boot does not round-trip to NexTore.
   const brandingCache = deps.brandingCache ?? createBrandingCache(deps.client);
   // Prompt composition reads the same cache, so a renamed installation reaches
-  // agent-facing text on the same five-minute refresh as the shell (DESIGN §12.1).
+  // agent-facing text on the same one-minute refresh as the shell (DESIGN §12.1).
   registerBrandingSource(brandingCache);
   app.get('/api/branding', async (req, res: Response) => {
     const snapshot = await brandingCache.get();
@@ -211,7 +211,7 @@ export function registerNextoreRoutes(
     }
 
     const etag = 'W/"' + snapshot.value.version + '"';
-    // Revalidate instead of trusting a five-minute browser cache: the body is
+    // Revalidate instead of trusting a browser cache: the body is
     // tiny and an unchanged brand still costs only a 304, while a saved brand
     // change shows up on the next page load rather than minutes later.
     res.setHeader('Cache-Control', 'no-cache');

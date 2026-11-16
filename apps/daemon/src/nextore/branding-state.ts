@@ -9,7 +9,7 @@ import type { BrandingSnapshot } from './branding-cache.js';
  * they are registered in different layers: `registerNextoreRoutes` owns the
  * cache instance, while the generation path in `server.ts` composes prompts.
  * A module-level registry keeps one cache per daemon process without exporting
- * route internals or duplicating the five-minute refresh.
+ * route internals or duplicating the one-minute refresh.
  *
  * Only the NexTore edition registers a source. Upstream therefore resolves the
  * built-in default and its prompts stay byte-identical.
