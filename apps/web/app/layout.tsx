@@ -9,8 +9,10 @@ import '../src/styles/home/index.css';
 export const metadata: Metadata = {
   title: 'NexTore Designer',
   icons: {
-    icon: '/app-icon.png',
-    apple: '/app-icon.png',
+    // The 1024px master stays in public for other surfaces; browsers only need
+    // the tab and home-screen sizes (377 KB -> 28 KB on the critical path).
+    icon: [{ url: '/app-icon-192.png', sizes: '192x192', type: 'image/png' }],
+    apple: [{ url: '/app-icon-180.png', sizes: '180x180', type: 'image/png' }],
   },
 };
 

@@ -1,7 +1,8 @@
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import type { DesignSystemSummary, PromptTemplateSummary, SkillSummary } from '../../src/types';
 import {
-  FRENCH_CONTENT_IDS,
+  ensureLocalizedContent,
+  getLocalizedContentIds,
   localizeDesignSystemSummary,
   localizePromptTemplateSummary,
   localizeSkillDescription,
@@ -12,13 +13,20 @@ import {
 import { LOCALES } from '../../src/i18n/types';
 
 describe('localized resource content', () => {
+  // Content bundles are loaded on demand; resolve French once for the suite.
+  beforeEach(async () => {
+    await ensureLocalizedContent('fr');
+  });
+
   it('derives localized ids only from localized dictionaries', () => {
-    expect(FRENCH_CONTENT_IDS.skills).toContain('blog-post');
-    expect(FRENCH_CONTENT_IDS.skills).not.toContain('ib-pitch-book');
-    expect(FRENCH_CONTENT_IDS.designSystems).toContain('airbnb');
-    expect(FRENCH_CONTENT_IDS.designSystems).not.toContain('agentic');
-    expect(FRENCH_CONTENT_IDS.promptTemplates).toContain('3d-stone-staircase-evolution-infographic');
-    expect(FRENCH_CONTENT_IDS.promptTemplates).not.toContain('notion-team-dashboard-live-artifact');
+    const frenchIds = getLocalizedContentIds('fr');
+    expect(frenchIds).toBeDefined();
+    expect(frenchIds!.skills).toContain('blog-post');
+    expect(frenchIds!.skills).not.toContain('ib-pitch-book');
+    expect(frenchIds!.designSystems).toContain('airbnb');
+    expect(frenchIds!.designSystems).not.toContain('agentic');
+    expect(frenchIds!.promptTemplates).toContain('3d-stone-staircase-evolution-infographic');
+    expect(frenchIds!.promptTemplates).not.toContain('notion-team-dashboard-live-artifact');
   });
 
   it('prefers localized skill copy and falls back to english field-by-field', () => {

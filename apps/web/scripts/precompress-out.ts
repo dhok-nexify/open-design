@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 /**
- * Generate `.gz` siblings for the static export so the daemon can serve
- * precompressed text assets without a runtime compression dependency.
+ * Generate `.gz` and `.br` siblings for the static export so the daemon can
+ * serve precompressed text assets without a runtime compression dependency.
  *
  * Runs as the web package's `postbuild` step, after `next build` writes `out/`.
  */
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
-import { gzipSync } from 'node:zlib';
+import { brotliCompressSync, constants as zlibConstants, gzipSync } from 'node:zlib';
 
 const ROOT = path.resolve(import.meta.dirname, '..', 'out');
 const EXTENSIONS = new Set([
@@ -48,21 +48,38 @@ async function main(): Promise<void> {
   const files = await collect(ROOT);
   let rawBytes = 0;
   let gzipBytes = 0;
+  let brotliBytes = 0;
   let written = 0;
 
   for (const file of files) {
     const buffer = await fs.readFile(file);
     if (buffer.byteLength < MIN_BYTES || buffer.byteLength > MAX_BYTES) continue;
-    const compressed = gzipSync(buffer, { level: 9 });
-    await fs.writeFile(file + '.gz', compressed);
+    const gzip = gzipSync(buffer, { level: 9 });
+    const brotli = brotliCompressSync(buffer, {
+      params: {
+        [zlibConstants.BROTLI_PARAM_QUALITY]: 11,
+        [zlibConstants.BROTLI_PARAM_SIZE_HINT]: buffer.byteLength,
+      },
+    });
+    await fs.writeFile(file + '.gz', gzip);
+    await fs.writeFile(file + '.br', brotli);
     rawBytes += buffer.byteLength;
-    gzipBytes += compressed.byteLength;
+    gzipBytes += gzip.byteLength;
+    brotliBytes += brotli.byteLength;
     written += 1;
   }
 
   const mb = (bytes: number) => (bytes / (1024 * 1024)).toFixed(1);
   console.log(
-    '[precompress] ' + written + ' files: ' + mb(rawBytes) + ' MB -> ' + mb(gzipBytes) + ' MB gzip',
+    '[precompress] ' +
+      written +
+      ' files: ' +
+      mb(rawBytes) +
+      ' MB -> ' +
+      mb(gzipBytes) +
+      ' MB gzip / ' +
+      mb(brotliBytes) +
+      ' MB brotli',
   );
 }
 

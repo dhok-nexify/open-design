@@ -84,7 +84,12 @@ const loadedDicts = new Map<Locale, Dict>(
 const pendingDicts = new Map<Locale, Promise<void>>();
 const dictListeners = new Set<() => void>();
 
-function notifyDictLoaded(): void {
+/**
+ * Wake every consumer of lazily loaded i18n data (locale dictionaries and
+ * built-in content bundles) so display strings can swap from the English
+ * fallback to the requested locale once its chunk arrives.
+ */
+export function notifyI18nDataLoaded(): void {
   for (const listener of dictListeners) listener();
 }
 
@@ -113,7 +118,7 @@ export function ensureDict(locale: Locale): Promise<void> {
   const promise = loader()
     .then((dict) => {
       loadedDicts.set(locale, dict);
-      notifyDictLoaded();
+      notifyI18nDataLoaded();
     })
     .finally(() => {
       pendingDicts.delete(locale);

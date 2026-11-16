@@ -3,12 +3,14 @@ import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
-import { gzipSync } from 'node:zlib';
+import { brotliCompressSync, gzipSync } from 'node:zlib';
 import express from 'express';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import {
   IMMUTABLE_STATIC_CACHE_CONTROL,
+  STATIC_MEDIA_CACHE_CONTROL,
+  acceptsEncoding,
   createPrecompressedStaticMiddleware,
   createStaticAssetHeaders,
   resolvePrecompressedAsset,
@@ -25,16 +27,24 @@ describe('precompressed static assets', () => {
     rmSync(tempDir, { force: true, recursive: true });
   });
 
-  function writeAsset(relativePath: string, body: string, options: { gzip?: boolean; gzipOlder?: boolean } = {}) {
+  function writeAsset(
+    relativePath: string,
+    body: string,
+    options: { gzip?: boolean; brotli?: boolean; olderMtime?: boolean } = {},
+  ) {
     const full = path.join(tempDir, relativePath);
     mkdirSync(path.dirname(full), { recursive: true });
     writeFileSync(full, body);
     if (options.gzip !== false) {
       writeFileSync(full + '.gz', gzipSync(Buffer.from(body)));
-      if (options.gzipOlder) {
-        const past = new Date(Date.now() - 60_000);
-        utimesSync(full + '.gz', past, past);
-      }
+    }
+    if (options.brotli !== false) {
+      writeFileSync(full + '.br', brotliCompressSync(Buffer.from(body)));
+    }
+    if (options.olderMtime) {
+      const past = new Date(Date.now() - 60_000);
+      utimesSync(full + '.gz', past, past);
+      utimesSync(full + '.br', past, past);
     }
     return full;
   }
@@ -43,69 +53,109 @@ describe('precompressed static assets', () => {
     return { method: 'GET', url, headers };
   }
 
-  it('returns a gzip sibling only when the client accepts gzip', () => {
+  it('parses Accept-Encoding quality values', () => {
+    expect(acceptsEncoding('gzip, deflate, br', 'br')).toBe(true);
+    expect(acceptsEncoding('gzip;q=0.5, br;q=0', 'br')).toBe(false);
+    expect(acceptsEncoding('gzip;q=0.5, br;q=0', 'gzip')).toBe(true);
+    expect(acceptsEncoding('identity', 'gzip')).toBe(false);
+    expect(acceptsEncoding('gzip', 'br')).toBe(false);
+  });
+
+  it('prefers brotli and falls back to gzip', () => {
     writeAsset('_next/static/chunks/app.js', 'console.log("x")');
-    expect(resolvePrecompressedAsset(request('/_next/static/chunks/app.js'), tempDir))
-      .toBeNull();
-    expect(resolvePrecompressedAsset(
-      request('/_next/static/chunks/app.js', { 'accept-encoding': 'gzip, deflate' }),
-      tempDir,
-    )).toEqual({
+    expect(
+      resolvePrecompressedAsset(
+        request('/_next/static/chunks/app.js', { 'accept-encoding': 'gzip, br' }),
+        tempDir,
+      ),
+    ).toEqual({
+      url: '/_next/static/chunks/app.js.br',
+      contentType: 'text/javascript; charset=utf-8',
+      contentEncoding: 'br',
+    });
+    expect(
+      resolvePrecompressedAsset(
+        request('/_next/static/chunks/app.js', { 'accept-encoding': 'gzip' }),
+        tempDir,
+      ),
+    ).toEqual({
       url: '/_next/static/chunks/app.js.gz',
       contentType: 'text/javascript; charset=utf-8',
+      contentEncoding: 'gzip',
     });
   });
 
   it('keeps query strings and refuses non-text and range requests', () => {
     writeAsset('_next/static/chunks/app.js', 'console.log("x")');
     writeAsset('logo.png', 'png');
-    expect(resolvePrecompressedAsset(
-      request('/_next/static/chunks/app.js?v=1', { 'accept-encoding': 'br, gzip' }),
-      tempDir,
-    )?.url).toBe('/_next/static/chunks/app.js.gz?v=1');
-    expect(resolvePrecompressedAsset(
-      request('/logo.png', { 'accept-encoding': 'gzip' }),
-      tempDir,
-    )).toBeNull();
-    expect(resolvePrecompressedAsset(
-      request('/_next/static/chunks/app.js', { 'accept-encoding': 'gzip', range: 'bytes=0-10' }),
-      tempDir,
-    )).toBeNull();
+    expect(
+      resolvePrecompressedAsset(
+        request('/_next/static/chunks/app.js?v=1', { 'accept-encoding': 'br, gzip' }),
+        tempDir,
+      )?.url,
+    ).toBe('/_next/static/chunks/app.js.br?v=1');
+    expect(
+      resolvePrecompressedAsset(request('/logo.png', { 'accept-encoding': 'gzip' }), tempDir),
+    ).toBeNull();
+    expect(
+      resolvePrecompressedAsset(
+        request('/_next/static/chunks/app.js', { 'accept-encoding': 'gzip', range: 'bytes=0-10' }),
+        tempDir,
+      ),
+    ).toBeNull();
   });
 
-  it('ignores missing or stale gzip siblings', () => {
-    writeAsset('_next/static/chunks/no-gzip.js', 'console.log("x")', { gzip: false });
-    writeAsset('_next/static/chunks/stale.js', 'console.log("x")', { gzipOlder: true });
-    expect(resolvePrecompressedAsset(
-      request('/_next/static/chunks/no-gzip.js', { 'accept-encoding': 'gzip' }),
-      tempDir,
-    )).toBeNull();
-    expect(resolvePrecompressedAsset(
-      request('/_next/static/chunks/stale.js', { 'accept-encoding': 'gzip' }),
-      tempDir,
-    )).toBeNull();
+  it('ignores missing or stale compressed siblings', () => {
+    writeAsset('_next/static/chunks/no-gzip.js', 'console.log("x")', {
+      gzip: false,
+      brotli: false,
+    });
+    writeAsset('_next/static/chunks/stale.js', 'console.log("x")', { olderMtime: true });
+    expect(
+      resolvePrecompressedAsset(
+        request('/_next/static/chunks/no-gzip.js', { 'accept-encoding': 'gzip' }),
+        tempDir,
+      ),
+    ).toBeNull();
+    expect(
+      resolvePrecompressedAsset(
+        request('/_next/static/chunks/stale.js', { 'accept-encoding': 'gzip' }),
+        tempDir,
+      ),
+    ).toBeNull();
   });
 
   it('refuses to escape the static root', () => {
     writeAsset('_next/static/chunks/app.js', 'console.log("x")');
-    expect(resolvePrecompressedAsset(
-      request('/../../etc/passwd', { 'accept-encoding': 'gzip' }),
-      tempDir,
-    )).toBeNull();
-    expect(resolvePrecompressedAsset(
-      request('/%2e%2e/%2e%2e/etc/passwd', { 'accept-encoding': 'gzip' }),
-      tempDir,
-    )).toBeNull();
+    expect(
+      resolvePrecompressedAsset(
+        request('/../../etc/passwd', { 'accept-encoding': 'gzip' }),
+        tempDir,
+      ),
+    ).toBeNull();
+    expect(
+      resolvePrecompressedAsset(
+        request('/%2e%2e/%2e%2e/etc/passwd', { 'accept-encoding': 'gzip' }),
+        tempDir,
+      ),
+    ).toBeNull();
   });
 
-  it('marks content-hashed framework assets immutable and restores Content-Type', () => {
+  it('marks hashed assets immutable, media short-lived, and restores Content-Type', () => {
     const headers = new Map<string, string>();
-    const res = { setHeader: (name: string, value: string) => headers.set(name.toLowerCase(), value) };
+    const res = {
+      setHeader: (name: string, value: string) => headers.set(name.toLowerCase(), value),
+    };
     const setHeaders = createStaticAssetHeaders(tempDir);
 
-    setHeaders(res as never, path.join(tempDir, '_next/static/chunks/app.js.gz'));
+    setHeaders(res as never, path.join(tempDir, '_next/static/chunks/app.js.br'));
     expect(headers.get('content-type')).toBe('text/javascript; charset=utf-8');
     expect(headers.get('cache-control')).toBe(IMMUTABLE_STATIC_CACHE_CONTROL);
+    expect(headers.get('vary')).toBe('Accept-Encoding');
+
+    headers.clear();
+    setHeaders(res as never, path.join(tempDir, 'app-icon.png'));
+    expect(headers.get('cache-control')).toBe(STATIC_MEDIA_CACHE_CONTROL);
 
     headers.clear();
     setHeaders(res as never, path.join(tempDir, 'index.html'));
@@ -124,16 +174,21 @@ describe('precompressed static assets', () => {
 
     try {
       const { port } = server.address() as AddressInfo;
-      const response = await fetch('http://127.0.0.1:' + port + '/_next/static/chunks/app.js', {
-        headers: { 'accept-encoding': 'gzip' },
-      });
-      expect(response.status).toBe(200);
-      expect(response.headers.get('content-encoding')).toBe('gzip');
-      expect(response.headers.get('content-type')).toBe('text/javascript; charset=utf-8');
-      expect(response.headers.get('cache-control')).toBe(IMMUTABLE_STATIC_CACHE_CONTROL);
-      expect(await response.text()).toBe(body);
+      const url = 'http://127.0.0.1:' + port + '/_next/static/chunks/app.js';
+      const brotli = await fetch(url, { headers: { 'accept-encoding': 'br' } });
+      expect(brotli.status).toBe(200);
+      expect(brotli.headers.get('content-encoding')).toBe('br');
+      expect(brotli.headers.get('content-type')).toBe('text/javascript; charset=utf-8');
+      expect(brotli.headers.get('cache-control')).toBe(IMMUTABLE_STATIC_CACHE_CONTROL);
+      expect(await brotli.text()).toBe(body);
+
+      const gzip = await fetch(url, { headers: { 'accept-encoding': 'gzip' } });
+      expect(gzip.headers.get('content-encoding')).toBe('gzip');
+      expect(await gzip.text()).toBe(body);
     } finally {
-      await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
+      await new Promise<void>((resolve, reject) =>
+        server.close((error) => (error ? reject(error) : resolve())),
+      );
     }
   });
 });
