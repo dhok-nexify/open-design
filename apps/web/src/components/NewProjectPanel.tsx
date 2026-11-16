@@ -18,7 +18,7 @@ import type {
   TrackingDesignSystemStatusValue,
 } from '@open-design/contracts/analytics';
 
-import { useI18n, useT } from '../i18n';
+import { getBrandName, useI18n, useT } from '../i18n';
 import { localizeSkillDescription, localizeSkillName } from '../i18n/content';
 import type { Dict } from '../i18n/types';
 import { fetchPromptTemplate, openFolderDialog } from '../providers/registry';
@@ -63,6 +63,7 @@ import { Icon } from './Icon';
 import { Skeleton } from './Loading';
 import { Toast } from './Toast';
 import { useOpenFolderImport } from './useOpenFolderImport';
+import { hostFolderPickerErrorMessage } from './host-folder-picker-error';
 
 // Snapshot of a curated prompt template, captured at New Project time and
 // folded into ProjectMetadata.promptTemplate. The user may have edited the
@@ -803,7 +804,8 @@ export function NewProjectPanel({
         }
         if ('canceled' in result && result.canceled) return;
         setWorkingDirError({
-          message: `Couldn't open the folder picker (${'reason' in result ? result.reason : 'host unavailable'}). Please update NexTore Designer and try again.`,
+          message: hostFolderPickerErrorMessage(result).replace('OpenDesign', getBrandName()),
+
         });
         return;
       }

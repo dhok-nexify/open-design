@@ -36,7 +36,7 @@ async function stubCatalogsEmpty(page: import('@playwright/test').Page) {
   await routeAgents(page, [
     {
       id: 'amr',
-      name: 'NexTore Designer AMR',
+      name: 'OpenDesign AMR',
       bin: 'vela',
       available: true,
       version: 'test',
@@ -118,7 +118,7 @@ test('[P0] after local Sign out, the app returns to Cloud sign-in without cleari
 
   const settings = await openSettingsDialog(page);
   // Scope to the AMR agent card: the settings sidebar also carries an
-  // "NexTore Designer MCP" nav item, so a surface-wide /NexTore Designer/i now resolves
+  // "OpenDesign MCP" nav item, so a surface-wide /OpenDesign/i now resolves
   // to that `settings-nav-item` (which has no aria-pressed) instead of the
   // agent card's select button.
   await expect(amrAgentToggle(settings)).toHaveAttribute('aria-pressed', 'true');
@@ -134,9 +134,9 @@ test('[P0] after local Sign out, the app returns to Cloud sign-in without cleari
   // so the saved AMR setup must survive for reauthentication.
   await page.goto('/', { waitUntil: 'domcontentloaded' });
   await expect(
-    page.getByRole('heading', { name: /Sign in to NexTore Designer|登录 NexTore Designer/i }),
+    page.getByRole('heading', { name: /Welcome to OpenDesign|欢迎使用 OpenDesign/i }),
   ).toBeVisible({ timeout: T.long });
-  await expect(page.getByRole('button', { name: /Sign in to NexTore Designer|登录 NexTore Designer/i })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Sign up \/ Log in|登录 \/ 注册/i })).toBeVisible();
   await expect(page.getByTestId('home-hero-input')).toHaveCount(0);
   await expect.poll(() => page.evaluate(() => {
     const raw = window.localStorage.getItem('open-design:config');

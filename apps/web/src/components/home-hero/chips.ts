@@ -24,6 +24,7 @@ import type { DefaultScenarioPluginId } from '@open-design/contracts';
 import type { IconName } from '../Icon';
 import type { NextoreFeature } from '@open-design/contracts';
 import { isFeatureEnabled } from '../../nextore/features';
+import { CREATION_TYPE_ORDER as CREATE_RAIL_ORDER } from '../creation-type-order';
 
 // Plugin ids the chip rail can dispatch to. Most chips route to a
 // `DefaultScenarioPluginId` so the same fallback table the daemon uses for
@@ -141,6 +142,30 @@ export const HOME_HERO_CHIPS: ReadonlyArray<HomeHeroChip> = [
       automaticDefault: true,
     },
   },
+  {
+    id: 'web-clone',
+    label: 'Website clone',
+    icon: 'globe',
+    group: 'create',
+    description: 'Source-first site reproduction',
+    hint: 'Paste a target URL, then reconstruct the site and audit the clone.',
+    // Website reproduction binds the bundled `example-web-clone` plugin.
+    // Stored as a prototype so the artifact keeps prototype preview
+    // behavior; `intent: 'web-clone'` is what routes the scenario plugin
+    // (see `defaultScenarioPluginIdForProjectMetadata`) and splits these
+    // projects into their own `web_clone` analytics kind.
+    action: {
+      kind: 'apply-scenario',
+      pluginId: 'example-web-clone',
+      projectKind: 'prototype',
+      automaticDefault: true,
+      projectMetadata: {
+        kind: 'prototype',
+        intent: 'web-clone',
+        fidelity: 'high-fidelity',
+      },
+    },
+  },
   // Wireframe and Mobile app are NOT here: they are second-level scenes under
   // Prototype, not task types. Each is the Prototype chip plus the metadata
   // refinement it carries in `home-hero/sub-chips.ts` (a lo-fi fidelity, mobile
@@ -196,6 +221,48 @@ export const HOME_HERO_CHIPS: ReadonlyArray<HomeHeroChip> = [
         // `other` so `project_kind` reports `document` (matches the task_chip).
         // No product behavior keys off `intent: 'document'`.
         intent: 'document',
+      },
+    },
+  },
+  {
+    id: 'motion-design',
+    label: 'Motion design',
+    icon: 'video-ai',
+    group: 'create',
+    description: 'Animated stories, typography and product films',
+    hint: 'Describe the idea, style and duration of your motion film.',
+    action: {
+      kind: 'apply-scenario',
+      pluginId: 'od-new-generation',
+      projectKind: 'video',
+      automaticDefault: true,
+      projectMetadata: {
+        kind: 'video',
+        intent: 'motion-design',
+        videoModel: 'hyperframes-html',
+      },
+    },
+  },
+  {
+    id: 'hyperframes',
+    label: 'HyperFrames',
+    icon: 'orbit',
+    group: 'create',
+    description: 'Motion graphics & loops',
+    hint: 'Author HTML-based motion: captions, audio-reactive visuals, scene transitions.',
+    // HyperFrames is its own bundled scenario (motion-graphics
+    // specialisation of Video). It surfaces in PluginsHomeSection's
+    // primary category list, so the rail picks it up too rather than
+    // hiding the specialised bucket behind the generic Video chip.
+    action: {
+      kind: 'apply-scenario',
+      pluginId: 'example-hyperframes',
+      projectKind: 'video',
+      automaticDefault: true,
+      projectMetadata: {
+        kind: 'video',
+        intent: 'hyperframes',
+        videoModel: 'hyperframes-html',
       },
     },
   },
@@ -278,6 +345,12 @@ export const HOME_HERO_CHIPS: ReadonlyArray<HomeHeroChip> = [
 // generation and no Figma import, so neither chip may appear on Home.
 const CHIP_FEATURE: Partial<Record<string, NextoreFeature>> = {
   image: 'media-generation',
+  video: 'media-generation',
+  audio: 'media-generation',
+  'motion-design': 'media-generation',
+  'live-artifact': 'media-generation',
+  'web-clone': 'media-generation',
+  hyperframes: 'hyperframes',
   figma: 'figma',
 };
 
@@ -290,27 +363,38 @@ export function chipsForGroup(group: ChipGroup): HomeHeroChip[] {
   return HOME_HERO_CHIPS.filter((c) => c.group === group && chipAvailable(c));
 }
 
-// Fixed Home information architecture. Only these five output types are
-// top-level choices. Action-only create entries (for example Create Design
-// System) are intentionally excluded.
-//
-// Video / Audio / HyperFrames / Live artifact / Website clone were removed as
-// Home task types to keep the first screen to design outputs. Their underlying
-// plugins stay installed and reachable from the Plugins tab and the composer
-// "+" menu; only the Home rail entries are gone.
-export const CREATE_RAIL_ORDER = [
-  'prototype',
-  'deck',
+// Preserve the existing Home API while sharing its priority with Community.
+// Action-only entries (for example Create Design System) remain excluded.
+export { CREATION_TYPE_ORDER as CREATE_RAIL_ORDER } from '../creation-type-order';
+
+// The Home type row is an explicit product decision, not a width computation
+// (OPEND-3146, 2026-09-16): three entry types stay inline, and 更多 holds EVERY
+// other create type in this exact order, so no artifact kind loses its
+// discoverable entry to the fold. The two lists together cover
+// `CREATE_RAIL_ORDER`; `TypePillRow.more-order.test.tsx` pins both.
+export const HOME_TYPE_ROW_IDS: readonly string[] = ['prototype', 'motion-design', 'deck'];
+export const HOME_TYPE_ROW_MORE_IDS: readonly string[] = [
   'image',
   'document',
   'webgl',
-] as const;
+];
 
-// The artifact chips shown on the onboarding "build a design system" step.
-// Derived from CREATE_RAIL_ORDER (not a separately maintained list) so it stays
-// in the same priority order as the Home rail and never drifts from the real
-// template catalog.
-export const ONBOARDING_ARTIFACT_CHIP_IDS = CREATE_RAIL_ORDER;
+// Chip ids the onboarding "build a design system" teaser intentionally omits.
+// Video and Audio are pure-media outputs and the least central to the
+// design-system story. Motion design is a separate film-creation entry, so
+// it also stays off this curated teaser to preserve its single tidy row.
+// Website clone starts
+// from someone else's site rather than the user's design system, so it stays
+// off the design-system teaser too.
+const ONBOARDING_ARTIFACT_OMIT = new Set<string>(['web-clone', 'motion-design', 'video', 'audio']);
+
+// The artifact chips shown on the onboarding "build a design system" step — a
+// curated single-row subset of the create rail. Derived from CREATE_RAIL_ORDER
+// (not a separately maintained list) so it stays in the same priority order as
+// the Home rail and never drifts from the real template catalog.
+export const ONBOARDING_ARTIFACT_CHIP_IDS = CREATE_RAIL_ORDER.filter(
+  (id) => !ONBOARDING_ARTIFACT_OMIT.has(id),
+);
 
 // The top-level Home chips in their exact product order. Action-only catalog
 // entries must not leak into the rail or template picker.

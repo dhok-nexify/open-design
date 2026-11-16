@@ -35,7 +35,7 @@ describe('subChipsForChip', () => {
     expect(subChipsForChip(null, records)).toEqual([]);
   });
 
-  it('always exposes the fixed eight prototype scenes in product order', () => {
+  it('always exposes the fixed seven prototype scenes in product order', () => {
     const records = [
       prototypePlugin('p-dash', ['dashboard']),
       prototypePlugin('p-land', ['landing-page']),
@@ -49,7 +49,6 @@ describe('subChipsForChip', () => {
       'app-prototypes',
       'developer-tools',
       'brand-design',
-      'docs-reports',
     ]);
     const dash = result.find((s) => s.slug === 'business-dashboards');
     expect(dash?.label).toBe('Dashboards');
@@ -69,7 +68,7 @@ describe('subChipsForChip', () => {
   });
 
   it('keeps the fixed prototype hierarchy visible without installed plugins', () => {
-    expect(subChipsForChip('prototype', [])).toHaveLength(8);
+    expect(subChipsForChip('prototype', [])).toHaveLength(7);
   });
 
   it('keeps the Home prototype hierarchy independent from the dynamic plugin catalog', () => {
@@ -140,21 +139,13 @@ describe('prototypeSceneProjectMetadata', () => {
   it('lets the parent keep the fields the scene does not refine', () => {
     // Witness for a parent that already stamps metadata of its own: a scene
     // layers onto it rather than replacing it, and can never restate `kind`.
-    // Uses the WebGL experience chip, whose action carries both `intent` and
-    // `fidelity` metadata of its own.
-    const webgl = findChip('webgl')!;
-    expect(prototypeSceneProjectMetadata(webgl, prototypeSubChipForSlug('wireframe')))
-      .toEqual({
-        kind: 'prototype',
-        intent: 'webgl-experience',
-        fidelity: 'wireframe',
-      });
-    expect(prototypeSceneProjectMetadata(webgl, null))
-      .toEqual({
-        kind: 'prototype',
-        intent: 'webgl-experience',
-        fidelity: 'high-fidelity',
-      });
+    const webClone = findChip('web-clone')!;
+    expect(prototypeSceneProjectMetadata(webClone, prototypeSubChipForSlug('wireframe')))
+      .toEqual({ kind: 'prototype', intent: 'web-clone', fidelity: 'wireframe' });
+    // Website clone stamps its own high-fidelity default, which a scene-less
+    // pick keeps verbatim.
+    expect(prototypeSceneProjectMetadata(webClone, null))
+      .toEqual({ kind: 'prototype', intent: 'web-clone', fidelity: 'high-fidelity' });
   });
 });
 
@@ -184,7 +175,7 @@ describe('legacyPrototypeSceneForChipId', () => {
       .filter((chip) => automaticStrategyTaskProfileForRouteId(chip.id) !== null)
       .map((chip) => chip.id)
       .sort();
-    expect(routed).toEqual(['deck', 'prototype']);
+    expect(routed).toEqual(['deck', 'hyperframes', 'motion-design', 'prototype']);
     // And a second-level scene has no id of its own to route by, so it can
     // neither claim a route nor strand its parent's.
     for (const scene of subChipsForChip('prototype', [])) {

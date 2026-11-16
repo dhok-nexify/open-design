@@ -43,11 +43,14 @@ import type { ComponentProps, ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ProjectView } from '../../src/components/ProjectView';
+import proseFixture from '../fixtures/chat/clarification-hydration.json';
+import * as transcriptLoader from '../../src/state/load-conversation-transcript';
 import type { ProjectWorkspaceScopeState } from '../../src/collab/useProjectWorkspaceScope';
 import { resetWorkspaceContextCache } from '../../src/collab/useWorkspaceContext';
 import { streamViaDaemon } from '../../src/providers/daemon';
 import { useProjectFileEvents } from '../../src/providers/project-events';
 import { checkAmrBalanceGate } from '../../src/runtime/amr-balance-gate';
+import { buildTurnBlocks } from '../../src/runtime/chat/build-turn-blocks';
 import {
   createConversation,
   listConversations,
@@ -213,6 +216,9 @@ vi.mock('../../src/state/projects', async () => {
   );
   return {
     ...actual,
+    registerQueuedSubmission: vi.fn(async (projectId, submission) => ({
+      id: submission.id, projectId, conversationId: submission.conversationId, acceptedAt: submission.submittedAt,
+    })),
     createConversation: vi.fn(),
     listConversations: vi.fn(),
     listMessages: vi.fn(),
@@ -561,7 +567,7 @@ describe('a Home auto-send identifies its caller before the project scope resolv
         String(input).includes(`/api/projects/${PROJECT_ID}/raw/index.html`),
       );
       expect(rawCall).toBeDefined();
-      expect(String(rawCall?.[0])).toBe(`/api/projects/${PROJECT_ID}/raw/index.html`);
+      expect(String(rawCall?.[0])).toBe(`/api/projects/${PROJECT_ID}/raw/index.html?workspaceId=${TEAM_WORKSPACE}&workspaceMemberId=${TEAM_MEMBER}`);
       expect(rawCall?.[1]).toEqual(expect.objectContaining({
         headers: expect.objectContaining({
           'x-od-workspace-id': TEAM_WORKSPACE,
@@ -690,6 +696,34 @@ describe('a Home auto-send identifies its caller before the project scope resolv
     view.unmount();
     await act(async () => { await vi.advanceTimersByTimeAsync(60_000); });
     expect(mockedListMessages).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps loading while transcript bytes arrive beyond 15 seconds and accepts only the complete history', async () => {
+    vi.useFakeTimers();
+    const pending = deferred<ChatMessage[]>();
+    mockedListMessages.mockReturnValueOnce(pending.promise);
+    const view = renderProjectView({ project: { ...project(), pendingPrompt: '' } });
+    await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+    const progress = mockedListMessages.mock.calls[0]?.[4];
+    const signal = mockedListMessages.mock.calls[0]?.[3];
+    expect(progress).toBeTypeOf('function');
+    for (let chunk = 0; chunk < 3; chunk += 1) {
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(10_000);
+        progress?.();
+      });
+      expect(signal?.aborted).toBe(false);
+      expect(chatPaneSpy.mock.calls.at(-1)?.[0].loading).toBe(true);
+      expect(view.getByTestId('normal-send')).toBeDisabled();
+    }
+    await act(async () => {
+      pending.resolve([{ id: 'large-history', role: 'assistant', content: 'Complete large history', createdAt: 1 }]);
+    });
+    expect(chatPaneSpy.mock.calls.at(-1)?.[0].loading).toBe(false);
+    expect(view.getByTestId('transcript').textContent).toBe('Complete large history');
+    expect(view.getByTestId('normal-send')).not.toBeDisabled();
+    expect(mockedStreamViaDaemon).not.toHaveBeenCalled();
+    view.unmount();
   });
 
   it.each([false, true])('settles a hung transcript read within the original budget (retry: %s)', async (retry) => {
@@ -829,6 +863,96 @@ describe('a Home auto-send identifies its caller before the project scope resolv
     expect(mockedStreamViaDaemon).not.toHaveBeenCalled();
   });
 
+  it.each(['buffer fallback', 'same-batch terminal'] as const)(
+    'does not append buffered clarification prose behind a newer authoritative form on Home authority refresh (%s)', async (settlement) => {
+    const activeStream = deferred<void>();
+    let runOptions: Parameters<typeof streamViaDaemon>[0] | undefined;
+    mockedStreamViaDaemon.mockImplementation((options) => {
+      runOptions = options;
+      return activeStream.promise;
+    });
+    const transcriptRead = vi.spyOn(transcriptLoader, 'loadConversationTranscript');
+    const view = renderProjectView();
+    await waitFor(() => expect(runOptions).toBeDefined());
+    await act(async () => {
+      runOptions?.onRunCreated?.('run-clarification-fixture');
+      runOptions?.onRunStatus?.('running');
+    });
+    const live = chatPaneSpy.mock.calls.at(-1)?.[0].messages as ChatMessage[];
+    const assistant = live.find((message) => message.role === 'assistant')!;
+    expect(assistant.runId).toBe('run-clarification-fixture');
+    vi.useFakeTimers();
+    const authorityReload = deferred<ChatMessage[]>();
+    mockedListMessages.mockReturnValueOnce(authorityReload.promise);
+    workspaceScopeMocks.projectScope = {
+      loading: false,
+      scope: {
+        kind: 'team', projectId: PROJECT_ID, workspaceId: TEAM_WORKSPACE, visibility: 'team',
+        context: {
+          ...CALLER_CONTEXT, role: 'admin',
+          permissions: buildWorkspacePermissions({ role: 'admin', lifecycleState: 'active' }),
+        } as WorkspaceCollabContext & { workspaceType: 'team' },
+      },
+    };
+    await act(async () => {
+      view.rerender(projectViewElement());
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(mockedListMessages).toHaveBeenCalledTimes(2);
+    const full = proseFixture.events.filter((event) => event.kind === 'text')
+      .map((event) => 'text' in event ? event.text : '').join('');
+    const prefix = full.slice(0, full.indexOf('<question-form'));
+    await act(async () => {
+      runOptions?.handlers.onDelta(prefix);
+      runOptions?.handlers.onAgentEvent({ kind: 'text', text: prefix });
+    });
+    expect((chatPaneSpy.mock.calls.at(-1)?.[0].messages as ChatMessage[])
+      .find((message) => message.id === assistant.id)?.content).toBe('');
+    // Spy only observes the real loader's completion promise: no replacement
+    // loader or guessed microtask count is needed to enqueue GET before end.
+    const pendingTranscript = transcriptRead.mock.results.at(-1)?.value as Promise<ChatMessage[]>;
+    expect(pendingTranscript).toBeInstanceOf(Promise);
+    try {
+      await act(async () => {
+        authorityReload.resolve(live.map((message) => message.id === assistant.id ? {
+          ...message, content: full, events: [{ kind: 'text', text: full }],
+        } : message));
+        await pendingTranscript;
+        if (settlement === 'same-batch terminal') {
+          const suffix = full.slice(prefix.length);
+          runOptions?.handlers.onDelta(suffix);
+          runOptions?.handlers.onAgentEvent({ kind: 'text', text: suffix });
+          // Provider terminal ordering: refs clear first, then onDone flushes.
+          // All callbacks stay in this act; do not advance any buffer timer.
+          runOptions?.onRunStatus?.('succeeded');
+          runOptions?.handlers.onDone(full);
+        } else {
+          await vi.advanceTimersByTimeAsync(0);
+        }
+      });
+      if (settlement === 'buffer fallback') {
+        // Existing live-stream case, followed by the genuinely new suffix.
+        await act(async () => { await vi.advanceTimersByTimeAsync(250); });
+        await act(async () => {
+          const suffix = full.slice(prefix.length);
+          runOptions?.handlers.onDelta(suffix);
+          runOptions?.handlers.onAgentEvent({ kind: 'text', text: suffix });
+          await vi.advanceTimersByTimeAsync(250);
+        });
+      }
+      const actual = (chatPaneSpy.mock.calls.at(-1)?.[0].messages as ChatMessage[])
+        .find((message) => message.id === assistant.id)!;
+      expect(actual.content).toBe(full);
+      const text = actual.events?.filter((event) => event.kind === 'text')
+        .map((event) => event.text).join('');
+      expect(text).toBe(full);
+    } finally {
+      activeStream.resolve();
+      await act(async () => { await activeStream.promise; });
+      transcriptRead.mockRestore();
+    }
+  });
+
   it('keeps a cold Home run attached when an empty authority refresh settles after stream events', async () => {
     const activeStream = deferred<void>();
     let runOptions: Parameters<typeof streamViaDaemon>[0] | undefined;
@@ -914,6 +1038,99 @@ describe('a Home auto-send identifies its caller before the project scope resolv
     ]);
 
     activeStream.resolve();
+  });
+
+  // OPEND-3230 guard: the raw form tail observed in the field was cut INSIDE
+  // the question form, after the client had already rendered the text before
+  // the cut. The live-stream ownership on Home authority refresh must hold for
+  // that cut too, not only for a cut in the prose before the form.
+  it.each(['buffer fallback', 'same-batch terminal'] as const)(
+    'does not append a flushed partial question form behind the authoritative transcript on Home authority refresh (%s)', async (settlement) => {
+    const activeStream = deferred<void>();
+    let runOptions: Parameters<typeof streamViaDaemon>[0] | undefined;
+    mockedStreamViaDaemon.mockImplementation((options) => {
+      runOptions = options;
+      return activeStream.promise;
+    });
+    const transcriptRead = vi.spyOn(transcriptLoader, 'loadConversationTranscript');
+    const view = renderProjectView();
+    await waitFor(() => expect(runOptions).toBeDefined());
+    await act(async () => {
+      runOptions?.onRunCreated?.('run-clarification-fixture');
+      runOptions?.onRunStatus?.('running');
+    });
+    const live = chatPaneSpy.mock.calls.at(-1)?.[0].messages as ChatMessage[];
+    const assistant = live.find((message) => message.role === 'assistant')!;
+    expect(assistant.runId).toBe('run-clarification-fixture');
+    vi.useFakeTimers();
+    const authorityReload = deferred<ChatMessage[]>();
+    mockedListMessages.mockReturnValueOnce(authorityReload.promise);
+    workspaceScopeMocks.projectScope = {
+      loading: false,
+      scope: {
+        kind: 'team', projectId: PROJECT_ID, workspaceId: TEAM_WORKSPACE, visibility: 'team',
+        context: {
+          ...CALLER_CONTEXT, role: 'admin',
+          permissions: buildWorkspacePermissions({ role: 'admin', lifecycleState: 'active' }),
+        } as WorkspaceCollabContext & { workspaceType: 'team' },
+      },
+    };
+    await act(async () => {
+      view.rerender(projectViewElement());
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(mockedListMessages).toHaveBeenCalledTimes(2);
+    const full = proseFixture.events.filter((event) => event.kind === 'text')
+      .map((event) => 'text' in event ? event.text : '').join('');
+    const prefix = full.slice(0, full.indexOf('"title":"Choose'));
+    expect(prefix).toContain('<question-form>');
+    await act(async () => {
+      runOptions?.handlers.onDelta(prefix);
+      runOptions?.handlers.onAgentEvent({ kind: 'text', text: prefix });
+    });
+    // Unlike the prose cut above, this prefix is already on screen before the
+    // authoritative GET lands.
+    await act(async () => { await vi.advanceTimersByTimeAsync(250); });
+    expect((chatPaneSpy.mock.calls.at(-1)?.[0].messages as ChatMessage[])
+      .find((message) => message.id === assistant.id)?.content).toBe(prefix);
+    const pendingTranscript = transcriptRead.mock.results.at(-1)?.value as Promise<ChatMessage[]>;
+    expect(pendingTranscript).toBeInstanceOf(Promise);
+    try {
+      await act(async () => {
+        authorityReload.resolve(live.map((message) => message.id === assistant.id ? {
+          ...message, content: full, events: [{ kind: 'text', text: full }],
+        } : message));
+        await pendingTranscript;
+        if (settlement === 'same-batch terminal') {
+          const suffix = full.slice(prefix.length);
+          runOptions?.handlers.onDelta(suffix);
+          runOptions?.handlers.onAgentEvent({ kind: 'text', text: suffix });
+          runOptions?.onRunStatus?.('succeeded');
+          runOptions?.handlers.onDone(full);
+        } else {
+          await vi.advanceTimersByTimeAsync(0);
+        }
+      });
+      if (settlement === 'buffer fallback') {
+        await act(async () => { await vi.advanceTimersByTimeAsync(250); });
+        await act(async () => {
+          const suffix = full.slice(prefix.length);
+          runOptions?.handlers.onDelta(suffix);
+          runOptions?.handlers.onAgentEvent({ kind: 'text', text: suffix });
+          await vi.advanceTimersByTimeAsync(250);
+        });
+      }
+      const actual = (chatPaneSpy.mock.calls.at(-1)?.[0].messages as ChatMessage[])
+        .find((message) => message.id === assistant.id)!;
+      expect(actual.content).toBe(full);
+      const text = actual.events?.filter((event) => event.kind === 'text')
+        .map((event) => event.text).join('');
+      expect(text).toBe(full);
+    } finally {
+      activeStream.resolve();
+      await act(async () => { await activeStream.promise; });
+      transcriptRead.mockRestore();
+    }
   });
 
   it('keeps a terminal cold Home run attached when the empty refresh outlives its controller', async () => {
@@ -1055,6 +1272,47 @@ describe('a Home auto-send identifies its caller before the project scope resolv
     expect(firstRun?.assistantMessageId).toMatch(/^[A-Za-z0-9._-]+$/);
   });
 
+  it('keeps the running timer continuous when the Home placeholder becomes a real turn', async () => {
+    // Only virtualize the wall clock: React and mocked I/O still settle through
+    // their normal events, while the creation delay is deterministic.
+    const sentAt = Date.now();
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(sentAt);
+    const handoff = {
+      prompt: SEED_PROMPT,
+      files: [],
+      conversationId: conversation(PROJECT_ID).id,
+      persisted: false,
+    };
+    const view = renderProjectView({ creationHandoff: handoff });
+    const assistant = () => chatPaneSpy.mock.calls.at(-1)?.[0].messages
+      ?.find((message: ChatMessage) => message.role === 'assistant') as ChatMessage;
+    await waitFor(() => expect(assistant()?.runStatus).toBe('running'));
+    const placeholder = assistant();
+    expect(mockedStreamViaDaemon).not.toHaveBeenCalled();
+
+    vi.setSystemTime(sentAt + 1_200);
+    const elapsed = (message: ChatMessage) => buildTurnBlocks({
+      events: message.events ?? [],
+      runStatus: message.runStatus,
+      startedAtMs: message.startedAt,
+      nowMs: Date.now(),
+    }).find((block) => block.kind === 'shell')?.elapsedMs;
+    expect(elapsed(placeholder)).toBe(1_200);
+    view.rerender(projectViewElement({ creationHandoff: { ...handoff, persisted: true } }));
+    await waitFor(() => expect(mockedStreamViaDaemon).toHaveBeenCalledTimes(1));
+    expect(assistant().id).toBe(placeholder.id);
+    expect(elapsed(assistant())).toBe(1_200);
+
+    // The handoff must not make a later ordinary send inherit this clock.
+    await act(async () => mockedStreamViaDaemon.mock.calls[0]![0].handlers.onDone('Done'));
+    vi.setSystemTime(sentAt + 5_000);
+    fireEvent.click(view.getByTestId('normal-send'));
+    await waitFor(() => expect(mockedStreamViaDaemon).toHaveBeenCalledTimes(2));
+    const latest = chatPaneSpy.mock.calls.at(-1)?.[0].messages?.at(-1) as ChatMessage;
+    expect(latest.startedAt).toBe(sentAt + 5_000);
+  });
+
   it('keeps Home handoff identities within the daemon limit for a maximum-length project id', async () => {
     const maximumLengthProjectId = 'p'.repeat(128);
     window.sessionStorage.setItem(`od:auto-send-first:${maximumLengthProjectId}`, '1');
@@ -1139,6 +1397,99 @@ describe('a Home auto-send identifies its caller before the project scope resolv
       await initialComments.promise;
     });
     expect(chatPaneSpy.mock.calls.at(-1)?.[0].previewComments).toEqual([]);
+  });
+
+  // BO3: a daemon drain round, a hub wake and the SSE reconnect can all push
+  // `comment-changed` within one read's lifetime. The list read is
+  // single-flight: the burst costs the running read plus exactly one trailing
+  // read, and the trailing read's answer is the one that lands.
+  it('coalesces a burst of comment-changed events into one read plus one trailing read', async () => {
+    window.sessionStorage.removeItem(`od:auto-send-first:${PROJECT_ID}`);
+    renderProjectView();
+    await waitFor(() => {
+      expect(mockedUseProjectFileEvents).toHaveBeenCalled();
+      expect(chatPaneSpy.mock.calls.at(-1)?.[0].loading).toBe(false);
+      expect(mockedFetchPreviewComments).toHaveBeenCalled();
+    });
+    await act(async () => { await Promise.resolve(); });
+
+    const reads: Array<ReturnType<typeof deferred<Awaited<ReturnType<typeof fetchPreviewComments>>>>> = [];
+    mockedFetchPreviewComments.mockClear();
+    mockedFetchPreviewComments.mockImplementation(() => {
+      const read = deferred<Awaited<ReturnType<typeof fetchPreviewComments>>>();
+      reads.push(read);
+      return read.promise;
+    });
+    const listsBefore = new Set(chatPaneSpy.mock.calls.map(([props]) => props.previewComments)).size;
+    const handleProjectEvent = mockedUseProjectFileEvents.mock.calls.at(-1)?.[2];
+    await act(async () => {
+      for (let i = 0; i < 10; i += 1) handleProjectEvent?.({ type: 'comment-changed', projectId: PROJECT_ID });
+      // Another project's signal is not this view's business.
+      handleProjectEvent?.({ type: 'comment-changed', projectId: 'another-project' });
+      await Promise.resolve();
+    });
+    expect(mockedFetchPreviewComments).toHaveBeenCalledTimes(1);
+
+    const first = previewComment('comment-1', 'first', 1);
+    const second = previewComment('comment-2', 'second', 2);
+    await act(async () => {
+      reads[0]!.resolve([first]);
+      await reads[0]!.promise;
+    });
+    await waitFor(() => expect(mockedFetchPreviewComments).toHaveBeenCalledTimes(2));
+    await act(async () => {
+      reads[1]!.resolve([{ ...first }, second]);
+      await reads[1]!.promise;
+    });
+    await waitFor(() => expect(chatPaneSpy.mock.calls.at(-1)?.[0].previewComments).toEqual([first, second]));
+    expect(mockedFetchPreviewComments).toHaveBeenCalledTimes(2);
+    // Each settled read may publish one list; nothing else does.
+    const listsAfter = new Set(chatPaneSpy.mock.calls.map(([props]) => props.previewComments)).size;
+    expect(listsAfter - listsBefore).toBeLessThanOrEqual(2);
+  });
+
+  it('keeps the comment list and unchanged comments when a refresh returns equal data', async () => {
+    window.sessionStorage.removeItem(`od:auto-send-first:${PROJECT_ID}`);
+    const a = previewComment('comment-a', 'a', 1);
+    const b = previewComment('comment-b', 'b', 2);
+    mockedFetchPreviewComments.mockResolvedValue([a, b]);
+    renderProjectView();
+    await waitFor(() => {
+      expect(mockedUseProjectFileEvents).toHaveBeenCalled();
+      expect(chatPaneSpy.mock.calls.at(-1)?.[0].previewComments).toEqual([a, b]);
+    });
+    const loaded = chatPaneSpy.mock.calls.at(-1)?.[0].previewComments as PreviewComment[];
+    const handleProjectEvent = mockedUseProjectFileEvents.mock.calls.at(-1)?.[2];
+
+    // Structurally equal answer (fresh JSON objects): no new list, no render.
+    mockedFetchPreviewComments.mockClear();
+    mockedFetchPreviewComments.mockResolvedValueOnce([{ ...a }, { ...b, position: { ...b.position } }]);
+    const rendersBefore = chatPaneSpy.mock.calls.length;
+    await act(async () => {
+      handleProjectEvent?.({ type: 'comment-changed', projectId: PROJECT_ID });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(mockedFetchPreviewComments).toHaveBeenCalledTimes(1);
+    expect(chatPaneSpy.mock.calls.at(-1)?.[0].previewComments).toBe(loaded);
+    // React may still render once to discover the bail-out; it must not
+    // publish a new list.
+    expect(chatPaneSpy.mock.calls.length).toBeLessThanOrEqual(rendersBefore + 1);
+    expect(chatPaneSpy.mock.calls.slice(rendersBefore).every(([props]) => props.previewComments === loaded)).toBe(true);
+
+    // One comment changed, one added: the untouched comment keeps its object.
+    const edited = { ...b, note: 'b edited', updatedAt: 3 };
+    const added = previewComment('comment-c', 'c', 4);
+    mockedFetchPreviewComments.mockResolvedValueOnce([{ ...a }, edited, added]);
+    await act(async () => {
+      handleProjectEvent?.({ type: 'comment-changed', projectId: PROJECT_ID });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    await waitFor(() => expect(chatPaneSpy.mock.calls.at(-1)?.[0].previewComments).toEqual([a, edited, added]));
+    const next = chatPaneSpy.mock.calls.at(-1)?.[0].previewComments as PreviewComment[];
+    expect(next[0]).toBe(loaded[0]);
+    expect(next[1]).not.toBe(loaded[1]);
   });
 
   it('reuses the matching Home Team preflight while the project scope read is pending', async () => {
@@ -1525,6 +1876,7 @@ describe('a Home auto-send observes a project billing scope that settles after m
         PROJECT_ID,
         `conv-${PROJECT_ID}`,
         CALLER_CONTEXT,
+        true,
       );
     });
   });

@@ -43,6 +43,7 @@ import { createClaudeStreamHandler } from './runtimes/claude-stream.js';
 import { diagnoseClaudeCliFailure } from './claude-diagnostics.js';
 import { createCopilotStreamHandler } from './copilot-stream.js';
 import { createJsonEventStreamHandler } from './runtimes/json-event-stream.js';
+import { agentStdinPromptPayload } from './runtimes/chat-run-lifecycle.js';
 import { agentCliEnvForAgent, validateAgentCliEnv } from './app-config.js';
 import {
   antigravityAuthGuidance,
@@ -785,7 +786,7 @@ const PROVIDER_MAX_TOKENS = 100;
 const SMOKE_PROMPT = 'Reply with only: ok';
 
 function formatPromptForAgentStdin(
-  def: Pick<RuntimeAgentDef, 'promptInputFormat'>,
+  def: Pick<RuntimeAgentDef, 'promptInputFormat' | 'encodeStdinPrompt'>,
   prompt: string,
 ): string {
   const promptInputFormat = def.promptInputFormat ?? 'text';
@@ -798,7 +799,7 @@ function formatPromptForAgentStdin(
       },
     })}\n`;
   }
-  return prompt;
+  return agentStdinPromptPayload(def, prompt);
 }
 
 function codexExecutableGuidance(

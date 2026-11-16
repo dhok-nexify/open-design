@@ -27,20 +27,20 @@ test('[P2] captures the onboarding cloud sign-in surface', async ({ page }) => {
   });
 
   await page.goto('/onboarding', { waitUntil: 'domcontentloaded' });
-  await page.getByText('Loading NexTore Designer…').waitFor({ state: 'hidden', timeout: T.long });
+  await page.getByText('Loading OpenDesign…').waitFor({ state: 'hidden', timeout: T.long });
   // Cloud stays primary while identity-independent Local Agent and BYOK setup
   // remain available directly from the signed-out landing.
   await expect(
-    page.getByRole('heading', { name: /Sign in to NexTore Designer|登录 NexTore Designer/i }),
+    page.getByRole('heading', { name: /Welcome to OpenDesign|欢迎使用 OpenDesign/i }),
   ).toBeVisible({ timeout: T.medium });
   await expect(
-    page.getByRole('button', { name: /Sign in to NexTore Designer|登录 NexTore Designer/i }),
+    page.getByRole('button', { name: /Sign up \/ Log in|登录 \/ 注册/i }),
   ).toBeVisible();
   await expect(
-    page.getByRole('button', { name: /Local (coding )?agent|本地 (Coding )?Agent/i }),
+    page.getByRole('button', { name: /Local AI|本地 AI/i }),
   ).toBeVisible();
   await expect(
-    page.getByRole('button', { name: /Bring your own key|使用自己的 Key|自己的模型 Key/i }),
+    page.getByRole('button', { name: /API Key|API 密钥/i }),
   ).toBeVisible();
   await waitForVisualFonts(page);
 
@@ -65,16 +65,12 @@ test('[P2] captures the onboarding Local Agent CLI list surface', async ({ page 
   await mockSignedInVelaAccount(page);
 
   await page.goto('/onboarding', { waitUntil: 'domcontentloaded' });
-  await page.getByText('Loading NexTore Designer…').waitFor({ state: 'hidden', timeout: T.long });
+  await page.getByText('Loading OpenDesign…').waitFor({ state: 'hidden', timeout: T.long });
 
-  await page
-    .getByRole('button', { name: /Continue \(signed in\)|继续（已登录）/i })
-    .click();
   await expect(
-    page.getByRole('heading', { name: /Choose your model source|选择模型来源/i }),
+    page.getByRole('button', { name: /Continue \(signed in\)|继续（已登录）/i }),
   ).toBeVisible({ timeout: T.medium });
-  await page.getByRole('radio', { name: /Local Agent|本地 Agent/i }).click();
-  await page.getByRole('button', { name: /^(Continue|继续)$/ }).click();
+  await page.getByRole('button', { name: /Local AI|本地 AI/i }).click();
 
   const panel = page.locator('.onboarding-view__setup-panel');
   await expect(panel).toBeVisible({ timeout: T.medium });
@@ -121,7 +117,7 @@ test('[P2] captures the unpaid DeepSeek campaign at narrow and short viewport bo
     window.localStorage.removeItem('open-design:campaign-seen:deepseek-v4-dual-unlimited-2026');
   });
   await ensureRailOpen(page);
-  await page.getByTestId('entry-nav-plugins').evaluate((element: HTMLButtonElement) => {
+  await page.getByTestId('entry-nav-community').evaluate((element: HTMLButtonElement) => {
     element.click();
   });
   await expect(page.getByTestId('entry-view-home')).toHaveAttribute('data-active', 'false');
@@ -300,7 +296,8 @@ test('[P2] captures the home plugin use staged surface', async ({ page }) => {
   const usePlugin = page.getByTestId('plugin-detail-use');
   await expect(usePlugin).toBeVisible();
   await usePlugin.click();
-  await expect(page.getByTestId('home-hero-active-plugin')).toContainText('Prototype Starter');
+  // The lead chip cuts the title to eight code points (#7635).
+  await expect(page.getByTestId('home-hero-active-plugin')).toContainText('Prototyp…');
   await expect(page.getByTestId('home-hero-input')).toBeVisible();
 
   await captureVisual(page, 'visual-home-plugin-use-staged');
@@ -314,7 +311,7 @@ test('[P2] captures the home plugin use with query surface', async ({ page }) =>
   const card = pluginMarketplaceCard(plugins, 'Deck Writer');
   await expect(card).toBeVisible();
   await card.getByRole('button', { name: 'Try it' }).click();
-  await expect(page.getByTestId('home-hero-active-plugin')).toContainText('Deck Writer');
+  await expect(page.getByTestId('home-hero-active-plugin')).toContainText('Deck Wri…');
   await expect(page.getByTestId('home-hero-input')).toBeVisible();
 
   await captureVisual(page, 'visual-home-plugin-use-with-query');

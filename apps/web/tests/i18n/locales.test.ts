@@ -1,6 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { describe, expect, it } from 'vitest';
-import { DEFAULT_PRODUCT_BRAND_NAME } from '@open-design/contracts';
+import { describe, expect, it, vi } from 'vitest';
 import { resolveSystemLocale } from '../../src/i18n';
 import { en } from '../../src/i18n/locales/en';
 import { id } from '../../src/i18n/locales/id';
@@ -11,14 +10,11 @@ import { LOCALES, LOCALE_LABEL, type BaseDict, type Dict, type Locale } from '..
 
 const EXPECTED_LOCALES = ['en', 'id', 'de', 'zh-CN', 'zh-TW', 'pt-BR', 'es-ES', 'ru', 'fa', 'ar', 'ja', 'ko', 'pl', 'hu', 'fr', 'uk', 'tr', 'th', 'it'];
 
-// `{brandName}` is an always-available product-name slot that the i18n layer
-// interpolates globally, so a translation may legitimately include it zero or
-// more times. Data-bearing slots ({agent}, {version}, {title}, …) must still
-// match English exactly so a locale can never render a literal placeholder or
-// silently drop data.
-function dataPlaceholders(value: string): string[] {
+function placeholders(value: string): string[] {
   const names: string[] = [];
   for (const match of value.matchAll(/\{(\w+)\}/g)) {
+    // {brandName} is a global, always-available product-name slot; downstream
+    // editions fill it at render time, so it need not be mirrored per locale.
     if (match[1] && match[1] !== 'brandName') {
       names.push(match[1]);
     }
@@ -63,7 +59,22 @@ function explicitLocaleKeys(locale: Locale): string[] {
   return [...keys];
 }
 
+// The full 19-locale sweep imports every dictionary and overlay; it legitimately
+// exceeds the default 5s budget on a cold run.
+vi.setConfig({ testTimeout: 30_000 });
+
 describe('i18n locales', () => {
+  it('localizes the home invitation entry and member tooltip in every language', async () => {
+    const keys = ['homeInvite.banner', 'homeInvite.invite', 'homeInvite.dismiss', 'homeInvite.sent', 'workspaceInvite.teamPlanBody'] as const;
+    for (const locale of LOCALES) {
+      const dict = await loadDict(locale);
+      for (const key of keys) {
+        expect(dict[key], `${locale}.${key}`).toBeTruthy();
+        expect(placeholders(dict[key]), `${locale}.${key} placeholders`).toEqual(placeholders(en[key]));
+        if (locale !== 'en') expect(dict[key], `${locale}.${key}`).not.toBe(en[key]);
+      }
+    }
+  });
   it('resolves the initial locale from browser language preferences', () => {
     expect(resolveSystemLocale(['zh-Hans-CN', 'en-US'])).toBe('zh-CN');
     expect(resolveSystemLocale(['zh-Hant-HK', 'en-US'])).toBe('zh-TW');
@@ -120,15 +131,11 @@ describe('i18n locales', () => {
   it('localizes the ACP CLI session refusal card', async () => {
     const zh = await loadDict('zh-CN');
     expect(zh['chat.runError.title.cliSessionRefused']).toBe('智能体版本不兼容');
-    const refusalMessage = zh['chat.runError.cliSessionRefusedMessage'];
-    expect(refusalMessage).toBe(
-      '{agent} 拒绝开始会话。通常是当前版本与 {brandName} 不兼容，换一个版本后重试。',
-    );
-    expect(refusalMessage.replace('{brandName}', DEFAULT_PRODUCT_BRAND_NAME)).toBe(
-      '{agent} 拒绝开始会话。通常是当前版本与 NexTore Designer 不兼容，换一个版本后重试。',
+    expect(zh['chat.runError.cliSessionRefusedMessage']).toBe(
+      '{brandName} 暂不支持当前智能体版本，请更换为支持的版本后再试。',
     );
 
-    // `{agent}` is the ONLY slot the card fills. A locale that carries a
+    // Product supplementary copy revision 96 has no interpolation slots. A locale with a
     // `{version}` placeholder would render a literal `{version}` at the user,
     // because nothing supplies one — which is exactly how a half-reverted
     // version variant would escape into production copy.
@@ -137,7 +144,7 @@ describe('i18n locales', () => {
       expect(
         dict['chat.runError.cliSessionRefusedMessage'],
         `${locale}.cliSessionRefusedMessage`,
-      ).not.toMatch(/\{version\}/);
+      ).not.toMatch(/\{(?!brandName\})\w+\}/);
     }
 
     // No locale may quietly fall back to English prose for these keys.
@@ -154,7 +161,7 @@ describe('i18n locales', () => {
     }
   });
 
-  it('keeps locale dictionaries aligned with English keys and data placeholders', async () => {
+  it('keeps locale dictionaries aligned with English keys and placeholders', async () => {
     const englishKeys = explicitLocaleKeys('en').sort();
     const enMerged = await loadDict('en');
 
@@ -164,8 +171,8 @@ describe('i18n locales', () => {
 
       for (const key of englishKeys) {
         const dictKey = key as keyof Dict;
-        expect(dataPlaceholders(dict[dictKey] ?? ''), `${locale}.${key}`).toEqual(
-          dataPlaceholders(enMerged[dictKey] ?? ''),
+        expect(placeholders(dict[dictKey] ?? ''), `${locale}.${key}`).toEqual(
+          placeholders(enMerged[dictKey] ?? ''),
         );
       }
     }
@@ -547,4 +554,17 @@ describe('i18n locales', () => {
       }
     }
   });
+});
+
+it('localizes every reset-card notice state and preserves placeholders', async () => {
+  const keys = ['label', 'registered', 'pending', 'pendingAt', 'exhausted', 'remaining', 'invite', 'subscribe', 'dismiss', 'openFailed'] as const;
+  for (const locale of LOCALES) {
+    const dict = await loadDict(locale);
+    for (const suffix of keys) {
+      const key = `referral.notice.${suffix}` as keyof Dict;
+      expect(dict[key], `${locale} ${key}`).toBeTruthy();
+      expect(placeholders(dict[key] ?? ''), `${locale} ${key}`).toEqual(placeholders(en[key] ?? ''));
+      if (locale !== 'en') expect(dict[key], `${locale} ${key}`).not.toBe(en[key]);
+    }
+  }
 });

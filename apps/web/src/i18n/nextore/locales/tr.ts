@@ -1,6 +1,7 @@
 // Downstream i18n overlay for tr.
 // Upstream locale files stay untouched; this file owns the downstream keys
-// and the few upstream strings whose copy differs from the product name.
+// and the brand-subtitle override. Everything else derives from upstream copy
+// via the brand mask, so upstream rewording flows through automatically.
 import type { BaseDict } from '../../types';
 import type { LocaleOverlay } from '../merge';
 
@@ -69,8 +70,10 @@ export const trBrandMaskedKeys = [
   "campaign.deepseekV4Flash.ruleSummary",
   "chat.activeFilePlaceholder",
   "chat.amrBalanceGate.benefitsTitle",
-  "chat.amrBalanceGate.signedOutMessage",
+  "chat.amrBalanceGate.signedOutTitle",
   "chat.amrCard.switchBody",
+  "chat.amrCard.switchCta",
+  "chat.amrCard.switchedResend",
   "chat.amrError.authMessage",
   "chat.amrError.balanceMessage",
   "chat.brandBrowserAssistDesktopOnly",
@@ -78,9 +81,7 @@ export const trBrandMaskedKeys = [
   "chat.contextPrompt.referenceProject",
   "chat.designSystemStatus.description",
   "chat.mode.design.solves",
-  "chat.runError.agentReplyIncompleteMessage",
   "chat.runError.cliSessionRefusedMessage",
-  "chat.runError.cpuUnsupportedMessage",
   "chat.runError.title.runtimeConfig",
   "chat.runError.title.signInRequired.amr",
   "designBrowser.reference.kicker",
@@ -110,6 +111,7 @@ export const trBrandMaskedKeys = [
   "entry.cloudCalloutBody",
   "entry.cloudCalloutDismissAria",
   "entry.cloudCalloutTitle",
+  "entry.cloudCreditsBody",
   "entry.discordAriaWithOnline",
   "entry.followLinkedinLabel",
   "entry.followThreadsLabel",
@@ -119,8 +121,11 @@ export const trBrandMaskedKeys = [
   "experienceSurvey.recommendation",
   "experienceSurvey.tag",
   "fileViewer.publishFileRequiresWorkspace",
+  "fileViewer.signInToShareDescription",
   "handoff.amrWebsite",
   "handoff.promptIntro",
+  "home.amrGateUnavailable",
+  "home.daemonRecovering",
   "homeHero.chip.createPluginHint",
   "integrations.lede",
   "invite.landing.subtitle",
@@ -179,7 +184,6 @@ export const trBrandMaskedKeys = [
   "settings.memoryStarterProjectDesc",
   "settings.onboardingAmrCloudAuthorizeAction",
   "settings.onboardingAmrModelSourceLabel",
-  "settings.onboardingCloudSignIn",
   "settings.onboardingCloudTitle",
   "settings.onboardingCreateBody",
   "settings.onboardingExecutionBody",

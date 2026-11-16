@@ -64,6 +64,7 @@ import {
   markProposed,
   markSuccess,
   markFailed,
+  captureExtractionOrigin,
 } from './memory-extractions.js';
 import { resolveProviderConfig } from './media/config.js';
 import { AIHUBMIX_APP_CODE } from './integrations/aihubmix.js';
@@ -1220,6 +1221,7 @@ export function __resetMemoryTurnDedupeForTests() {
 }
 
 async function collectProposedEntries(dataDir, input, options) {
+  const extractionOrigin = captureExtractionOrigin(options?.extractionOrigin);
   const projectRoot = options?.projectRoot ?? null;
   const chatAgentId = options?.chatAgentId ?? null;
   const chatModel = options?.chatModel ?? null;
@@ -1252,6 +1254,7 @@ async function collectProposedEntries(dataDir, input, options) {
       reason: 'memory-disabled',
       kind: extractionKind,
       scope: recordScope,
+      extractionOrigin,
     });
     return { status: 'skipped', attemptId: null, proposed: [], existingEntries: [] };
   }
@@ -1264,6 +1267,7 @@ async function collectProposedEntries(dataDir, input, options) {
       reason: 'empty-message',
       kind: extractionKind,
       scope: recordScope,
+      extractionOrigin,
     });
     return { status: 'skipped', attemptId: null, proposed: [], existingEntries: [] };
   }
@@ -1317,6 +1321,7 @@ async function collectProposedEntries(dataDir, input, options) {
       reason,
       kind: extractionKind,
       scope: recordScope,
+      extractionOrigin,
     });
     return { status: 'skipped', attemptId: null, proposed: [], existingEntries: [] };
   }
@@ -1328,6 +1333,7 @@ async function collectProposedEntries(dataDir, input, options) {
     userMessage,
     kind: extractionKind,
     scope: recordScope,
+      extractionOrigin,
   });
   markProvider(attemptId, {
     kind: provider.kind,

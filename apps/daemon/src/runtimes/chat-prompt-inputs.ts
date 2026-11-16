@@ -323,12 +323,35 @@ export function resolveResearchCommandContract(
   });
 }
 
+/**
+ * Resource directories the run may reach outside its project cwd.
+ *
+ * The invariant: every absolute path the composed prompt advertises to the
+ * agent has to appear here. `withSkillRootPreamble()` names the skill's own
+ * directory as the "absolute fallback" skill root, and `skillsDir` only covers
+ * the skills that ship in the repository — a skill installed under the daemon
+ * data dir, or a plugin-local `SKILL.md` loaded from the bundled plugin folder,
+ * resolves to a root that is outside every entry below. The agent then reads a
+ * path we told it to read and the runtime treats it as an unapproved external
+ * directory: OpenCode raises `permission.external_directory`, which a headless
+ * run surfaces as a rejected tool call rather than as the staging gap it is.
+ * Passing `activeSkillDirs` keeps the allowlist keyed on the roots actually in
+ * play for this turn instead of on a fixed subset of them. Strategy resources
+ * are separate because frozen task prompts bypass ordinary skill composition;
+ * their roots come from the verified applied strategy package. Directory access
+ * itself does not impose read-only tool permissions.
+ *
+ * Codex is excluded wholesale because it treats allowlisted directories as
+ * writable, and skill roots are shipped read-only resources (PR #622).
+ */
 export function resolveChatExtraAllowedDirs({
   agentId,
   skillsDir,
   designSystemsDir,
   bundledPluginsDir,
   linkedDirs = [],
+  activeSkillDirs = [],
+  strategyResourceDirs = [],
   existsSync = fs.existsSync,
 }: {
   agentId?: string | null;
@@ -342,6 +365,8 @@ export function resolveChatExtraAllowedDirs({
    */
   bundledPluginsDir?: string | null;
   linkedDirs?: Array<string | null | undefined>;
+  activeSkillDirs?: Array<string | null | undefined>;
+  strategyResourceDirs?: Array<string | null | undefined>;
   existsSync?: (path: string) => boolean;
 }): string[] {
   const isCodex =
@@ -353,6 +378,8 @@ export function resolveChatExtraAllowedDirs({
         designSystemsDir,
         bundledPluginsDir,
         ...(Array.isArray(linkedDirs) ? linkedDirs : []),
+        ...(Array.isArray(activeSkillDirs) ? activeSkillDirs : []),
+        ...strategyResourceDirs,
       ];
   return Array.from(
     new Set(

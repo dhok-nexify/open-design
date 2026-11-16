@@ -165,6 +165,7 @@ export interface ChatRequest {
   userMessageId?: string | null;
   assistantMessageId?: string | null;
   clientRequestId?: string | null;
+  submission?: RunSubmission;
   skillId?: string | null;
   // Per-turn skill ids picked via the composer's @-mention popover. The
   // daemon concatenates each skill's body into the system prompt for
@@ -200,6 +201,8 @@ export interface ChatRequest {
   research?: ResearchOptions;
   context?: RunContextSelection;
   appliedPluginSnapshotId?: string | null;
+  pluginId?: string;
+  pluginInputs?: Record<string, unknown>;
   /**
    * Run-scoped media execution policy. Omitted means current OpenDesign
    * behavior: media generation is enabled and OD may execute its configured
@@ -513,7 +516,25 @@ export interface ChatRunFeedbackResponse {
   status: 'accepted' | 'skipped_consent' | 'skipped_no_sink';
 }
 
+/** One accepted human submission, independent of physical run retries/execution. */
+export interface UserSubmissionReceipt {
+  id: string;
+  projectId: string;
+  conversationId: string;
+  acceptedAt: number;
+}
+export interface RunSubmission {
+  id: string;
+  source: 'user' | 'system' | 'queue';
+}
+export interface QueuedSubmissionRequest {
+  id: string;
+  conversationId: string;
+  submittedAt: number;
+}
+
 export interface ChatRunCreateResponse {
+  userSubmission?: UserSubmissionReceipt;
   runId: string;
   /** Present only when this physical Run belongs to a strategy task chain. */
   taskExecutionId?: string;
@@ -715,7 +736,23 @@ export interface ChatRunExecutionDiagnostics {
   };
 }
 
+/** Exporter evidence; accepted means ingest accepted, not remote query verification. */
+export interface TaskTelemetryStatus {
+  version: 1;
+  taskExecutionId: string;
+  status: 'unknown' | 'pending' | 'in_flight' | 'failed' | 'accepted' | 'not_expected' | 'observed' | 'compatibility';
+  traceId: string | null;
+  protocol: 'legacy-v1' | 'otlp-v4' | null;
+  transport: 'langfuse' | 'relay' | 'vela' | null;
+  attemptCount: number | null;
+  reason: string | null;
+  environment: string | null;
+  sampledAt: number;
+  remoteVerification: 'not_checked';
+}
+
 export interface ChatRunStatusResponse {
+  taskTelemetry?: TaskTelemetryStatus;
   id: string;
   projectId: string | null;
   conversationId: string | null;
@@ -738,6 +775,14 @@ export interface ChatRunStatusResponse {
   status: ChatRunStatus;
   createdAt: number;
   updatedAt: number;
+  /**
+   * When the Run first began executing (its first `start` event), as opposed to
+   * `createdAt`, when it was created and possibly still waiting. A project's
+   * status follows the conversation whose Run most recently STARTED, and a
+   * queued Run has not started (P0-24). `null` while not started yet; absent
+   * on older daemons.
+   */
+  startedAt?: number | null;
   /** The immutable instant this Run entered its terminal status, when terminal. */
   terminalAt?: number | null;
   cancelRequested?: boolean;
@@ -875,6 +920,35 @@ export type ChatRunResultPackageResponse = RunResultPackageResponse;
 
 export interface ChatRunListResponse {
   runs: ChatRunStatusResponse[];
+  /**
+   * Projects holding an unanswered `<question-form>` / `<ask-question>`.
+   *
+   * `ChatRunStatus` cannot express "waiting on the user": that state outlives
+   * the run that asked, so the run itself reads `succeeded` while the project
+   * is still blocked — see `ProjectDisplayStatus.awaiting_input`, which the
+   * daemon composes from exactly this set. Callers that render a per-project
+   * status from the runs feed need it or they will show such a project as
+   * finished.
+   *
+   * Always a subset of the projects the accompanying `runs` already expose —
+   * never the raw query — so it cannot widen what a caller can see. A project
+   * that has no visible run therefore never appears here, which is harmless:
+   * awaiting_input only arises from a run that asked.
+   *
+   * Optional: older daemons omit it, and absent means "unknown", not "none".
+   */
+  awaitingInputProjectIds?: string[];
+  /**
+   * Conversations holding an unanswered question form — the per-conversation
+   * form of `awaitingInputProjectIds`. A project shows "needs your reply" only
+   * when the conversation that most recently started a Run is the one waiting
+   * (P0-24); a question pending in an older conversation does not surface.
+   *
+   * Same visibility rule: a subset of the conversations the accompanying
+   * `runs` already expose. Optional: older daemons omit it, and absent means
+   * "unknown" — callers then fall back to the project-level set.
+   */
+  awaitingInputConversationIds?: string[];
 }
 
 export interface ChatRunCancelResponse {
@@ -956,6 +1030,25 @@ export interface ChatCommentAttachment {
   /** `'query'` means `comment` was promoted to the message text; keep target data as context only. */
   commentContext?: 'context' | 'query';
   source?: 'saved-comment' | 'board-batch';
+}
+
+/**
+ * Present on a run event whose payload the daemon shortened so the event stays
+ * within its storage budget (a persisted run event never carries an unbounded
+ * payload — see `apps/daemon/src/runtimes/run-event-payload-budget.ts`).
+ *
+ * The shortened text itself also carries an inline `[open-design: …]` marker
+ * naming what was cut, so a client that rebuilds the event without this field
+ * still shows that the payload is incomplete. Absent on events that fit, and on
+ * every event written before the budget existed.
+ */
+export interface AgentEventPayloadTruncation {
+  /**
+   * UTF-8 byte length of the payload before it was shortened: `line` for
+   * `raw`, `content` for `tool_result`, the serialized `input` for
+   * `tool_use`, the whole serialized event for any other kind.
+   */
+  originalBytes: number;
 }
 
 export type PersistedAgentEvent =
@@ -1060,6 +1153,17 @@ export type PersistedAgentEvent =
        */
       runStartedAt?: number;
       runEndedAt?: number;
+      /**
+       * View-only, stamped by the client fold like the span above: this Run
+       * started because the user replied (e.g. submitted a question form),
+       * not because the daemon auto-continued the task.
+       *
+       * The renderer gives auto-continued Runs one turn header with a summed
+       * duration (P0-24 N13 ①, assumption A-01) and keeps a Run that follows a
+       * user reply as a turn of its own (P0-24 Q8, option A). Absent = the
+       * boundary is an auto-continuation; it is never persisted.
+       */
+      afterUserReply?: boolean;
     }
   /**
    * This turn's follow-up suggestions — the three one-line actions the chat
@@ -1135,12 +1239,16 @@ export type PersistedAgentEvent =
       input: unknown;
       /** Optional wall-clock ms when the tool first started (e.g. ACP first frame). */
       startedAt?: number;
+      /** See {@link AgentEventPayloadTruncation}. */
+      truncated?: AgentEventPayloadTruncation;
     }
   | {
       kind: 'tool_result';
       toolUseId: string;
       content: string;
       isError: boolean;
+      /** See {@link AgentEventPayloadTruncation}. */
+      truncated?: AgentEventPayloadTruncation;
       /**
        * Wall-clock ms when the call finished. Pairs with `tool_use.startedAt` so the
        * UI can show a per-call duration. Optional on purpose: several adapters emit
@@ -1197,7 +1305,11 @@ export type PersistedAgentEvent =
       cacheCreationInputTokens?: number;
       cacheReadInputTokens?: number;
     }
-  | { kind: 'raw'; line: string };
+  /**
+   * A stdout line the agent's parser did not recognise. Nothing renders it; it
+   * is kept as a bounded breadcrumb (`truncated` says when it was shortened).
+   */
+  | { kind: 'raw'; line: string; truncated?: AgentEventPayloadTruncation };
 
 /**
  * What a chat card DRAWS.
@@ -1251,6 +1363,16 @@ export const CHAT_ARTIFACT_SNAPSHOT_STATES = [
 
 export type ChatArtifactSnapshotState = (typeof CHAT_ARTIFACT_SNAPSHOT_STATES)[number];
 
+/** Validated geometry and authored frame time shared by a Motion source/MP4 pair. */
+export interface MotionArtifactPreview {
+  width: number;
+  height: number;
+  duration: number;
+  posterTime: number;
+  sourcePath: string;
+  videoPath: string;
+}
+
 /**
  * One artifact as a chat turn refers to it.
  *
@@ -1272,6 +1394,8 @@ export interface ChatArtifactRef {
   snapshotId?: string;
   /** Static cover for a `latest_with_static_preview` card. */
   thumbnailUrl?: string;
+  /** Frozen composition geometry and authored cover time for video Motion. */
+  motionPreview?: MotionArtifactPreview;
   /** Static cover for an `immutable_snapshot` card. */
   snapshotUrl?: string;
   snapshotState: ChatArtifactSnapshotState;
@@ -1335,6 +1459,8 @@ export interface ChatMessage {
    * back explicitly and reload recovery follows its active physical Run.
    */
   strategyTaskExecutionId?: string;
+  /** Host-projected presentation fact; physical task handles remain unchanged. */
+  taskDisplay?: import('../plugins/strategy-v2.js').TaskDisplayProjection;
   /**
    * Position of this message's Run within its logical task chain. A Full Plan
    * turn spans several physical Runs (request -> production) that the user

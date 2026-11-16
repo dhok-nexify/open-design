@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { maskBrandName, withOverlay, type LocaleOverlay } from '../../src/i18n/nextore/merge';
 import { LOCALES, type BaseDict, type Locale } from '../../src/i18n/types';
@@ -35,6 +35,9 @@ async function overlayParts(locale: Locale): Promise<{
   if (!values || !brandMaskedKeys) throw new Error(`incomplete overlay module for ${locale}`);
   return { values, brandMaskedKeys };
 }
+
+// Loading 19 merged dictionaries exceeds the default 5s budget on a cold run.
+vi.setConfig({ testTimeout: 30_000 });
 
 describe('downstream i18n overlay', () => {
   it('keeps every locale key-complete against English', async () => {

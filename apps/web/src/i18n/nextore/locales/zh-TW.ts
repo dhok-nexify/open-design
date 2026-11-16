@@ -1,6 +1,7 @@
 // Downstream i18n overlay for zh-TW.
 // Upstream locale files stay untouched; this file owns the downstream keys
-// and the few upstream strings whose copy differs from the product name.
+// and the brand-subtitle override. Everything else derives from upstream copy
+// via the brand mask, so upstream rewording flows through automatically.
 import type { BaseDict } from '../../types';
 import type { LocaleOverlay } from '../merge';
 
@@ -8,12 +9,9 @@ export const zhTWOverlay: LocaleOverlay = {
   "accessRequired.body": "你的 NexTore 帳號沒有 Designer 存取權限。請聯絡 NexTore 管理員授予權限，然後重新整理此頁面。",
   "accessRequired.title": "需要 Designer 存取權限",
   "app.brandSubtitle": "由 Nexify 出品",
-  "campaign.deepseekV4Flash.boundary": "方案內的無限制模型額度與免費生成次數，僅可透過 {brandName} 使用；無法在 MCP/CLI/API 及其他場景使用。解釋權歸 {brandName} 所有。部分模型尖峰時段需要排隊。",
-  "campaign.deepseekV4Flash.ruleSummary": "8 月 13 日至 8 月 27 日，付費用戶可在 {brandName} 內免費使用 DeepSeek V4 Pro 與 V4 Flash；大規模盜刷等違規行為將暫停活動權益。",
   "chat.lockedBody": "此專案以唯讀方式與你共享，對話記錄僅對專案成員可見。",
   "chat.lockedHint": "你仍可檢視內容並留下評論；如需對話權限，請聯絡專案管理員。",
   "chat.lockedTitle": "共享專案中的對話已鎖定",
-  "designFiles.usefulInfoTip7": "覺得 {brandName} 好用？在 GitHub 給我們點個 Star。",
   "home.noCreateBody": "您可以開啟與您共用的專案。如需建立自己的專案，請聯絡 NexTore 管理員授予 DesignerCreateProject 權限。",
   "home.noCreateTitle": "您的帳號沒有建立專案的權限",
   "nextore.share.confirmRevoke": "確定要撤銷此分享連結？使用中的人將失去存取權。",
@@ -68,11 +66,13 @@ export const zhTWBrandMaskedKeys = [
   "avatar.amrConsole",
   "brand.librarySubtitle",
   "brandEnrichment.body",
+  "campaign.deepseekV4Flash.boundary",
   "chat.activeFilePlaceholder",
   "chat.amrBalanceGate.benefitsTitle",
-  "chat.amrBalanceGate.signedOutMessage",
   "chat.amrBalanceGate.signedOutTitle",
   "chat.amrCard.switchBody",
+  "chat.amrCard.switchCta",
+  "chat.amrCard.switchedResend",
   "chat.amrError.authMessage",
   "chat.amrError.balanceMessage",
   "chat.brandBrowserAssistDesktopOnly",
@@ -80,9 +80,7 @@ export const zhTWBrandMaskedKeys = [
   "chat.contextPrompt.referenceProject",
   "chat.designSystemStatus.description",
   "chat.mode.design.solves",
-  "chat.runError.agentReplyIncompleteMessage",
   "chat.runError.cliSessionRefusedMessage",
-  "chat.runError.cpuUnsupportedMessage",
   "chat.runError.title.runtimeConfig",
   "chat.runError.title.signInRequired.amr",
   "designBrowser.reference.kicker",
@@ -112,6 +110,7 @@ export const zhTWBrandMaskedKeys = [
   "entry.authExpiredBody",
   "entry.cloudCalloutDismissAria",
   "entry.cloudCalloutTitle",
+  "entry.communityAria",
   "entry.discordAriaWithOnline",
   "entry.followLinkedinLabel",
   "entry.followThreadsLabel",
@@ -122,9 +121,13 @@ export const zhTWBrandMaskedKeys = [
   "experienceSurvey.tag",
   "fileViewer.publishFileRequiresWorkspace",
   "fileViewer.shareMenuPublishViaOd",
+  "fileViewer.signInToShareDescription",
+  "goPlanSunset.subtitle",
   "handoff.amrWebsite",
   "handoff.promptIntro",
+  "home.amrGateUnavailable",
   "home.bundledScenarioMissing",
+  "home.daemonRecovering",
   "homeHero.chip.createPluginHint",
   "integrations.lede",
   "invite.landing.subtitle",
@@ -182,7 +185,6 @@ export const zhTWBrandMaskedKeys = [
   "settings.mcpTitle",
   "settings.memoryStarterProjectDesc",
   "settings.onboardingAmrModelSourceLabel",
-  "settings.onboardingCloudSignIn",
   "settings.onboardingCloudTitle",
   "settings.onboardingCreateBody",
   "settings.onboardingExecutionBody",

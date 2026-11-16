@@ -54,7 +54,8 @@ export type ProjectScenarioTaskProfile =
   | 'prototype'
   | 'ppt'
   | 'marketing'
-  | 'hyperframes';
+  | 'hyperframes'
+  | 'motion-design';
 
 /**
  * Daemon-owned identity for the scenario currently pinned to a project.
@@ -192,6 +193,8 @@ export interface DesignSystemReviewEntry {
 }
 
 export interface ProjectMetadata {
+  /** Reserved admitted facts; installed only with the matching local content receipt. */
+  _commentFiles?: import('./comments.js').CommentFileState;
   kind: ProjectKind;
   /**
    * NexTore edition: the DesignProject TreeObject id this local project maps to.
@@ -231,7 +234,8 @@ export interface ProjectMetadata {
     | 'webgl-experience'
     | 'worker-visualizer'
     | 'marketing'
-    | 'hyperframes';
+    | 'hyperframes'
+    | 'motion-design';
   fidelity?: 'wireframe' | 'high-fidelity';
   speakerNotes?: boolean;
   slideCount?: string;
@@ -363,6 +367,8 @@ export interface Project {
   designSystemId: string | null;
   createdAt: number;
   updatedAt: number;
+  /** Latest accepted user send (including queued sends); independent of content activity. */
+  lastUserQueryAt?: number | null;
   status?: ProjectStatusInfo;
   pendingPrompt?: string;
   metadata?: ProjectMetadata;
@@ -484,11 +490,20 @@ export interface CreateProjectRequest {
   /** Session mode for the default conversation seeded with the project. */
   conversationMode?: ChatSessionMode;
   /**
+
    * NexTore edition only: create the DesignProject inside this workspace
    * instead of the caller's personal workspace. The module still enforces
    * DesignerCreateProject and workspace CanCreateFolder.
    */
   nextoreWorkspaceId?: number;
+
+  /**
+   * Caller-minted id for the default conversation seeded with the project.
+   * Lets an optimistic client route to the conversation before the create
+   * answers; omitted, the daemon mints one.
+   */
+  conversationId?: string;
+
   customInstructions?: string;
   /** Persisted to metadata.skipDiscoveryBrief for automated project runs. */
   skipDiscoveryBrief?: boolean;
@@ -846,6 +861,18 @@ export interface MessagesResponse {
   messages: ChatMessage[];
 }
 
+/**
+ * Opt-in representation of GET /api/projects/:id/conversations/:cid/messages.
+ * Each UTF-8 line is one record. A matching end count is required before a
+ * client may treat the transcript as complete; EOF alone can be a broken read.
+ * The default application/json representation remains MessagesResponse.
+ */
+export const MESSAGES_STREAM_CONTENT_TYPE = 'application/x-ndjson';
+
+export type MessagesStreamRecord =
+  | { type: 'message'; message: ChatMessage }
+  | { type: 'end'; count: number };
+
 export type DeployProviderId = 'vercel-self' | 'cloudflare-pages';
 export type DeploymentStatus =
   | 'deploying'
@@ -1008,7 +1035,9 @@ export type DeployPreflightWarningCode =
   | 'external-script'
   | 'external-stylesheet'
   | 'no-doctype'
-  | 'no-viewport';
+  | 'no-viewport'
+  /** The entry would collide with the project's root index.html; deploy is refused with ENTRY_INDEX_CONFLICT. */
+  | 'entry-index-conflict';
 
 export interface DeployPreflightWarning {
   code: DeployPreflightWarningCode;

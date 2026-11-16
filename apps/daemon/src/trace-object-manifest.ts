@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import path from 'node:path';
+import { loadOdNextTaskInputSnapshot, type OdNextTaskInputSnapshotDescriptor } from './strategies/od-next/task-input-snapshot.js';
 
 import type {
   ArtifactManifestEntry,
@@ -34,6 +35,8 @@ export interface TraceObjectUploadManifests {
 }
 
 export interface TraceObjectSource {
+  redacted?: boolean;
+  sourcePathHash?: string;
   objectClass: ObjectClass;
   id: string;
   filename: string;
@@ -47,6 +50,8 @@ export interface TraceObjectSource {
 }
 
 export interface BuildTraceObjectManifestsOptions {
+  /** Already policy-redacted complete Run evidence, frozen with the other Run objects. */
+  runEvidence?: string;
   installationId: string | null;
   projectId: string;
   runId: string;
@@ -64,6 +69,11 @@ export interface BuildTraceObjectManifestsOptions {
   env?: NodeJS.ProcessEnv;
   now?: () => Date;
   uploadMode?: 'manifest-only' | 'upload';
+  /** Frozen sources supplied by the durable outbox; never re-read live paths. */
+  frozenSources?: TraceObjectSource[];
+  snapshotMaxBytes?: number;
+  runScopedIds?: boolean;
+  taskInputSnapshot?: { descriptor: OdNextTaskInputSnapshotDescriptor; snapshotsRoot: string };
 }
 
 export interface TraceArtifactObjectSource {
@@ -218,7 +228,7 @@ function manifestBase(
     ...(source.sizeBytes !== undefined ? { size_bytes: source.sizeBytes } : {}),
     mime_type: source.mime,
     ...(extension ? { extension } : {}),
-    redacted: false,
+    redacted: source.redacted === true,
     truncated: source.truncated === true,
     stored_in_open_design: false,
     retention_policy: 'observability_90d' as const,
@@ -236,6 +246,7 @@ function manifestBase(
       ...common,
       object_class: 'attachment',
       attachment_id: source.id,
+      ...(source.sourcePathHash ? { source_path_hash: source.sourcePathHash } : {}),
       source: 'user_upload',
     };
   }
@@ -423,10 +434,30 @@ async function collectSources(
   config: ObjectRelayConfig,
 ): Promise<TraceObjectSource[]> {
   const sources: TraceObjectSource[] = [];
+  let snapshotBytes = 0;
   const projectId = opts.projectId;
+  const scopedId = (prefix: string, value: string) => objectId(prefix, opts.runScopedIds ? JSON.stringify([opts.runId, value]) : value);
+  let taskInputs: ReturnType<typeof loadOdNextTaskInputSnapshot> | undefined;
+  if (opts.taskInputSnapshot) {
+    try { taskInputs = loadOdNextTaskInputSnapshot(opts.taskInputSnapshot.descriptor, opts.taskInputSnapshot.snapshotsRoot); }
+    catch { /* Preserve an unavailable entry; never fall back to a mutable project file. */ }
+  }
 
   for (const attachmentPath of opts.attachmentPaths ?? []) {
-    const id = objectId('att', attachmentPath);
+    const id = scopedId('att', attachmentPath);
+    if (attachmentPath.startsWith('task-input:')) {
+      const file = taskInputs?.files.find(file => `task-input:${file.relativePath}` === attachmentPath);
+      const reason = !taskInputs ? 'task_input_snapshot_invalid' : !file ? 'task_input_reference_missing'
+        : file.bytes > config.objectMaxBytes ? 'object_too_large'
+        : opts.snapshotMaxBytes !== undefined && snapshotBytes + file.bytes > opts.snapshotMaxBytes ? 'snapshot_budget_exceeded' : undefined;
+      if (file && !reason) snapshotBytes += file.bytes;
+      sources.push({ objectClass: 'attachment', id, filename: path.basename(attachmentPath),
+        mime: file?.mediaType ?? mimeFor(attachmentPath), source: 'user_attachment',
+        ...(file ? { sizeBytes: file.bytes, ...(file.sourcePathHash ? { sourcePathHash: file.sourcePathHash } : {}) } : {}),
+        ...(reason ? { reason } : { body: file!.content }),
+      });
+      continue;
+    }
     if (!projectId) {
       sources.push({
         objectClass: 'attachment',
@@ -445,7 +476,7 @@ async function collectSources(
         attachmentPath,
         opts.projectMetadata ?? undefined,
       );
-      if (fileInfo.size > config.objectMaxBytes) {
+      if (fileInfo.size > config.objectMaxBytes || (opts.snapshotMaxBytes !== undefined && snapshotBytes + fileInfo.size > opts.snapshotMaxBytes)) {
         sources.push({
           objectClass: 'attachment',
           id,
@@ -453,7 +484,7 @@ async function collectSources(
           mime: fileInfo.mime,
           type: fileInfo.kind,
           sizeBytes: fileInfo.size,
-          reason: 'object_too_large',
+          reason: fileInfo.size > config.objectMaxBytes ? 'object_too_large' : 'snapshot_budget_exceeded',
           source: 'user_attachment',
         });
         continue;
@@ -464,6 +495,7 @@ async function collectSources(
         attachmentPath,
         opts.projectMetadata ?? undefined,
       );
+      snapshotBytes += file.buffer.length;
       sources.push({
         objectClass: 'attachment',
         id,
@@ -489,7 +521,7 @@ async function collectSources(
   for (const artifactSource of opts.artifacts ?? []) {
     const artifact = artifactSource.summary;
     const artifactPath = artifactSource.sourcePath ?? artifact.slug;
-    const id = objectId('art', artifactPath);
+    const id = scopedId('art', artifactPath);
     if (!projectId) {
       sources.push({
         objectClass: 'artifact',
@@ -510,7 +542,7 @@ async function collectSources(
         artifactPath,
         opts.projectMetadata ?? undefined,
       );
-      if (fileInfo.size > config.objectMaxBytes) {
+      if (fileInfo.size > config.objectMaxBytes || (opts.snapshotMaxBytes !== undefined && snapshotBytes + fileInfo.size > opts.snapshotMaxBytes)) {
         sources.push({
           objectClass: 'artifact',
           id,
@@ -518,7 +550,7 @@ async function collectSources(
           mime: fileInfo.mime,
           type: artifact.type || fileInfo.kind,
           sizeBytes: fileInfo.size,
-          reason: 'object_too_large',
+          reason: fileInfo.size > config.objectMaxBytes ? 'object_too_large' : 'snapshot_budget_exceeded',
           source: 'produced_file',
         });
         continue;
@@ -529,6 +561,7 @@ async function collectSources(
         artifactPath,
         opts.projectMetadata ?? undefined,
       );
+      snapshotBytes += file.buffer.length;
       sources.push({
         objectClass: 'artifact',
         id,
@@ -561,13 +594,23 @@ async function collectSources(
       filename: 'input.txt',
       mime: 'text/plain; charset=utf-8',
       type: 'text',
-      body,
+      ...(body.byteLength <= config.objectMaxBytes && (opts.snapshotMaxBytes === undefined || snapshotBytes + body.byteLength <= opts.snapshotMaxBytes) ? { body } : { reason: 'object_too_large' }),
       sizeBytes: body.byteLength,
       source: 'user_prompt',
       truncated: true,
     });
   }
 
+  if (opts.prefs.content === true && opts.runEvidence !== undefined) {
+    const body = Buffer.from(opts.runEvidence, 'utf8');
+    sources.push({
+      objectClass: 'input_text_snapshot', id: objectId('evidence', `${opts.runId}:${sha256(body)}`),
+      filename: 'run-evidence.json', mime: 'application/json', type: 'text',
+      ...(body.byteLength <= config.objectMaxBytes && (opts.snapshotMaxBytes === undefined || snapshotBytes + body.byteLength <= opts.snapshotMaxBytes)
+        ? { body } : { reason: 'object_too_large' }),
+      sizeBytes: body.byteLength, source: 'user_prompt', redacted: true, truncated: false,
+    });
+  }
   return sources;
 }
 
@@ -656,7 +699,7 @@ export async function buildTraceObjectManifests(
   if (!config.uploadsEnabled) return undefined;
 
   const now = opts.now ? opts.now() : new Date();
-  const sources = await collectSources(opts, config);
+  const sources = opts.frozenSources ?? await collectSources(opts, config);
   if (sources.length === 0) return undefined;
 
   const manifests = sources.map((source) => manifestBase(source, opts, now));
@@ -700,4 +743,12 @@ export async function buildTraceObjectManifests(
   });
 
   return groupManifests(merged);
+}
+
+/** Capture once before enqueue; all retry/registration/upload passes reuse these bytes. */
+export async function freezeTraceObjectSources(opts: BuildTraceObjectManifestsOptions): Promise<TraceObjectSource[]> {
+  if (opts.prefs.metrics !== true || opts.prefs.content !== true) return [];
+  const config = readRelayConfig(opts.env ?? process.env);
+  if (!config || !config.uploadsEnabled) return [];
+  return collectSources({ ...opts, snapshotMaxBytes: opts.snapshotMaxBytes ?? 16 * 1024 * 1024 }, config);
 }

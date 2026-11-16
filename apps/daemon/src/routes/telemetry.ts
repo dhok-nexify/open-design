@@ -1,46 +1,90 @@
 import { observeUpdateLifecycleStages } from '../migration/update-apply-observations.js';
 import express, { type Express } from 'express';
+import type Database from 'better-sqlite3';
 import { SIDECAR_DEFAULTS } from '@open-design/sidecar-proto';
 import { randomUUID } from 'node:crypto';
 import {
   type McpAnalyticsEventRequest,
   type McpAnalyticsContextResponse,
   type ObservabilityEventRequest,
+  CLIENT_EXPERIENCE_DIAGNOSTIC_EVENT,
+  parseClientExperienceDiagnostic,
+  type ClientExperienceDiagnostic,
+  buildClientTelemetryParams,
+  isClientMetricEventName,
+  parseClientMetricEvent,
+  isProcessExitEventName,
+  processExitMetricFields,
 } from '@open-design/contracts/analytics';
 import {
   createAnalyticsService,
   readAnalyticsContext,
   readPublicConfigResponse,
+  captureStockAnalyticsBatch,
 } from '../analytics.js';
 import type { AnalyticsContext } from '../analytics.js';
-import type { readAppConfig, writeAppConfig } from '../app-config.js';
-import { readCurrentAppVersionInfo, UNKNOWN_APP_VERSION } from '../app-version.js';
+import { readMetricsConsent, type readAppConfig, type writeAppConfig } from '../app-config.js';
+import { readCurrentAppVersionInfo, UNKNOWN_APP_VERSION, type AppVersionInfo } from '../app-version.js';
+import { getDaemonHealth } from '../services/daemon-health.js';
+import { createIdentityGatedQueue } from '../services/identity-gated-queue.js';
+
+const LAUNCH_EVENT_RETENTION_LIMIT = 64;
+import { readTelemetryEnvironment } from '../telemetry-environment.js';
 import { reportRunFeedbackFromDaemon } from '../langfuse-bridge.js';
 import { observePendingInstallerApplyAttempts } from '../migration/index.js';
 import {
   OPEN_DESIGN_PLUGIN_ID,
 } from '../mcp-observability.js';
+import { startStockTelemetryCollector } from '../media/stock-telemetry.js';
+import { readInputAggregationTrial } from '../storage/input-aggregation-config.js';
+import { createInputCheckpointStore } from '../storage/input-checkpoint.js';
+import { requireLocalDaemonRequest } from '../http/local-daemon-request.js';
+import { jsonBodyByteLength } from '../http/json-body-size.js';
 
 export interface DaemonTelemetry {
   analyticsService: ReturnType<typeof createAnalyticsService>;
   disposeFatalHandlers: () => void;
+  flushStockTelemetry: () => Promise<void>;
   getCachedAppVersion: () => any;
   resolveAppVersion: () => Promise<any>;
   reportFeedback: (req: {
     runId: string;
+    traceId?: string;
     rating: 'positive' | 'negative';
     reasonCodes: string[];
     hasCustomReason: boolean;
     customReason: string;
     scoreMetadata?: Record<string, unknown>;
   }) => ReturnType<typeof reportRunFeedbackFromDaemon>;
+  /** Stability metrics produced inside the daemon (e.g. its own memory samples)
+   * share the identity-gated queue so a fresh install never sends them under
+   * the synthetic daemon-anon id (OPEND-4220 retest 2). */
+  captureStabilityMetric: (capture: Parameters<ReturnType<typeof createAnalyticsService>['captureSafety']>[0]) => Promise<void>;
 }
 
 export interface RegisterTelemetryRoutesDeps {
   dataDir: string;
+  db?: Database.Database;
   namespace?: string;
   readAppConfig: typeof readAppConfig;
   writeAppConfig: typeof writeAppConfig;
+  onClientExperience?: (evidence: ClientExperienceDiagnostic) => string | null;
+  onHostFault?: (event: string, properties: Record<string, unknown>) => string | null;
+}
+
+export async function acceptClientExperienceDiagnostic(
+  deps: RegisterTelemetryRoutesDeps, value: unknown,
+): Promise<{ ok: false } | { ok: true; accepted: boolean; retryable?: true }> {
+  const evidence = parseClientExperienceDiagnostic(value);
+  if (!evidence) return { ok: false };
+  try {
+    const config = await deps.readAppConfig(deps.dataDir);
+    if (config.telemetry?.metrics !== true || config.telemetry?.content !== true) {
+      return { ok: true, accepted: false };
+    }
+    const accepted = (deps.onClientExperience?.(evidence) ?? null) !== null;
+    return accepted ? { ok: true, accepted: true } : { ok: true, accepted: false, retryable: true };
+  } catch { return { ok: true, accepted: false }; }
 }
 
 export function resolveInstallerObservationNamespace(namespace: string | undefined): string {
@@ -111,8 +155,49 @@ export async function resolveTrustedMcpEventContext(
 
 export function registerTelemetryRoutes(app: Express, deps: RegisterTelemetryRoutesDeps): DaemonTelemetry {
   const { dataDir } = deps;
+  let inputCheckpoints: ReturnType<typeof createInputCheckpointStore> | undefined;
+  app.post('/api/analytics/input-checkpoint', requireLocalDaemonRequest, express.json({ limit: '3mb' }), async (req, res) => {
+    try {
+      if (jsonBodyByteLength(req) > 3 * 1024 * 1024) { res.status(413).json({ ok: false }); return; }
+      const target = readPublicConfigResponse();
+      const config = await deps.readAppConfig(dataDir);
+      const trial = target.host && target.key && config.installationId
+        ? await readInputAggregationTrial(dataDir, target.host, target.key) : null;
+      const scope = target.host && target.key && config.installationId
+        ? `${target.host.replace(/\/+$/, '')}/i/v0/e/:${target.key}:${config.installationId}` : null;
+      if (!deps.db || !trial || !scope || req.body?.scope !== scope) { res.status(403).json({ ok: false }); return; }
+      if (!['read', 'write'].includes(req.body?.op)) { res.status(400).json({ ok: false }); return; }
+      inputCheckpoints ??= createInputCheckpointStore(deps.db);
+      if (req.body.op === 'read') res.json({ ok: true, records: inputCheckpoints.read(scope), revision: inputCheckpoints.revision(scope) });
+      else {
+        const revision = inputCheckpoints.write(scope, req.body.put, req.body.drop, req.body.revision);
+        res.json({ ok: true, revision });
+      }
+    } catch { res.status(503).json({ ok: false }); }
+  });
   const analyticsService = createAnalyticsService({ dataDir });
-  let cachedAppVersion: any = null;
+  let cachedAppVersion: AppVersionInfo | null = null;
+  // Launch denominators must carry the same installation identity as their
+  // ready/result events. On a fresh install the renderer mints that identity
+  // after the launch attempt has already been reported, so retain launch
+  // events until it exists (or the user has explicitly opted out).
+  const launchEventQueue = createIdentityGatedQueue<Parameters<typeof analyticsService.captureSafety>[0]>({
+    limit: LAUNCH_EVENT_RETENTION_LIMIT,
+    resolveIdentity: async () => {
+      // An unreadable config can never yield an id, so deliver immediately
+      // through captureSafety's fallback identity instead of holding.
+      let appCfg: Awaited<ReturnType<typeof deps.readAppConfig>>;
+      try { appCfg = await deps.readAppConfig(dataDir); } catch { return 'none'; }
+      if (typeof appCfg.installationId === 'string' && appCfg.installationId) return 'ready';
+      if (appCfg.telemetry?.metrics === false) return 'none';
+      // Only a readable consent that is still on can produce an id later. An
+      // explicit opt-out or a damaged/unreadable config never will, so those
+      // deliver immediately instead of waiting on an identity that won't come.
+      const consent = await readMetricsConsent(dataDir);
+      return consent.status !== 'unavailable' && consent.metrics === true ? 'pending' : 'none';
+    },
+    deliver: (capture) => analyticsService.captureSafety(capture),
+  });
 
   // PostHog runtime config.
   //
@@ -130,7 +215,8 @@ export function registerTelemetryRoutes(app: Express, deps: RegisterTelemetryRou
     }
     try {
       const appCfg = await deps.readAppConfig(dataDir);
-      const consentGranted = appCfg.telemetry?.metrics === true;
+      const consentGranted = appCfg.telemetry?.metrics === true
+        && (await readMetricsConsent(dataDir)).metrics;
       const installationId =
         typeof appCfg.installationId === 'string' && appCfg.installationId
           ? appCfg.installationId
@@ -141,6 +227,8 @@ export function registerTelemetryRoutes(app: Express, deps: RegisterTelemetryRou
         key: baseline.key,
         host: baseline.host,
         installationId,
+        inputAggregation: baseline.host && baseline.key && installationId
+          ? await readInputAggregationTrial(dataDir, baseline.host, baseline.key) : null,
       });
     } catch {
       res.json({
@@ -149,6 +237,7 @@ export function registerTelemetryRoutes(app: Express, deps: RegisterTelemetryRou
         key: baseline.key,
         host: baseline.host,
         installationId: null,
+        inputAggregation: null,
       });
     }
   });
@@ -223,14 +312,14 @@ export function registerTelemetryRoutes(app: Express, deps: RegisterTelemetryRou
     await analyticsService.capture({
       eventName: body.event,
       context,
-      appVersion: cachedAppVersion?.version ?? UNKNOWN_APP_VERSION,
+      appVersion: (await appVersionPromise)?.version ?? UNKNOWN_APP_VERSION,
       properties,
       insertId: body.eventId,
     });
     res.json({ ok: true });
   });
 
-  app.post('/api/observability/event', express.json({ limit: '64kb' }), (req, res) => {
+  app.post('/api/observability/event', express.json({ limit: '64kb' }), async (req, res) => {
     const body = (req.body ?? {}) as Partial<ObservabilityEventRequest>;
     const eventName = typeof body.event === 'string' ? body.event.trim() : '';
     if (!eventName) {
@@ -241,17 +330,55 @@ export function registerTelemetryRoutes(app: Express, deps: RegisterTelemetryRou
       body.properties != null && typeof body.properties === 'object' && !Array.isArray(body.properties)
         ? (body.properties as Record<string, unknown>)
         : {};
-    analyticsService.captureSafety({
-      eventName,
-      appVersion: cachedAppVersion?.version ?? UNKNOWN_APP_VERSION,
-      properties,
+    if (eventName === CLIENT_EXPERIENCE_DIAGNOSTIC_EVENT) {
+      // Never falls through to consent-bypassing safety telemetry.
+      const result = await acceptClientExperienceDiagnostic(deps, properties);
+      res.status(!result.ok ? 400 : result.retryable ? 503 : 200).json(result);
+      return;
+    }
+    const isFault = isProcessExitEventName(eventName)
+      && !['clean-exit', 'recovery-attempt'].includes(String(processExitMetricFields(eventName, properties).reason));
+    const incidentId = isFault ? deps.onHostFault?.(eventName, properties) : null;
+    const metricCommon = buildClientTelemetryParams(properties, {
+      eventId: randomUUID(), deviceId: null, appVersion: (await appVersionPromise)?.version ?? null,
+      clientType: 'desktop', captureSource: 'desktop/observability', env: readTelemetryEnvironment(),
+      platform: process.platform, arch: process.arch, reportedAt: new Date().toISOString(),
     });
+    const metric = isClientMetricEventName(eventName)
+      ? parseClientMetricEvent(eventName, {
+        ...properties, ...metricCommon,
+      }) : null;
+    if (isClientMetricEventName(eventName) && !metric) {
+      res.status(400).json({ error: 'invalid client metric properties' });
+      return;
+    }
+    if (['client_launch_attempt', 'client_business_ready', 'client_launch_result'].includes(eventName) && metric && typeof metric.app_session_id === 'string') {
+      getDaemonHealth()?.setLaunchContext({ app_session_id: metric.app_session_id as string, launch_attempt_id: metric.launch_attempt_id as string });
+    }
+    const appVersion = await appVersionPromise;
+    const capture = {
+      eventName,
+      appVersion: appVersion?.version ?? UNKNOWN_APP_VERSION,
+      properties: { ...(metric ?? properties), ...(incidentId ? { diagnostic_incident_id: incidentId } : {}) },
+      ...(metric ? { insertId: metric.event_id as string } : typeof properties.event_id === 'string' && /^[a-zA-Z0-9_.:-]{1,128}$/.test(properties.event_id) ? { insertId: properties.event_id } : {}),
+    };
+    if (metric && !isProcessExitEventName(eventName)) {
+      // Every stability metric (launch, memory, ...) waits for the installation
+      // identity so one first session never splits across device ids
+      // (OPEND-4220 retest 2). Exit reports stay immediate: capture beats
+      // attribution for the rare fault path.
+      await launchEventQueue.submit(capture);
+    } else {
+      await launchEventQueue.flush();
+      await analyticsService.captureSafety(capture);
+    }
     res.json({ ok: true });
   });
 
   const disposeFatalHandlers = installFatalTelemetryHandlers({
     analyticsService,
     getAppVersion: () => cachedAppVersion,
+    ...(deps.onHostFault ? { onHostFault: deps.onHostFault } : {}),
   });
 
   let lifecycleScanRunning = false;
@@ -268,7 +395,11 @@ export function registerTelemetryRoutes(app: Express, deps: RegisterTelemetryRou
     } catch { /* Observability never gates daemon lifecycle. */ }
     finally { lifecycleScanRunning = false; }
   };
-  const lifecycleTimer = setInterval(() => { void scanUpdateLifecycle(); }, 10_000);
+  const lifecycleTimer = setInterval(() => {
+    void scanUpdateLifecycle();
+    // Replays launch events retained while a fresh install had no identity.
+    void launchEventQueue.flush();
+  }, 10_000);
   lifecycleTimer.unref();
   const appVersionPromise = (async () => {
     try {
@@ -292,11 +423,27 @@ export function registerTelemetryRoutes(app: Express, deps: RegisterTelemetryRou
     }
   })();
 
+  const stockCollector = readPublicConfigResponse().key
+    ? startStockTelemetryCollector({
+        dataDir,
+        send: async (journal, signal) => captureStockAnalyticsBatch({
+          dataDir, events: journal.events,
+          sessionId: journal.header.sessionId ?? journal.header.callId,
+          context: journal.header.identity,
+          appVersion: (await appVersionPromise)?.version ?? UNKNOWN_APP_VERSION,
+          ...(signal ? { signal } : {}),
+        }),
+      })
+    : { dispose: () => {}, flush: async () => {} };
+
   return {
     analyticsService,
+    captureStabilityMetric: (capture) => launchEventQueue.submit(capture),
+    flushStockTelemetry: stockCollector.flush,
     disposeFatalHandlers: () => {
       telemetryDisposed = true;
       clearInterval(lifecycleTimer);
+      stockCollector.dispose();
       disposeFatalHandlers();
     },
     getCachedAppVersion: () => cachedAppVersion,
@@ -610,9 +757,11 @@ export function sanitizeMcpAnalyticsProperties(
 function installFatalTelemetryHandlers({
   analyticsService,
   getAppVersion,
+  onHostFault,
 }: {
   analyticsService: ReturnType<typeof createAnalyticsService>;
   getAppVersion: () => any;
+  onHostFault?: (event: string, properties: Record<string, unknown>) => string | null;
 }): () => void {
   const FATAL_FLUSH_TIMEOUT_MS = 1000;
   let fatalShuttingDown = false;
@@ -622,6 +771,10 @@ function installFatalTelemetryHandlers({
   ): void => {
     if (fatalShuttingDown) return;
     fatalShuttingDown = true;
+    try {
+      const incidentId = onHostFault?.(eventName, properties);
+      if (incidentId) properties = { ...properties, diagnostic_incident_id: incidentId };
+    } catch { /* local evidence registration must never delay fatal shutdown */ }
     const flushSequence = (async () => {
       try {
         await analyticsService.captureSafety({

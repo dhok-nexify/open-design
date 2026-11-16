@@ -8,15 +8,15 @@ import {
 } from '@open-design/contracts';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { EntryShell } from '../../src/components/EntryShell';
+import { EntryShellWithGateHost } from '../helpers/entry-shell-gate-host';
 import {
   notifyWorkspaceContextRefresh,
   resetTeamProjectsCache,
   resetWorkspaceBillingCache,
   resetWorkspaceContextCache,
 } from '../../src/collab/useWorkspaceContext';
-import { resetWorkspaceDirectorySupport } from '../../src/collab/workspace-directory-support';
 import { I18nProvider } from '../../src/i18n';
+import { invalidateAmrFundingFeedback } from '../../src/runtime/amr-funding-feedback';
 import { checkAmrBalanceGate } from '../../src/runtime/amr-balance-gate';
 import { ProjectCreateError } from '../../src/state/projects';
 import type { AgentInfo, AppConfig } from '../../src/types';
@@ -88,53 +88,28 @@ function teamContext(workspaceId: string, workspaceMemberId: string): WorkspaceC
   };
 }
 
+// These auth/context tests have independent, available funds. gen53 requires
+// that fact from the actual preflight HTTP seam before App's handoff.
+function availableFunding(input: RequestInfo | URL, contexts: WorkspaceCollabContext[]): Response {
+  const query = new URL(String(input), 'http://localhost').searchParams;
+  const context = contexts.find((item) => item.workspaceId === query.get('workspaceId'));
+  if (!context || query.get('modelId') !== 'glm-5') throw new Error('Unexpected funding scope in auth fixture');
+  return jsonResponse({ preflight: {
+    schemaVersion: 1, workspaceId: context.workspaceId, workspaceMemberId: context.workspaceMemberId,
+    modelId: 'glm-5', generatedAt: new Date().toISOString(), balanceUsd: '25.00',
+    fundingCheck: 'available', funding: 'gateway', modelCovered: true,
+    codingPlan: { workspaceId: context.workspaceId, generatedAt: new Date().toISOString(), eligible: false, tier: null, windows: [] },
+  } });
+}
+
 function amrAgent(): AgentInfo {
   return {
     id: 'amr',
-    name: 'NexTore Designer AMR',
+    name: 'OpenDesign AMR',
     bin: 'amr',
     available: true,
     models: [{ id: 'glm-5', label: 'GLM 5' }],
   };
-}
-
-/**
- * A controllable EventSource double.
- *
- * `useEventStream` reads the global constructor, and jsdom has none, so without
- * this the shared stream never exists and the documented foreground catch-up
- * ("a reconnect/foreground edge re-reads once") cannot be observed at all.
- * Only the test that asserts that edge installs it, so the tests that count
- * exact fetch numbers stay untouched.
- */
-class MockEventSource {
-  static instances: MockEventSource[] = [];
-  readonly url: string;
-  readyState = 0;
-  onopen: (() => void) | null = null;
-  onerror: (() => void) | null = null;
-  closed = false;
-
-  constructor(url: string | URL) {
-    this.url = String(url);
-    MockEventSource.instances.push(this);
-    // The daemon's `ready` handshake is the connect signal; fire onopen on a
-    // microtask so the subscriber registers first.
-    queueMicrotask(() => {
-      if (this.closed) return;
-      this.readyState = 1;
-      this.onopen?.();
-    });
-  }
-
-  addEventListener(): void {}
-
-  removeEventListener(): void {}
-
-  close(): void {
-    this.closed = true;
-    this.readyState = 2;
-  }
 }
 
 function amrConfig(): AppConfig {
@@ -160,16 +135,12 @@ describe('EntryShell AMR workspace precheck race', () => {
     resetWorkspaceContextCache();
     resetWorkspaceBillingCache();
     resetTeamProjectsCache();
-    // The directory verdict is module state keyed by identity; without this a
-    // 404 in one test would demote the billing gate in the next.
-    resetWorkspaceDirectorySupport();
+    invalidateAmrFundingFeedback();
   });
 
   afterEach(() => {
     vi.useRealTimers();
     vi.restoreAllMocks();
-    vi.unstubAllGlobals();
-    MockEventSource.instances = [];
     cleanup();
     globalThis.fetch = originalFetch;
     globalThis.ResizeObserver = originalResizeObserver;
@@ -177,10 +148,11 @@ describe('EntryShell AMR workspace precheck race', () => {
     resetWorkspaceContextCache();
     resetWorkspaceBillingCache();
     resetTeamProjectsCache();
+    invalidateAmrFundingFeedback();
   });
 
   it.each(['get', 'set'] as const)(
-    'starts the team gate from in-memory directory identity when sessionStorage %sItem fails',
+    'preserves the draft until exact funding identity is ready when sessionStorage %sItem fails',
     async (blockedOperation) => {
       window.history.replaceState(null, '', '/');
       if (blockedOperation === 'get') {
@@ -207,11 +179,13 @@ describe('EntryShell AMR workspace precheck race', () => {
           return originalStorageSetItem.call(this, key, value);
         });
       }
-      const workspace = teamContext('workspace-cold', 'member-cold');
+      const workspace = teamContext(`workspace-cold-${blockedOperation}`, `member-cold-${blockedOperation}`);
       const contextRead = deferred<Response>();
       let directoryReads = 0;
+      let fundingReads = 0;
       globalThis.fetch = vi.fn(async (input: RequestInfo | URL) => {
         const url = String(input);
+        if (url.includes('/billing/preflight?')) { fundingReads++; return availableFunding(input, [workspace]); }
         if (url.endsWith('/api/workspace/directory')) {
           directoryReads += 1;
           return jsonResponse(workspaceDirectoryFixture([workspace]));
@@ -234,7 +208,7 @@ describe('EntryShell AMR workspace precheck race', () => {
 
       render(
         <I18nProvider initial="en">
-          <EntryShell
+          <EntryShellWithGateHost
             skills={[]}
             designTemplates={[]}
             designSystems={[]}
@@ -273,6 +247,14 @@ describe('EntryShell AMR workspace precheck race', () => {
       setHomeHeroPrompt('Create a launch poster without waiting for account chrome.');
       fireEvent.click(await screen.findByTestId('home-hero-submit'));
 
+      await waitFor(() => expect(screen.getByTestId('home-hero-submit')).toBeEnabled());
+      expect(mockedCheckAmrBalanceGate).not.toHaveBeenCalled();
+      expect(onCreateProject).not.toHaveBeenCalled();
+      expect(screen.getByTestId('home-hero-input')).toHaveTextContent('Create a launch poster without waiting for account chrome.');
+      await act(async () => { contextRead.resolve(jsonResponse({ context: workspace })); });
+      await waitFor(() => expect(fundingReads).toBeGreaterThan(0));
+      expect(onCreateProject).not.toHaveBeenCalled();
+      fireEvent.click(screen.getByTestId('home-hero-submit'));
       await waitFor(() => expect(mockedCheckAmrBalanceGate).toHaveBeenCalled());
       await waitFor(() => expect(onCreateProject).toHaveBeenCalledTimes(1));
       expect(directoryReads).toBe(1);
@@ -288,6 +270,7 @@ describe('EntryShell AMR workspace precheck race', () => {
         directoryReads += 1;
         return jsonResponse(workspaceDirectoryFixture([]));
       }
+      if (url.endsWith('/api/workspace/context')) return jsonResponse({ context: null });
       if (url.endsWith('/api/workspace/projects/team')) {
         return jsonResponse({ projects: [] });
       }
@@ -316,7 +299,7 @@ describe('EntryShell AMR workspace precheck race', () => {
 
     render(
       <I18nProvider initial="en">
-        <EntryShell
+        <EntryShellWithGateHost
           skills={[]}
           designTemplates={[]}
           designSystems={[]}
@@ -395,13 +378,10 @@ describe('EntryShell AMR workspace precheck race', () => {
     }) as typeof fetch;
     mockedCheckAmrBalanceGate.mockResolvedValue({ kind: 'allow' });
     const onCreateProject = vi.fn(async () => true);
-    // Mounted before render: the shared stream reads the global constructor at
-    // subscribe time, so stubbing later would leave this test with no stream.
-    vi.stubGlobal('EventSource', MockEventSource);
 
     render(
       <I18nProvider initial="en">
-        <EntryShell
+        <EntryShellWithGateHost
           skills={[]}
           designTemplates={[]}
           designSystems={[]}
@@ -474,7 +454,7 @@ describe('EntryShell AMR workspace precheck race', () => {
 
     render(
       <I18nProvider initial="en">
-        <EntryShell
+        <EntryShellWithGateHost
           skills={[]}
           designTemplates={[]}
           designSystems={[]}
@@ -534,6 +514,7 @@ describe('EntryShell AMR workspace precheck race', () => {
     let contextReads = 0;
     globalThis.fetch = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
+      if (url.includes('/billing/preflight?')) return availableFunding(input, [workspace]);
       if (url.endsWith('/api/workspace/directory')) {
         return jsonResponse(workspaceDirectoryFixture([workspace]));
       }
@@ -562,7 +543,7 @@ describe('EntryShell AMR workspace precheck race', () => {
 
     render(
       <I18nProvider initial="en">
-        <EntryShell
+        <EntryShellWithGateHost
           skills={[]}
           designTemplates={[]}
           designSystems={[]}
@@ -608,19 +589,28 @@ describe('EntryShell AMR workspace precheck race', () => {
       await Promise.resolve();
     });
     expect(mockedCheckAmrBalanceGate).toHaveBeenCalledTimes(1);
-    expect(screen.getByTestId('home-hero-submit').getAttribute('aria-busy')).toBe('true');
+    expect((screen.getByTestId('home-hero-submit') as HTMLButtonElement).disabled).toBe(true);
+    expect(submitButton).toHaveAttribute('aria-busy', 'true');
+    expect(submitButton).toHaveAttribute('aria-label', 'Sending…');
+    expect(submitButton.querySelector('svg')).toHaveClass('icon-spin');
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(400);
     });
     expect(mockedCheckAmrBalanceGate).toHaveBeenCalledTimes(2);
     expect(onCreateProject).not.toHaveBeenCalled();
+    expect(submitButton).toBeDisabled();
+    expect(submitButton).toHaveAttribute('aria-busy', 'true');
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1_200);
     });
     expect(mockedCheckAmrBalanceGate).toHaveBeenCalledTimes(3);
     expect(onCreateProject).toHaveBeenCalledTimes(1);
+    expect(submitButton).toBeEnabled();
+    expect(submitButton).toHaveAttribute('aria-busy', 'false');
+    expect(submitButton).toHaveAttribute('aria-label', 'Run');
+    expect(submitButton.querySelector('svg')).not.toHaveClass('icon-spin');
   });
 
   it('moves a locally signed-in account from initial syncing to compact auto recovery', async () => {
@@ -646,7 +636,7 @@ describe('EntryShell AMR workspace precheck race', () => {
 
     render(
       <I18nProvider initial="en">
-        <EntryShell
+        <EntryShellWithGateHost
           skills={[]}
           designTemplates={[]}
           designSystems={[]}
@@ -714,7 +704,7 @@ describe('EntryShell AMR workspace precheck race', () => {
 
     render(
       <I18nProvider initial="en">
-        <EntryShell
+        <EntryShellWithGateHost
           skills={[]}
           designTemplates={[]}
           designSystems={[]}
@@ -752,7 +742,7 @@ describe('EntryShell AMR workspace precheck race', () => {
     );
 
     expect(
-      await screen.findByRole('heading', { name: 'Sign in to NexTore Designer' }),
+      await screen.findByRole('heading', { name: 'Welcome to OpenDesign' }),
     ).toBeTruthy();
     expect(window.location.pathname).toBe('/onboarding');
     expect(screen.queryByRole('alertdialog')).toBeNull();
@@ -763,6 +753,7 @@ describe('EntryShell AMR workspace precheck race', () => {
     const workspace = teamContext('workspace-auth', 'member-auth');
     globalThis.fetch = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
+      if (url.includes('/billing/preflight?')) return availableFunding(input, [workspace]);
       if (url.endsWith('/api/workspace/directory')) {
         return jsonResponse(workspaceDirectoryFixture([workspace]));
       }
@@ -798,7 +789,7 @@ describe('EntryShell AMR workspace precheck race', () => {
 
     render(
       <I18nProvider initial="en">
-        <EntryShell
+        <EntryShellWithGateHost
           skills={[]}
           designTemplates={[]}
           designSystems={[]}
@@ -844,7 +835,7 @@ describe('EntryShell AMR workspace precheck race', () => {
     await waitFor(() => expect(onCreateProject).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(window.location.pathname).toBe('/onboarding'));
     expect(
-      await screen.findByRole('heading', { name: 'Sign in to NexTore Designer' }),
+      await screen.findByRole('heading', { name: 'Welcome to OpenDesign' }),
     ).toBeTruthy();
     expect(window.localStorage.getItem('open-design:home-composer:prompt')).toBe(
       'Keep this draft through Cloud reauthentication',
@@ -859,6 +850,7 @@ describe('EntryShell AMR workspace precheck race', () => {
     let contextReads = 0;
     globalThis.fetch = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
+      if (url.includes('/billing/preflight?')) return availableFunding(input, [workspaceA, workspaceB]);
       if (url.endsWith('/api/workspace/directory')) {
         return jsonResponse(workspaceDirectoryFixture([workspaceA, workspaceB]));
       }
@@ -897,7 +889,7 @@ describe('EntryShell AMR workspace precheck race', () => {
 
     render(
       <I18nProvider initial="en">
-        <EntryShell
+        <EntryShellWithGateHost
           skills={[]}
           designTemplates={[]}
           designSystems={[]}

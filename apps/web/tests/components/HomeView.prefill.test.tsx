@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { pickHomeTemplate, homeTemplateTrigger } from '../helpers/home-template-picker';
 
 import { act } from 'react';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
@@ -21,7 +22,9 @@ vi.mock('../../src/collab/useWorkspaceContext', async (importOriginal) => {
 });
 
 import { HomeView } from '../../src/components/HomeView';
+import { stashHomeComposerAttachments } from '../../src/state/home-composer-stash';
 import { requestHomeChip } from '../../src/runtime/home-intent';
+import { HOME_APPLY_TEMPLATE_EVENT } from '../../src/components/home-hero/chips';
 import {
   createPluginAuthoringHandoff,
   createPluginUseHandoff,
@@ -56,7 +59,7 @@ const AUTHORING_PLUGIN = {
     od: {
       kind: 'scenario',
       taskKind: 'new-generation',
-      useCase: { query: 'Create an NexTore Designer plugin for {{pluginGoal}}.' },
+      useCase: { query: 'Create an OpenDesign plugin for {{pluginGoal}}.' },
       inputs: [
         {
           name: 'pluginGoal',
@@ -291,14 +294,14 @@ const LIVE_ARTIFACT_PLUGIN = {
     ...DEFAULT_PLUGIN.manifest,
     name: 'example-live-artifact',
     title: 'Live Artifact',
-    description: 'Create refreshable, auditable NexTore Designer artifacts.',
+    description: 'Create refreshable, auditable OpenDesign artifacts.',
     od: {
       kind: 'scenario',
       taskKind: 'new-generation',
       mode: 'prototype',
       scenario: 'live',
       useCase: {
-        query: 'Create refreshable, auditable NexTore Designer artifacts backed by connector or local data.',
+        query: 'Create refreshable, auditable OpenDesign artifacts backed by connector or local data.',
       },
       context: {
         skills: [{ path: './SKILL.md' }],
@@ -333,9 +336,9 @@ const LIVE_ARTIFACT_IMAGE_TEMPLATE_PLUGIN = {
 };
 
 const AUTHORING_DEFAULT_SCENARIO_INPUTS = {
-  artifactKind: 'NexTore Designer plugin',
-  audience: 'NexTore Designer plugin authors',
-  topic: 'packaging a reusable workflow as a NexTore Designer plugin',
+  artifactKind: 'OpenDesign plugin',
+  audience: 'OpenDesign plugin authors',
+  topic: 'packaging a reusable workflow as an OpenDesign plugin',
 };
 
 const REFLY_DESIGN_SYSTEM = {
@@ -546,7 +549,6 @@ describe('HomeView prompt handoff', () => {
         projects={[]}
         onSubmit={() => submitResult}
         onOpenProject={() => undefined}
-        onViewAllProjects={() => undefined}
       />,
     );
 
@@ -554,8 +556,11 @@ describe('HomeView prompt handoff', () => {
     fireEvent.click(screen.getByTestId('home-hero-submit'));
 
     await waitFor(() => {
-      expect(screen.getByTestId('home-hero-submit').getAttribute('aria-busy')).toBe('true');
+      expect((screen.getByTestId('home-hero-submit') as HTMLButtonElement).disabled).toBe(true);
     });
+    expect(screen.getByTestId('home-hero-submit')).toHaveAttribute('aria-busy', 'true');
+    expect(screen.getByTestId('home-hero-submit')).toHaveAttribute('aria-label', 'Sending…');
+    expect(screen.getByTestId('home-hero-submit').querySelector('svg')).toHaveClass('icon-spin');
     expect(homeHeroPromptValue()).toBe('Create an image of a quiet reading room.');
 
     await act(async () => {
@@ -568,43 +573,82 @@ describe('HomeView prompt handoff', () => {
     );
     expect(homeHeroPromptValue()).toBe('Create an image of a quiet reading room.');
     expect(screen.getByTestId('home-hero-submit').getAttribute('aria-busy')).toBe('false');
+    expect(screen.getByTestId('home-hero-submit')).toBeEnabled();
+    expect(screen.getByTestId('home-hero-submit')).toHaveAttribute('aria-label', 'Run');
+    expect(screen.getByTestId('home-hero-submit').querySelector('svg')).not.toHaveClass('icon-spin');
   });
 
-  it('keeps Send locked until the fresh-home default prototype binding is ready', async () => {
-    let resolvePlugins: (response: Response) => void = () => undefined;
-    const pluginsResponse = new Promise<Response>((resolve) => {
-      resolvePlugins = resolve;
-    });
+  it('leaves a fresh Home unselected without applying a plugin or changing the draft', async () => {
     const fetchMock = vi.fn<typeof fetch>(async (url) => {
-      if (typeof url === 'string' && url === '/api/plugins') return pluginsResponse;
+      if (url === '/api/plugins') return new Response(JSON.stringify({ plugins: [WEB_PROTOTYPE_PLUGIN, SIMPLE_DECK_PLUGIN] }));
       throw new Error(`unexpected fetch ${url}`);
     });
     vi.stubGlobal('fetch', fetchMock);
     stubAnimationFrame();
+    window.localStorage.setItem('open-design:home-composer:prompt', 'Keep my draft');
+    const onSubmit = vi.fn();
+    render(<HomeView projects={[]} onSubmit={onSubmit} onOpenProject={() => undefined} />);
+    await waitFor(() => expect(screen.getByTestId('home-hero-type-pills-more')).not.toBeDisabled());
+    expect(screen.queryByTestId('home-hero-template-picker')).toBeNull();
+    expect(homeHeroPromptValue()).toBe('Keep my draft');
+    expect(fetchMock.mock.calls.some(([url]) => String(url).includes('/apply'))).toBe(false);
+    expect(onSubmit).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByTestId('home-hero-submit'));
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({
+      prompt: 'Keep my draft', projectKind: 'other', pluginSelectionProvenance: 'automatic-default',
+    })));
+    expect(onSubmit.mock.calls[0]?.[0]).not.toHaveProperty('automaticStrategyTaskProfile');
+  });
 
-    render(
-      <HomeView
-        projects={[]}
-        onSubmit={() => undefined}
-        onOpenProject={() => undefined}
-        onViewAllProjects={() => undefined}
-      />,
-    );
-
-    await setPromptAndSettle('Turn these review habits into an infographic.');
-    const submit = screen.getByTestId('home-hero-submit') as HTMLButtonElement;
-    expect(submit.disabled).toBe(true);
-
+  it('waits for the initial catalog before enabling type choices while preserving a restored draft', async () => {
+    let resolveCatalog!: (response: Response) => void;
+    const catalog = new Promise<Response>((resolve) => { resolveCatalog = resolve; });
+    vi.stubGlobal('fetch', vi.fn<typeof fetch>(async (url) => {
+      if (url === '/api/plugins') return catalog;
+      throw new Error(`unexpected fetch ${url}`);
+    }));
+    window.localStorage.setItem('open-design:home-composer:prompt', 'My first prototype');
+    const onSubmit = vi.fn();
+    render(<HomeView projects={[]} onSubmit={onSubmit} onOpenProject={() => undefined} />);
+    expect(screen.getByTestId('home-hero-type-pills-more')).toBeDisabled();
+    expect(homeHeroPromptValue()).toBe('My first prototype');
+    expect(onSubmit).not.toHaveBeenCalled();
     await act(async () => {
-      resolvePlugins(new Response(JSON.stringify({ plugins: [WEB_PROTOTYPE_PLUGIN] }), {
-        status: 200,
-        headers: { 'content-type': 'application/json' },
-      }));
-      await pluginsResponse;
+      resolveCatalog(new Response(JSON.stringify({ plugins: [WEB_PROTOTYPE_PLUGIN] })));
+      await catalog;
     });
+    await waitFor(() => expect((screen.getByTestId('home-hero-submit') as HTMLButtonElement).disabled).toBe(false));
+    expect(screen.queryByTestId('home-hero-template-picker')).toBeNull();
+    expect(screen.getByTestId('home-hero-type-pills-more')).not.toBeDisabled();
+    expect(homeHeroPromptValue()).toBe('My first prototype');
+  });
 
-    await waitFor(() => expect(submit.disabled).toBe(false));
-    expect(screen.getByTestId('home-hero-template-trigger').textContent).toContain('Prototype');
+  it('restores a saved Deck selection instead of seeding Prototype', async () => {
+    window.localStorage.setItem('open-design:home-composer:chip', JSON.stringify({
+      chipId: 'deck', pluginId: SIMPLE_DECK_PLUGIN.id, projectKind: 'deck',
+    }));
+    vi.stubGlobal('fetch', vi.fn<typeof fetch>(async () => new Response(JSON.stringify({ plugins: [WEB_PROTOTYPE_PLUGIN, SIMPLE_DECK_PLUGIN] }))));
+    stubAnimationFrame();
+    render(<HomeView projects={[]} onSubmit={() => undefined} onOpenProject={() => undefined} />);
+    await waitFor(() => expect(screen.getByTestId('home-hero-template-picker').getAttribute('data-type')).toBe('deck'));
+    await pickHomeTemplate('prototype');
+    expect(screen.getByTestId('home-hero-template-picker').getAttribute('data-type')).toBe('prototype');
+  });
+
+  it('keeps an explicit queued type ahead of the fresh-home default', async () => {
+    vi.stubGlobal('fetch', vi.fn<typeof fetch>(async () => new Response(JSON.stringify({ plugins: [WEB_PROTOTYPE_PLUGIN, SIMPLE_DECK_PLUGIN] }))));
+    stubAnimationFrame();
+    requestHomeChip('deck');
+    render(<HomeView projects={[]} onSubmit={() => undefined} onOpenProject={() => undefined} />);
+    await waitFor(() => expect(screen.getByTestId('home-hero-template-picker').getAttribute('data-type')).toBe('deck'));
+    expect(homeHeroPromptValue()).toBe('');
+  });
+
+  it('leaves the dock type to its host', async () => {
+    vi.stubGlobal('fetch', vi.fn<typeof fetch>(async () => new Response(JSON.stringify({ plugins: [WEB_PROTOTYPE_PLUGIN] }))));
+    render(<HomeView variant="dock" projects={[]} onSubmit={() => undefined} onOpenProject={() => undefined} />);
+    await waitFor(() => expect(homeTemplateTrigger().disabled).toBe(false));
+    expect(screen.getByTestId('home-hero-template-picker').getAttribute('data-type')).toBeNull();
   });
 
   it('keeps creation types actionable while an expired plugin cache refreshes after a project round trip', async () => {
@@ -635,10 +679,9 @@ describe('HomeView prompt handoff', () => {
         projects={[]}
         onSubmit={() => undefined}
         onOpenProject={() => undefined}
-        onViewAllProjects={() => undefined}
       />,
     );
-    const firstTrigger = await screen.findByTestId('home-hero-template-trigger');
+    const firstTrigger = screen.getByTestId('home-hero-type-pills-more');
     await waitFor(() => expect((firstTrigger as HTMLButtonElement).disabled).toBe(false));
     firstHome.unmount();
 
@@ -653,13 +696,12 @@ describe('HomeView prompt handoff', () => {
           projects={[]}
           onSubmit={() => undefined}
           onOpenProject={() => undefined}
-          onViewAllProjects={() => undefined}
         />,
       );
 
       expect(pluginListReads).toBe(2);
       expect(
-        (screen.getByTestId('home-hero-template-trigger') as HTMLButtonElement).disabled,
+        (screen.getByTestId('home-hero-type-pills-more') as HTMLButtonElement).disabled,
       ).toBe(false);
 
       await act(async () => {
@@ -697,7 +739,6 @@ describe('HomeView prompt handoff', () => {
         projects={[]}
         onSubmit={() => undefined}
         onOpenProject={() => undefined}
-        onViewAllProjects={() => undefined}
         promptHandoff={createPluginAuthoringHandoff(1)}
       />,
     );
@@ -730,7 +771,6 @@ describe('HomeView prompt handoff', () => {
         projects={[]}
         onSubmit={() => undefined}
         onOpenProject={() => undefined}
-        onViewAllProjects={() => undefined}
         promptHandoff={createPluginAuthoringHandoff(1)}
       />,
     );
@@ -761,11 +801,9 @@ describe('HomeView prompt handoff', () => {
         projects={[]}
         onSubmit={() => undefined}
         onOpenProject={() => undefined}
-        onViewAllProjects={() => undefined}
       />,
     );
 
-    await clearActiveTypeChip();
     await clickHomeShortcut('create-plugin');
 
     const input = await screen.findByTestId('home-hero-input');
@@ -800,7 +838,6 @@ describe('HomeView prompt handoff', () => {
         projects={[]}
         onSubmit={() => undefined}
         onOpenProject={() => undefined}
-        onViewAllProjects={() => undefined}
       />,
     );
 
@@ -848,7 +885,6 @@ describe('HomeView prompt handoff', () => {
         projects={[]}
         onSubmit={onSubmit}
         onOpenProject={() => undefined}
-        onViewAllProjects={() => undefined}
         promptHandoff={createPluginUseHandoff(1, 'example-web-prototype')}
       />,
     );
@@ -907,7 +943,6 @@ describe('HomeView prompt handoff', () => {
         projects={[]}
         onSubmit={() => undefined}
         onOpenProject={() => undefined}
-        onViewAllProjects={() => undefined}
         promptHandoff={createPluginUseHandoff(11, 'example-web-prototype', {
           action: 'use',
           chipId: 'prototype',
@@ -917,7 +952,8 @@ describe('HomeView prompt handoff', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByTestId('home-hero-active-plugin').textContent).toContain('Web Prototype');
+      // The lead chip cuts the title to eight code points ("Web Prot…").
+      expect(screen.getByTestId('home-hero-active-plugin').textContent).toContain('Web Prot…');
     });
     expect(JSON.parse(window.localStorage.getItem('open-design:home-composer:chip')!)).toEqual({
       chipId: 'prototype',
@@ -949,7 +985,6 @@ describe('HomeView prompt handoff', () => {
         projects={[]}
         onSubmit={onSubmit}
         onOpenProject={() => undefined}
-        onViewAllProjects={() => undefined}
       />,
     );
 
@@ -992,7 +1027,6 @@ describe('HomeView prompt handoff', () => {
         projects={[]}
         onSubmit={onSubmit}
         onOpenProject={() => undefined}
-        onViewAllProjects={() => undefined}
       />,
     );
 
@@ -1006,9 +1040,9 @@ describe('HomeView prompt handoff', () => {
     ));
     expect(JSON.parse(String((applyCall?.[1] as RequestInit).body))).toMatchObject({
       inputs: {
-        artifactKind: 'NexTore Designer plugin',
-        audience: 'NexTore Designer plugin authors',
-        topic: 'packaging a reusable workflow as a NexTore Designer plugin',
+        artifactKind: 'OpenDesign plugin',
+        audience: 'OpenDesign plugin authors',
+        topic: 'packaging a reusable workflow as an OpenDesign plugin',
       },
     });
     await waitFor(() => {
@@ -1023,9 +1057,9 @@ describe('HomeView prompt handoff', () => {
       pluginId: 'od-new-generation',
       appliedPluginSnapshotId: 'snap-default',
       pluginInputs: {
-        artifactKind: 'NexTore Designer plugin',
-        audience: 'NexTore Designer plugin authors',
-        topic: 'packaging a reusable workflow as a NexTore Designer plugin',
+        artifactKind: 'OpenDesign plugin',
+        audience: 'OpenDesign plugin authors',
+        topic: 'packaging a reusable workflow as an OpenDesign plugin',
       },
       projectKind: 'other',
     }));
@@ -1052,11 +1086,9 @@ describe('HomeView prompt handoff', () => {
         defaultDesignSystemId="ds-refly"
         onSubmit={onSubmit}
         onOpenProject={() => undefined}
-        onViewAllProjects={() => undefined}
       />,
     );
 
-    await clearActiveTypeChip();
     await pickHomeTemplate('prototype');
 
     await waitFor(() => {
@@ -1157,21 +1189,11 @@ describe('HomeView prompt handoff', () => {
         projects={[]}
         onSubmit={onSubmit}
         onOpenProject={() => undefined}
-        onViewAllProjects={() => undefined}
       />,
     );
 
-    await clearActiveTypeChip();
     await pickHomeTemplate('prototype');
-    const subtypeChip = await screen.findByTestId(`home-hero-subtype-${subtype}`);
-    fireEvent.click(subtypeChip);
-
-    await waitFor(() => {
-      expect(screen.getByTestId('home-hero-template-trigger').textContent).toContain('Prototype');
-      expect(subtypeChip.getAttribute('aria-selected')).toBe('true');
-      expect(JSON.parse(window.localStorage.getItem('open-design:home-composer:chip') ?? '{}'))
-        .toMatchObject({ chipId: 'prototype', prototypeSubtypeId: subtype });
-    });
+    await pickPrototypeScene(subtype);
 
     await setPromptAndSettle(prompt);
     fireEvent.click(screen.getByTestId('home-hero-submit'));
@@ -1243,7 +1265,6 @@ describe('HomeView prompt handoff', () => {
         projects={[]}
         onSubmit={onSubmit}
         onOpenProject={() => undefined}
-        onViewAllProjects={() => undefined}
       />,
     );
 
@@ -1252,8 +1273,8 @@ describe('HomeView prompt handoff', () => {
 
     await waitFor(() => {
       expect(screen.getByTestId('home-hero-template-trigger').textContent).toContain('Prototype');
-      expect(screen.getByTestId(`home-hero-subtype-${legacyChipId}`).getAttribute('aria-selected'))
-        .toBe('true');
+      expect(JSON.parse(window.localStorage.getItem('open-design:home-composer:chip') ?? '{}'))
+        .toMatchObject({ chipId: 'prototype', prototypeSubtypeId: legacyChipId });
     });
 
     await setPromptAndSettle('Lay out the onboarding screens.');
@@ -1297,17 +1318,12 @@ describe('HomeView prompt handoff', () => {
         projects={[]}
         onSubmit={onSubmit}
         onOpenProject={() => undefined}
-        onViewAllProjects={() => undefined}
       />,
     );
 
-    await clearActiveTypeChip();
     await pickHomeTemplate('deck');
-    const deckSubtype = await screen.findByTestId('home-hero-subtype-fundraising-pitch');
-    fireEvent.click(deckSubtype);
-    await waitFor(() => {
-      expect(deckSubtype.getAttribute('aria-selected')).toBe('true');
-    });
+    // The deck scenes were example filters on the retired sub-type row; the
+    // route under test is the Slide deck type's own.
 
     await setPromptAndSettle('Pitch our seed round to climate-tech investors.');
     fireEvent.click(screen.getByTestId('home-hero-submit'));
@@ -1351,11 +1367,9 @@ describe('HomeView prompt handoff', () => {
         projects={[]}
         onSubmit={onSubmit}
         onOpenProject={() => undefined}
-        onViewAllProjects={() => undefined}
       />,
     );
 
-    await clearActiveTypeChip();
     await pickHomeTemplate('document');
 
     await waitFor(() => {
@@ -1413,21 +1427,20 @@ describe('HomeView prompt handoff', () => {
         defaultDesignSystemId={null}
         onSubmit={onSubmit}
         onOpenProject={() => undefined}
-        onViewAllProjects={() => undefined}
       />,
     );
 
-    await clearActiveTypeChip();
     await pickHomeTemplate('prototype');
 
     await waitFor(() => {
       expect(screen.getByTestId('home-hero-template-trigger').textContent).toContain('Prototype');
     });
-    // Round-4 skin: the unset trigger reads "Design system" (the field name)
-    // instead of the "No design system" placeholder.
-    expect(
-      screen.getByTestId('home-hero-design-system-trigger').textContent,
-    ).toContain('Design system');
+    // Unset, the trigger is the palette glyph alone (per product: 不选择不显示
+    // 文案) — the field name lives on its accessible name, and the pill carries
+    // no visible label at all.
+    const unsetDsTrigger = screen.getByTestId('home-hero-design-system-trigger');
+    expect(unsetDsTrigger.getAttribute('aria-label')).toBe('Design system');
+    expect(unsetDsTrigger.textContent).toBe('');
 
     await setPromptAndSettle('Build a pricing-page prototype.');
     fireEvent.click(screen.getByTestId('home-hero-submit'));
@@ -1464,11 +1477,9 @@ describe('HomeView prompt handoff', () => {
         defaultDesignSystemId="ds-refly"
         onSubmit={onSubmit}
         onOpenProject={() => undefined}
-        onViewAllProjects={() => undefined}
       />,
     );
 
-    await clearActiveTypeChip();
     await pickHomeTemplate('prototype');
 
     // The personal default pre-selects, as before.
@@ -1485,10 +1496,11 @@ describe('HomeView prompt handoff', () => {
     const noneOption = await within(popover).findByText('No design system');
     fireEvent.mouseDown(noneOption);
     await waitFor(() => {
-      // Round-4 skin: with nothing selected the trigger reads "Design system".
-      expect(
-        screen.getByTestId('home-hero-design-system-trigger').textContent,
-      ).toContain('Design system');
+      // With nothing selected the trigger drops back to the icon-only pill:
+      // no visible label, the field name on its accessible name instead.
+      const dsTrigger = screen.getByTestId('home-hero-design-system-trigger');
+      expect(dsTrigger.getAttribute('aria-label')).toBe('Design system');
+      expect(dsTrigger.textContent).toBe('');
     });
 
     await setPromptAndSettle('Build a pricing-page prototype.');
@@ -1531,11 +1543,9 @@ describe('HomeView prompt handoff', () => {
         defaultDesignSystemId="ds-refly"
         onSubmit={onSubmit}
         onOpenProject={() => undefined}
-        onViewAllProjects={() => undefined}
       />,
     );
 
-    await clearActiveTypeChip();
     await pickHomeTemplate('prototype');
     // The card itself is the single click-to-use affordance — clicking it
     // directly seeds the composer input.
@@ -1558,7 +1568,7 @@ describe('HomeView prompt handoff', () => {
     // Yielding the ROUTE to OD Next does not change the composer chrome: the
     // example is still an explicit pick, so its own plugin badge (and clear ×)
     // renders exactly as it did when the pick pinned a plugin.
-    expect(screen.getByTestId('home-hero-active-plugin').textContent).toContain('Web Prototype');
+    expect(screen.getByTestId('home-hero-active-plugin').textContent).toContain('Web Prot…');
     // The design-system picker is now the persistent control below the composer.
     expect(
       screen.getByTestId('home-hero-design-system-trigger').textContent,
@@ -1631,11 +1641,9 @@ describe('HomeView prompt handoff', () => {
         projects={[]}
         onSubmit={onSubmit}
         onOpenProject={() => undefined}
-        onViewAllProjects={() => undefined}
       />,
     );
 
-    await clearActiveTypeChip();
     await pickHomeTemplate('deck');
     fireEvent.click(
       (await screen.findAllByTestId('home-hero-plugin-preset')).find(
@@ -1705,17 +1713,11 @@ describe('HomeView prompt handoff', () => {
         defaultDesignSystemId="ds-refly"
         onSubmit={onSubmit}
         onOpenProject={() => undefined}
-        onViewAllProjects={() => undefined}
       />,
     );
 
-    await clearActiveTypeChip();
     await pickHomeTemplate('prototype');
-    fireEvent.click(await screen.findByTestId(`home-hero-subtype-${subtype}`));
-    await waitFor(() => {
-      expect(screen.getByTestId(`home-hero-subtype-${subtype}`).getAttribute('aria-selected'))
-        .toBe('true');
-    });
+    await pickPrototypeScene(subtype);
     fireEvent.click(
       (await screen.findAllByTestId('home-hero-plugin-preset')).find(
         (item) => item.getAttribute('data-plugin-id') === 'example-web-prototype',
@@ -1773,7 +1775,6 @@ describe('HomeView prompt handoff', () => {
         projects={[]}
         onSubmit={onSubmit}
         onOpenProject={() => undefined}
-        onViewAllProjects={() => undefined}
         promptHandoff={createPluginUseHandoff(21, 'example-web-prototype', {
           action: 'use',
           chipId: 'prototype',
@@ -1803,6 +1804,149 @@ describe('HomeView prompt handoff', () => {
     expect(submittedUse).toHaveProperty('pluginInputs');
   });
 
+  it('binds the picked preset plugin on submit while preserving the chip metadata', async () => {
+    const fetchMock = vi.fn<typeof fetch>(async (url) => {
+      if (typeof url === 'string' && url === '/api/plugins') {
+        return new Response(JSON.stringify({
+          plugins: [LIVE_ARTIFACT_PLUGIN, LIVE_ARTIFACT_IMAGE_TEMPLATE_PLUGIN],
+        }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
+      }
+      if (typeof url === 'string' && url.includes('/apply-local')) {
+        return new Response(JSON.stringify(LIVE_ARTIFACT_APPLY_RESULT), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
+      }
+      throw new Error(`unexpected fetch ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    stubAnimationFrame();
+    const onSubmit = vi.fn();
+
+    render(
+      <HomeView
+        projects={[]}
+        onSubmit={onSubmit}
+        onOpenProject={() => undefined}
+      />,
+    );
+
+    await pickHomeTemplate('live-artifact');
+
+    await waitFor(() => {
+      expect(screen.getAllByTestId('home-hero-plugin-preset').length).toBeGreaterThan(0);
+    });
+    const liveArtifactTemplatePreset = screen.getAllByTestId('home-hero-plugin-preset')
+      .find((item) => item.getAttribute('data-plugin-id') === LIVE_ARTIFACT_IMAGE_TEMPLATE_PLUGIN.id);
+    if (!liveArtifactTemplatePreset) {
+      throw new Error('expected live artifact image template preset to render');
+    }
+    // The card itself is the single click-to-use affordance — clicking it
+    // directly seeds the composer.
+    fireEvent.click(liveArtifactTemplatePreset);
+
+    screen.getByTestId('home-hero-input');
+    // The composer seed prefers the curated description over the query head
+    // (the query is generator-facing; it still reaches the agent as plugin
+    // context on apply).
+    await waitFor(() => {
+      expect(homeHeroPromptText()).toBe('Create a live Notion dashboard artifact.');
+    });
+    expect(fetchMock.mock.calls.some(([url]) => (
+      typeof url === 'string' && url.includes('/apply-local')
+    ))).toBe(false);
+    expect(screen.getByTestId('home-hero-template-trigger').textContent).toContain('Live artifact');
+    expect(screen.queryByTestId('plugin-inputs-form')).toBeNull();
+
+    fireEvent.click(screen.getByTestId('home-hero-submit'));
+
+    // Picking a preset binds the preset's OWN plugin (so its SKILL.md /
+    // example.html become generation context and the output recreates that
+    // reference), while the live-artifact chip's project kind + metadata are
+    // carried forward. Submit resolves the snapshot for the preset plugin.
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
+      '/api/plugins/image-template-notion-team-dashboard-live-artifact/apply-local',
+      expect.anything(),
+    ));
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({
+      pluginId: 'image-template-notion-team-dashboard-live-artifact',
+      appliedPluginSnapshotId: 'snap-live-artifact',
+      projectKind: 'prototype',
+      projectMetadata: expect.objectContaining({
+        kind: 'prototype',
+        intent: 'live-artifact',
+        fidelity: 'high-fidelity',
+      }),
+      prompt: 'Create a live Notion dashboard artifact.',
+    })));
+  });
+
+  it('binds the Home rail Live artifact chip with live-artifact metadata and applies it on submit', async () => {
+    const fetchMock = vi.fn<typeof fetch>(async (url) => {
+      if (typeof url === 'string' && url === '/api/plugins') {
+        return new Response(JSON.stringify({ plugins: [WEB_PROTOTYPE_PLUGIN, LIVE_ARTIFACT_PLUGIN] }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
+      }
+      if (typeof url === 'string' && url.includes('/api/plugins/example-live-artifact/apply-local')) {
+        return new Response(JSON.stringify(LIVE_ARTIFACT_APPLY_RESULT), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
+      }
+      throw new Error(`unexpected fetch ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    stubAnimationFrame();
+    const onSubmit = vi.fn();
+
+    render(
+      <HomeView
+        projects={[]}
+        onSubmit={onSubmit}
+        onOpenProject={() => undefined}
+      />,
+    );
+
+    await pickHomeTemplate('live-artifact');
+
+    await waitFor(() => {
+      expect(screen.getByTestId('home-hero-template-trigger').textContent).toContain('Live artifact');
+    });
+    expect(fetchMock.mock.calls.some(([url]) => (
+      typeof url === 'string' && url.includes('/api/plugins/example-live-artifact/apply-local')
+    ))).toBe(false);
+    await setPromptAndSettle('Build a refreshable Stripe revenue dashboard.');
+    fireEvent.click(screen.getByTestId('home-hero-submit'));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
+      '/api/plugins/example-live-artifact/apply-local',
+      expect.anything(),
+    ));
+    const applyCall = fetchMock.mock.calls.find(([url]) => (
+      typeof url === 'string' && url.includes('/api/plugins/example-live-artifact/apply-local')
+    ));
+    expect(JSON.parse(String((applyCall?.[1] as RequestInit).body))).toMatchObject({
+      inputs: {},
+    });
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({
+      pluginId: 'example-live-artifact',
+      appliedPluginSnapshotId: 'snap-live-artifact',
+      projectKind: 'prototype',
+      projectMetadata: expect.objectContaining({
+        kind: 'prototype',
+        intent: 'live-artifact',
+        fidelity: 'high-fidelity',
+      }),
+      prompt: 'Build a refreshable Stripe revenue dashboard.',
+    })));
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
   it('binds the deck chip and keeps only the design-system picker in the footer', async () => {
     // Slide count + speaker-notes footer controls were removed from the deck
     // composer; the agent asks for them in the first-turn discovery flow. The
@@ -1827,11 +1971,9 @@ describe('HomeView prompt handoff', () => {
         defaultDesignSystemId="ds-refly"
         onSubmit={onSubmit}
         onOpenProject={() => undefined}
-        onViewAllProjects={() => undefined}
       />,
     );
 
-    await clearActiveTypeChip();
     await pickHomeTemplate('deck');
 
     await waitFor(() => {
@@ -1862,10 +2004,10 @@ describe('HomeView prompt handoff', () => {
     expect(fetchMock.mock.calls.some(([url]) => String(url).includes('/apply-local'))).toBe(false);
   });
 
-  it('switches output-type chips without replacing an existing prompt', async () => {
+  it('clears and reselects types while retaining the draft and attachments', async () => {
     const fetchMock = vi.fn<typeof fetch>(async (url) => {
       if (typeof url === 'string' && url === '/api/plugins') {
-        return new Response(JSON.stringify({ plugins: [WEB_PROTOTYPE_PLUGIN] }), {
+        return new Response(JSON.stringify({ plugins: [WEB_PROTOTYPE_PLUGIN, DEFAULT_PLUGIN] }), {
           status: 200,
           headers: { 'content-type': 'application/json' },
         });
@@ -1881,18 +2023,18 @@ describe('HomeView prompt handoff', () => {
     vi.stubGlobal('fetch', fetchMock);
     stubAnimationFrame();
 
+    stashHomeComposerAttachments([new File(['brief'], 'brief.txt', { type: 'text/plain' })]);
+
     render(
       <HomeView
         projects={[]}
         onSubmit={() => undefined}
         onOpenProject={() => undefined}
-        onViewAllProjects={() => undefined}
       />,
     );
 
     await screen.findByTestId('home-hero-input');
     await setPromptAndSettle('Keep my current brief');
-    await clearActiveTypeChip();
     await pickHomeTemplate('prototype');
 
     await waitFor(() => {
@@ -1901,6 +2043,17 @@ describe('HomeView prompt handoff', () => {
     expect(fetchMock.mock.calls.some(([url]) => (
       typeof url === 'string' && url.includes('/api/plugins/example-web-prototype/apply-local')
     ))).toBe(false);
+    expect(homeHeroPromptText()).toBe('Keep my current brief');
+    await pickHomeTemplate('document');
+    expect(screen.getByTestId('home-hero-template-trigger').textContent).toContain('Document');
+    expect(homeHeroPromptText()).toBe('Keep my current brief');
+    expect(screen.getByTestId('home-hero-staged-files').textContent).toContain('brief.txt');
+    fireEvent.click(screen.getByTestId('home-hero-template-clear'));
+    expect(screen.queryByTestId('home-hero-template-picker')).toBeNull();
+    expect(screen.getByTestId('home-hero-type-pills')).toBeTruthy();
+    expect(screen.getByTestId('home-hero-staged-files').textContent).toContain('brief.txt');
+    expect(homeHeroPromptText()).toBe('Keep my current brief');
+    await pickHomeTemplate('prototype');
     expect(homeHeroPromptText()).toBe('Keep my current brief');
     expect(screen.queryByRole('dialog', { name: /replace current prompt/i })).toBeNull();
   });
@@ -1937,11 +2090,9 @@ describe('HomeView prompt handoff', () => {
         defaultDesignSystemId="ds-refly"
         onSubmit={() => undefined}
         onOpenProject={() => undefined}
-        onViewAllProjects={() => undefined}
       />,
     );
 
-    await clearActiveTypeChip();
     await pickHomeTemplate('deck');
     await waitFor(() => {
       expect(screen.getByTestId('home-hero-template-trigger').textContent).toContain('Slide deck');
@@ -1958,7 +2109,6 @@ describe('HomeView prompt handoff', () => {
       );
     });
 
-    await clearActiveTypeChip();
     await pickHomeTemplate('prototype');
     await waitFor(() => {
       expect(screen.getByTestId('home-hero-plugin-presets')).toBeTruthy();
@@ -1998,7 +2148,6 @@ describe('HomeView prompt handoff', () => {
         projects={[]}
         onSubmit={() => undefined}
         onOpenProject={() => undefined}
-        onViewAllProjects={() => undefined}
       />,
     );
 
@@ -2010,7 +2159,6 @@ describe('HomeView prompt handoff', () => {
         projects={[]}
         onSubmit={() => undefined}
         onOpenProject={() => undefined}
-        onViewAllProjects={() => undefined}
         promptHandoff={createPluginUseHandoff(2, 'example-web-prototype', {
           action: 'use-with-query',
         })}
@@ -2069,7 +2217,6 @@ describe('HomeView prompt handoff', () => {
         projects={[]}
         onSubmit={onSubmit}
         onOpenProject={() => undefined}
-        onViewAllProjects={() => undefined}
       />,
     );
 
@@ -2080,7 +2227,6 @@ describe('HomeView prompt handoff', () => {
         projects={[]}
         onSubmit={onSubmit}
         onOpenProject={() => undefined}
-        onViewAllProjects={() => undefined}
         promptHandoff={createPluginUseHandoff(3, 'example-web-prototype', {
           action: 'use-with-query',
         })}
@@ -2140,7 +2286,6 @@ describe('HomeView prompt handoff', () => {
         projects={[]}
         onSubmit={onSubmit}
         onOpenProject={() => undefined}
-        onViewAllProjects={() => undefined}
       />,
     );
 
@@ -2152,7 +2297,6 @@ describe('HomeView prompt handoff', () => {
         projects={[]}
         onSubmit={onSubmit}
         onOpenProject={() => undefined}
-        onViewAllProjects={() => undefined}
         promptHandoff={createPluginUseHandoff(4, 'example-web-prototype', {
           action: 'use-with-query',
         })}
@@ -2213,7 +2357,6 @@ describe('HomeView prompt handoff', () => {
         projects={[]}
         onSubmit={onSubmit}
         onOpenProject={() => undefined}
-        onViewAllProjects={() => undefined}
       />,
     );
 
@@ -2224,7 +2367,6 @@ describe('HomeView prompt handoff', () => {
         projects={[]}
         onSubmit={onSubmit}
         onOpenProject={() => undefined}
-        onViewAllProjects={() => undefined}
         promptHandoff={createPluginUseHandoff(6, 'example-web-prototype', {
           action: 'use-with-query',
         })}
@@ -2283,7 +2425,6 @@ describe('HomeView prompt handoff', () => {
         projects={[]}
         onSubmit={onSubmit}
         onOpenProject={() => undefined}
-        onViewAllProjects={() => undefined}
       />,
     );
 
@@ -2293,7 +2434,6 @@ describe('HomeView prompt handoff', () => {
         projects={[]}
         onSubmit={onSubmit}
         onOpenProject={() => undefined}
-        onViewAllProjects={() => undefined}
         promptHandoff={createPluginUseHandoff(5, 'example-meta-landing', {
           action: 'use-with-query',
         })}
@@ -2334,11 +2474,9 @@ describe('HomeView prompt handoff', () => {
         projects={[]}
         onSubmit={onSubmit}
         onOpenProject={() => undefined}
-        onViewAllProjects={() => undefined}
       />,
     );
 
-    await clearActiveTypeChip();
     await clickHomeShortcut('create-plugin');
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
       '/api/plugins/od-plugin-authoring/apply-local',
@@ -2346,7 +2484,8 @@ describe('HomeView prompt handoff', () => {
     ));
     await waitFor(() => {
       const badge = screen.getByTestId('home-hero-active-plugin');
-      expect(badge.textContent).toContain('Create plugin');
+      // Eight code points, then an ellipsis — the lead chip's truncation.
+      expect(badge.textContent).toContain('Create p…');
       expect(badge.textContent).not.toContain('Plugin authoring');
     });
     const input = screen.getByTestId('home-hero-input');
@@ -2390,11 +2529,9 @@ describe('HomeView prompt handoff', () => {
         projects={[]}
         onSubmit={onSubmit}
         onOpenProject={() => undefined}
-        onViewAllProjects={() => undefined}
       />,
     );
 
-    await clearActiveTypeChip();
     await clickHomeShortcut('create-plugin');
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
       '/api/plugins/od-plugin-authoring/apply-local',
@@ -2446,11 +2583,9 @@ describe('HomeView prompt handoff', () => {
         projects={[]}
         onSubmit={onSubmit}
         onOpenProject={() => undefined}
-        onViewAllProjects={() => undefined}
       />,
     );
 
-    await clearActiveTypeChip();
     await clickHomeShortcut('create-plugin');
     const input = screen.getByTestId('home-hero-input');
     const inputCard = input.closest('.home-hero__input-card') as HTMLElement | null;
@@ -2499,30 +2634,20 @@ async function setPromptAndSettle(value: string): Promise<void> {
   });
 }
 
-async function clearActiveTypeChip() {
-  // Reset the Template selection back to "None" via the radial's center Clear
-  // (#5517 replaced the dropdown Clear with the radial menu's center button).
-  const trigger = screen.queryByTestId('home-hero-template-trigger');
-  if (!trigger) return;
-  fireEvent.click(trigger);
-  const clear = screen.queryByTestId('home-hero-template-radial-clear');
-  if (clear) fireEvent.click(clear);
-  fireEvent.keyDown(document, { key: 'Escape' });
-}
 
-// #5517 removed the inline template rail (and the "Start with a template…"
-// bar that held it) from Home. Scenario templates are now picked from the
-// composer footer's radial Template picker.
-async function pickHomeTemplate(id: string) {
-  const trigger = await screen.findByTestId('home-hero-template-trigger');
-  await waitFor(() => expect((trigger as HTMLButtonElement).disabled).toBe(false));
-  fireEvent.click(trigger);
-  const wedge = await screen.findByTestId(`home-hero-template-wedge-${id}`);
-  await waitFor(() =>
-    expect(screen.getByTestId(`home-hero-template-wedge-${id}`).getAttribute('aria-disabled'))
-      .not.toBe('true'),
-  );
-  fireEvent.click(wedge);
+
+// The hero no longer renders a second-level scene row; a Prototype scene is
+// reached the way other surfaces hand one off — a queued chip intent naming the
+// retired top-level id, which HomeView folds onto 原型 + that scene.
+async function pickPrototypeScene(scene: string) {
+  await act(async () => {
+    requestHomeChip(scene);
+  });
+  await waitFor(() => {
+    expect(screen.getByTestId('home-hero-template-trigger').textContent).toContain('Prototype');
+    expect(JSON.parse(window.localStorage.getItem('open-design:home-composer:chip') ?? '{}'))
+      .toMatchObject({ chipId: 'prototype', prototypeSubtypeId: scene });
+  });
 }
 
 // The migrate shortcuts (plugin authoring / Figma / template) left the Home

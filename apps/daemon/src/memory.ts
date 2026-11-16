@@ -31,7 +31,8 @@ import { memoryScopeId } from './nextore/memory/scoped-memory.js';
 // store can still tree-shake the ring buffer. We use a static import
 // here because memory.ts is the chat hot path — a dynamic import per
 // turn would add a microtask hop for no real benefit.
-import { recordHeuristic, recordSkip } from './memory-extractions.js';
+import type { MemoryExtractionOrigin } from '@open-design/contracts';
+import { captureExtractionOrigin, recordHeuristic, recordSkip } from './memory-extractions.js';
 
 // Tiny in-process bus. The HTTP layer (`/api/memory/events`) subscribes
 // to this and forwards events to any open SSE client; the storage
@@ -1090,7 +1091,8 @@ async function captureProfileFromForm(dataDir, parsed) {
   };
 }
 
-export async function extractFromMessage(dataDir, userMessage) {
+export async function extractFromMessage(dataDir, userMessage, options?: { extractionOrigin?: MemoryExtractionOrigin }) {
+  const extractionOrigin = captureExtractionOrigin(options?.extractionOrigin);
   // Mirror the LLM extractor's skip surface so the settings panel shows
   // both extractors for the same turn — even when there's nothing to
   // record. Without this, a turn with memory disabled or an empty
@@ -1102,6 +1104,7 @@ export async function extractFromMessage(dataDir, userMessage) {
       reason: 'empty-message',
       kind: 'heuristic',
       scope: memoryScopeId(dataDir),
+      extractionOrigin,
     });
     return [];
   }
@@ -1112,6 +1115,7 @@ export async function extractFromMessage(dataDir, userMessage) {
       reason: 'memory-disabled',
       kind: 'heuristic',
       scope: memoryScopeId(dataDir),
+      extractionOrigin,
     });
     return [];
   }
@@ -1201,6 +1205,7 @@ export async function extractFromMessage(dataDir, userMessage) {
   // 0-match runs land as `phase: 'skipped'` with reason `'no-match'`.
   recordHeuristic({
     userMessage,
+    extractionOrigin,
     writtenCount: changed.length,
     writtenIds: changed.map((c) => c.id),
     scope: memoryScopeId(dataDir),
