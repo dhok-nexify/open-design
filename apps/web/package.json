@@ -24,6 +24,7 @@
     "dev": "next dev --turbopack",
     "prebuild": "pnpm --filter @open-design/contracts build",
     "build": "next build",
+    "postbuild": "node scripts/precompress-out.ts",
     "build:sidecar": "tsc -p tsconfig.sidecar.json",
     "typecheck": "tsc -b --noEmit",
     "test": "vitest run -c vitest.config.ts --maxWorkers=2"

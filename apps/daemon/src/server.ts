@@ -102,6 +102,10 @@ export {
   resolveStaticSpaFallbackPath,
 } from './static-spa.js';
 import {
+  createPrecompressedStaticMiddleware,
+  createStaticAssetHeaders,
+} from './static-compression.js';
+import {
   createCompatApiError,
   createCompatApiErrorResponse,
   sendApiError,
@@ -3854,7 +3858,12 @@ export async function startServer({
         next();
       });
     }
-    app.use(express.static(staticDir));
+    // Serve the build-time `.gz` siblings first; `express.static` keeps
+    // ownership of ETag/304/Range for the rewritten request.
+    app.use(createPrecompressedStaticMiddleware(staticDir));
+    app.use(
+      express.static(staticDir, { setHeaders: createStaticAssetHeaders(staticDir) }),
+    );
   }
 
   // ---- Projects (DB-backed) -------------------------------------------------

@@ -10,7 +10,6 @@ import {
   type ReactNode,
 } from 'react';
 import { DEFAULT_PRODUCT_BRAND_NAME } from '@open-design/contracts';
-import { de } from './locales/de';
 import { en } from './locales/en';
 
 const DEFAULT_BRAND_NAME = DEFAULT_PRODUCT_BRAND_NAME;
@@ -36,23 +35,8 @@ export function interpolateMessage(raw: string, vars?: Record<string, string | n
     return value == null ? '{' + name + '}' : String(value);
   });
 }
-import { id } from './locales/id';
-import { esES } from './locales/es-ES';
-import { fa } from './locales/fa';
-import { ar } from './locales/ar';
-import { ja } from './locales/ja';
-import { ko } from './locales/ko';
-import { ptBR } from './locales/pt-BR';
-import { ru } from './locales/ru';
 import { zhCN } from './locales/zh-CN';
 import { zhTW } from './locales/zh-TW';
-import { pl } from './locales/pl';
-import { hu } from './locales/hu';
-import { fr } from './locales/fr';
-import { uk } from './locales/uk';
-import { tr } from './locales/tr';
-import { th } from './locales/th';
-import { it } from './locales/it';
 import { getOpenDesignHost } from '@open-design/host';
 import { LOCALES, type Dict, type Locale } from './types';
 
@@ -61,27 +45,82 @@ export type { Locale } from './types';
 
 type DictKey = keyof Dict;
 
-const DICTS: Record<Locale, Dict> = {
+type DictLoader = () => Promise<Dict>;
+
+// Dictionaries that stay in the main client bundle. English is the fallback for
+// every other locale; zh-CN and zh-TW are kept eager because they are the
+// dominant UI languages for this deployment and swapping them in after paint
+// would flash English at first render. Every other locale is split into its own
+// chunk by the bundler and fetched only when that locale is selected (perf
+// round 1: the eager map used to ship ~6.3 MB of translations to every visitor).
+const EAGER_DICTS: Partial<Record<Locale, Dict>> = {
   'en': en,
-  'id': id,
-  'de': de,
   'zh-CN': zhCN,
   'zh-TW': zhTW,
-  'pt-BR': ptBR,
-  'es-ES': esES,
-  'ru': ru,
-  'fa': fa,
-  'ar': ar,
-  'ja': ja,
-  'ko': ko,
-  'pl': pl,
-  'hu': hu,
-  'fr': fr,
-  'uk': uk,
-  'tr': tr,
-  'th': th,
-  'it': it,
 };
+
+const DICT_LOADERS: Partial<Record<Locale, DictLoader>> = {
+  'id': () => import('./locales/id').then((m) => m.id),
+  'de': () => import('./locales/de').then((m) => m.de),
+  'pt-BR': () => import('./locales/pt-BR').then((m) => m.ptBR),
+  'es-ES': () => import('./locales/es-ES').then((m) => m.esES),
+  'ru': () => import('./locales/ru').then((m) => m.ru),
+  'fa': () => import('./locales/fa').then((m) => m.fa),
+  'ar': () => import('./locales/ar').then((m) => m.ar),
+  'ja': () => import('./locales/ja').then((m) => m.ja),
+  'ko': () => import('./locales/ko').then((m) => m.ko),
+  'pl': () => import('./locales/pl').then((m) => m.pl),
+  'hu': () => import('./locales/hu').then((m) => m.hu),
+  'fr': () => import('./locales/fr').then((m) => m.fr),
+  'uk': () => import('./locales/uk').then((m) => m.uk),
+  'tr': () => import('./locales/tr').then((m) => m.tr),
+  'th': () => import('./locales/th').then((m) => m.th),
+  'it': () => import('./locales/it').then((m) => m.it),
+};
+
+const loadedDicts = new Map<Locale, Dict>(
+  Object.entries(EAGER_DICTS) as Array<[Locale, Dict]>,
+);
+const pendingDicts = new Map<Locale, Promise<void>>();
+const dictListeners = new Set<() => void>();
+
+function notifyDictLoaded(): void {
+  for (const listener of dictListeners) listener();
+}
+
+export function subscribeDictLoads(listener: () => void): () => void {
+  dictListeners.add(listener);
+  return () => {
+    dictListeners.delete(listener);
+  };
+}
+
+function dictFor(locale: Locale): Dict | undefined {
+  return loadedDicts.get(locale);
+}
+
+/**
+ * Resolve one locale's dictionary, loading its chunk on first use. Concurrent
+ * callers share the in-flight promise so a language switch cannot fetch the
+ * same chunk twice.
+ */
+export function ensureDict(locale: Locale): Promise<void> {
+  if (loadedDicts.has(locale)) return Promise.resolve();
+  const pending = pendingDicts.get(locale);
+  if (pending) return pending;
+  const loader = DICT_LOADERS[locale];
+  if (!loader) return Promise.resolve();
+  const promise = loader()
+    .then((dict) => {
+      loadedDicts.set(locale, dict);
+      notifyDictLoaded();
+    })
+    .finally(() => {
+      pendingDicts.delete(locale);
+    });
+  pendingDicts.set(locale, promise);
+  return promise;
+}
 
 const LS_KEY = 'open-design:locale';
 // Marker that says "the value in LS_KEY came from a deliberate user
@@ -129,7 +168,11 @@ export function tForLanguageTag(
   if (!tag || !tag.trim()) return null;
   const locale = resolveSystemLocale([tag]);
   if (!locale) return null;
-  const dict = DICTS[locale] ?? en;
+  const dict = dictFor(locale);
+  if (!dict) {
+    void ensureDict(locale);
+    return null;
+  }
   return (key, vars) => {
     const raw = dict[key] ?? en[key] ?? key;
     return interpolateMessage(raw, vars);
@@ -228,6 +271,17 @@ export function isRtlLocale(locale: Locale): boolean {
 
 export function I18nProvider({ initial, children }: ProviderProps) {
   const [locale, setLocaleState] = useState<Locale>(() => initial ?? detectInitialLocale());
+  // Bumped once an on-demand dictionary chunk resolves so the translator and
+  // every consumer re-render with the loaded strings.
+  const [dictVersion, setDictVersion] = useState(0);
+
+  useEffect(() => {
+    if (dictFor(locale)) return undefined;
+    void ensureDict(locale);
+    return undefined;
+  }, [locale]);
+
+  useEffect(() => subscribeDictLoads(() => setDictVersion((version) => version + 1)), []);
 
   // Keep <html lang="…" dir="…"> in sync so screen readers and CSS hooks
   // pick the right language token and direction without each component
@@ -254,11 +308,13 @@ export function I18nProvider({ initial, children }: ProviderProps) {
 
   const t = useCallback(
     (key: DictKey, vars?: Record<string, string | number>): string => {
-      const dict = DICTS[locale] ?? en;
-      const raw = dict[key] ?? en[key] ?? key;
+      const dict = dictFor(locale);
+      const raw = dict?.[key] ?? en[key] ?? key;
       return interpolateMessage(raw, vars);
     },
-    [locale],
+    // dictVersion is a dependency even though it is unread: loading a locale
+    // chunk must invalidate this callback so consumers pick up new strings.
+    [locale, dictVersion],
   );
 
   const value = useMemo<I18nContextValue>(
