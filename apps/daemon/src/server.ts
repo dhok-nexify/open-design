@@ -413,9 +413,9 @@ import { prepareDesignTokenContractRebuild } from './design-systems/token-contra
 import { registerBrandRoutes } from './brand-routes.js';
 import { resolveEdition } from './edition/index.js';
 import { resolveSandboxProvider, SandboxUnavailableError } from './sandbox/index.js';
-import { checkBwrap } from './sandbox/self-check.js';
 import { createNextoreClient } from './nextore/client.js';
 import { mountNextoreAccess, registerNextoreApiRoutes } from './nextore/host-access.js';
+import { readSandboxHealth } from './nextore/health-sandbox.js';
 import { resolveRunMcpServers } from './nextore/mcp/run-servers.js';
 import { resolveProductBrandName } from './nextore/branding-state.js';
 import { readNextoreConfig } from './nextore/config.js';
@@ -3130,15 +3130,6 @@ export interface StartServerResult {
   routeInventory: import('./route-registration-guard.js').RouteRegistration[];
 }
 
-/** Cached execution-sandbox probe for the NexTore health surface. */
-let sandboxHealthCache: {
-  at: number;
-  value: { ok: boolean; mode: 'bwrap' | 'noop'; reason?: string; detail?: string };
-} | null = null;
-const SANDBOX_HEALTH_TTL_MS = 30_000;
-// Keep failures short so an operator who fixes the host sees the result
-// without restarting the daemon.
-const SANDBOX_HEALTH_FAILURE_TTL_MS = 10_000;
 
 export async function startServer({
   port = 7456,
@@ -8132,23 +8123,7 @@ export async function startServer({
 
   app.get('/api/health', async (_req, res) => {
     const versionInfo = await readCurrentAppVersionInfo();
-    let sandbox: { ok: boolean; mode: 'bwrap' | 'noop'; reason?: string; detail?: string } | undefined;
-    if (edition === 'nextore') {
-      const now = Date.now();
-      const cacheTtl = sandboxHealthCache?.value.ok === false
-        ? SANDBOX_HEALTH_FAILURE_TTL_MS
-        : SANDBOX_HEALTH_TTL_MS;
-      if (!sandboxHealthCache || now - sandboxHealthCache.at > cacheTtl) {
-        const mode = process.env.OD_SANDBOX === 'noop' ? 'noop' : 'bwrap';
-        sandboxHealthCache = {
-          at: now,
-          value: mode === 'noop'
-            ? { ok: true, mode }
-            : { ...checkBwrap({ bwrapPath: process.env.OD_BWRAP_BIN?.trim() || 'bwrap' }), mode },
-        };
-      }
-      sandbox = sandboxHealthCache.value;
-    }
+    const sandbox = readSandboxHealth(edition);
     const {
       pending,
       delivered,
