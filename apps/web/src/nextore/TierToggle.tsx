@@ -38,7 +38,9 @@ export function TierToggle({
             type="button"
             role="radio"
             aria-checked={active}
-            className={'nextore-tier-option' + (active ? ' is-active' : '')}
+            /* No state class: the styling reads aria-checked, so the accessible
+               state and the visible one cannot disagree. */
+            className="nextore-tier-option"
             data-testid={'nextore-tier-' + tier}
             disabled={disabled}
             title={TIER_TITLES[tier]}

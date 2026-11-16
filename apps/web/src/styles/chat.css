@@ -4202,7 +4202,22 @@ body.od-quick-switcher-open .chat-composer-fixed-layer .composer-att .msg-att-de
   animation: fork-in var(--duration-normal) var(--ease-out) both;
 }
 
-/* NexTore edition: Fast / Expert tier selector in the composer footer. */
+/* NexTore edition: Fast / Expert tier selector in the composer footer.
+ *
+ * The selected state is read from aria-checked, never from a class: a class
+ * applied beside the ARIA attribute is a second source of truth, and the two
+ * drift (the accessible state is the one assistive tech reports).
+ *
+ * Nothing here changes the pill's dimensions — no padding, border, font-size or
+ * weight change — so switching tiers cannot move the composer row's layout. The
+ * indicator is a shape (a hairline ring drawn on a pseudo-element with a
+ * border, so it survives forced-colors mode, where box-shadow and backgrounds
+ * are painted away) plus the chip's elevation.
+ *
+ * Unselected ink is --text-muted, not the message-muted layer: #a3a3a3 on the
+ * #ededed track measured 2.15:1, which is unreadable text rather than a quiet
+ * one. --text-muted measures 5.71:1 and still reads as the inactive option
+ * because it has no chip. */
 .nextore-tier-toggle {
   display: inline-flex;
   align-items: center;
@@ -4213,10 +4228,11 @@ body.od-quick-switcher-open .chat-composer-fixed-layer .composer-att .msg-att-de
   background: var(--bg-subtle);
 }
 .nextore-tier-option {
+  position: relative;
   appearance: none;
   border: 0;
   background: transparent;
-  color: var(--chat-message-muted-ink);
+  color: var(--text-muted);
   font: inherit;
   font-size: 12px;
   line-height: 1;
@@ -4224,12 +4240,27 @@ body.od-quick-switcher-open .chat-composer-fixed-layer .composer-att .msg-att-de
   border-radius: 999px;
   cursor: pointer;
 }
-.nextore-tier-option:hover:not(:disabled) {
-  color: var(--chat-floating-card-text, inherit);
+/* Hover only ever applies to the option that is *not* selected: letting it
+   repaint the selected chip would make hovering the current choice dim it. */
+.nextore-tier-option:hover:not([aria-checked='true']):not(:disabled) {
+  color: var(--text);
 }
-.nextore-tier-option.is-active {
-  background: var(--accent-tint);
-  color: var(--accent-strong);
+.nextore-tier-option[aria-checked='true'] {
+  background: var(--bg-panel);
+  color: var(--text-strong);
+  box-shadow: var(--shadow-sm);
+}
+.nextore-tier-option[aria-checked='true']::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: var(--stroke-thin, 1px) solid currentColor;
+  border-radius: inherit;
+  opacity: 0.5;
+}
+.nextore-tier-option:focus-visible {
+  outline: var(--stroke-thin) solid var(--blue);
+  outline-offset: 2px;
 }
 .nextore-tier-option:disabled {
   cursor: default;
