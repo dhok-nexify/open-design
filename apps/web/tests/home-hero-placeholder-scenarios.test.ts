@@ -89,7 +89,7 @@ describe('buildPlaceholderScenarios', () => {
     return buildPlaceholderScenarios({
       activeChipId,
       activePrototypeSubtypeId,
-      resolveTextKey: (key) => en[key],
+      resolveTextKey: (key) => en[key] ?? key,
     }).map((scenario) => scenario.id);
   }
 
@@ -114,7 +114,7 @@ describe('buildPlaceholderScenarios', () => {
     // land on the bare parent and drop the refinement.
     const rotation = buildPlaceholderScenarios({
       activeChipId: null,
-      resolveTextKey: (key) => en[key],
+      resolveTextKey: (key) => en[key] ?? key,
     });
     expect(rotation.find((scenario) => scenario.id === 'app-idea')).toMatchObject({
       chipId: 'prototype',
@@ -127,7 +127,7 @@ describe('buildPlaceholderScenarios', () => {
   it('uses prompt examples as selected-chip carousel scenarios when no curated scenario exists', () => {
     const scenarios = buildPlaceholderScenarios({
       activeChipId: 'audio',
-      resolveTextKey: (key) => en[key],
+      resolveTextKey: (key) => en[key] ?? key,
       examplesForChip: (chipId) => (
         chipId === 'audio'
           ? ['Generate a product startup sound']
@@ -147,7 +147,7 @@ describe('buildPlaceholderScenarios', () => {
   it('creates a submittable selected-chip fallback when neither curated scenarios nor prompt examples exist', () => {
     const scenarios = buildPlaceholderScenarios({
       activeChipId: 'live-artifact',
-      resolveTextKey: (key) => en[key],
+      resolveTextKey: (key) => en[key] ?? key,
       fallbackForChip: (chipId) => (
         chipId === 'live-artifact'
           ? 'Create a Live artifact: Data-backed live dashboards'

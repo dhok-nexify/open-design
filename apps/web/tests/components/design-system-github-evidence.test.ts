@@ -11,7 +11,7 @@ import type { Dict } from '../../src/i18n/types';
 import type { DesignSystemSummary } from '../../src/types';
 
 const t = (key: keyof Dict, vars?: Record<string, string | number>) => {
-  let value = en[key];
+  let value = en[key] ?? key;
   for (const [name, replacement] of Object.entries(vars ?? {})) {
     value = value.replaceAll(`{${name}}`, String(replacement));
   }

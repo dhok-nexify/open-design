@@ -10,7 +10,7 @@ import {
   type ReactNode,
 } from 'react';
 import { DEFAULT_PRODUCT_BRAND_NAME } from '@open-design/contracts';
-import { en } from './locales/en';
+import { dictLoaders, eagerDicts, enDict } from './nextore/registry';
 
 const DEFAULT_BRAND_NAME = DEFAULT_PRODUCT_BRAND_NAME;
 let brandName = DEFAULT_BRAND_NAME;
@@ -35,8 +35,6 @@ export function interpolateMessage(raw: string, vars?: Record<string, string | n
     return value == null ? '{' + name + '}' : String(value);
   });
 }
-import { zhCN } from './locales/zh-CN';
-import { zhTW } from './locales/zh-TW';
 import { getOpenDesignHost } from '@open-design/host';
 import { LOCALES, type Dict, type Locale } from './types';
 
@@ -53,30 +51,9 @@ type DictLoader = () => Promise<Dict>;
 // would flash English at first render. Every other locale is split into its own
 // chunk by the bundler and fetched only when that locale is selected (perf
 // round 1: the eager map used to ship ~6.3 MB of translations to every visitor).
-const EAGER_DICTS: Partial<Record<Locale, Dict>> = {
-  'en': en,
-  'zh-CN': zhCN,
-  'zh-TW': zhTW,
-};
+const EAGER_DICTS: Partial<Record<Locale, Dict>> = eagerDicts;
 
-const DICT_LOADERS: Partial<Record<Locale, DictLoader>> = {
-  'id': () => import('./locales/id').then((m) => m.id),
-  'de': () => import('./locales/de').then((m) => m.de),
-  'pt-BR': () => import('./locales/pt-BR').then((m) => m.ptBR),
-  'es-ES': () => import('./locales/es-ES').then((m) => m.esES),
-  'ru': () => import('./locales/ru').then((m) => m.ru),
-  'fa': () => import('./locales/fa').then((m) => m.fa),
-  'ar': () => import('./locales/ar').then((m) => m.ar),
-  'ja': () => import('./locales/ja').then((m) => m.ja),
-  'ko': () => import('./locales/ko').then((m) => m.ko),
-  'pl': () => import('./locales/pl').then((m) => m.pl),
-  'hu': () => import('./locales/hu').then((m) => m.hu),
-  'fr': () => import('./locales/fr').then((m) => m.fr),
-  'uk': () => import('./locales/uk').then((m) => m.uk),
-  'tr': () => import('./locales/tr').then((m) => m.tr),
-  'th': () => import('./locales/th').then((m) => m.th),
-  'it': () => import('./locales/it').then((m) => m.it),
-};
+const DICT_LOADERS: Partial<Record<Locale, DictLoader>> = dictLoaders;
 
 const loadedDicts = new Map<Locale, Dict>(
   Object.entries(EAGER_DICTS) as Array<[Locale, Dict]>,
@@ -179,7 +156,7 @@ export function tForLanguageTag(
     return null;
   }
   return (key, vars) => {
-    const raw = dict[key] ?? en[key] ?? key;
+    const raw = dict[key] ?? enDict[key] ?? key;
     return interpolateMessage(raw, vars);
   };
 }
@@ -252,7 +229,7 @@ const FALLBACK_I18N: I18nContextValue = {
   locale: 'en',
   setLocale: () => { },
   t: (key, vars) => {
-    const raw = en[key] ?? key;
+    const raw = enDict[key] ?? key;
     return interpolateMessage(raw, vars);
   },
 };
@@ -314,7 +291,7 @@ export function I18nProvider({ initial, children }: ProviderProps) {
   const t = useCallback(
     (key: DictKey, vars?: Record<string, string | number>): string => {
       const dict = dictFor(locale);
-      const raw = dict?.[key] ?? en[key] ?? key;
+      const raw = dict?.[key] ?? enDict[key] ?? key;
       return interpolateMessage(raw, vars);
     },
     // dictVersion is a dependency even though it is unread: loading a locale
