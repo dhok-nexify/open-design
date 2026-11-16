@@ -416,14 +416,12 @@ import { resolveSandboxProvider, SandboxUnavailableError } from './sandbox/index
 import { checkBwrap } from './sandbox/self-check.js';
 import { createNextoreClient } from './nextore/client.js';
 import { mountNextoreAccess, registerNextoreApiRoutes } from './nextore/host-access.js';
-import { normalizeAccess } from './nextore/wire.js';
 import { resolveProductBrandName } from './nextore/branding-state.js';
 import { readNextoreConfig } from './nextore/config.js';
 import { applyFrameDenyHeaders } from './nextore-frame-guard.js';
 import { previewScopeMemberMismatch } from './preview-scope-member.js';
 import { addDesignerOrigin } from './nextore-allowed-origin.js';
 import { listNextoreMcpServers } from './nextore/mcp/store.js';
-import { hasValidShareGrant } from './nextore/share/service.js';
 import { registerNextoreShareRoutes } from './nextore/share/routes.js';
 import { migrateNextoreDatabase } from './nextore/db.js';
 import { nextoreHealthMetadata } from './nextore/routes.js';
@@ -983,8 +981,7 @@ import {
   createAuthorizeProjectRequest,
   type AuthorizeProjectRequest,
 } from './collab/project-request-authority.js';
-import { createProjectAccessCache } from './nextore/acl/access-cache.js';
-import { createNextoreProjectAuthorizer } from './nextore/acl/authorize-project.js';
+import { createProjectAuthorizer, createProjectMappingReader } from './nextore/acl/authorizer-host.js';
 import { withLastKnownWorkspaceContext } from './collab/workspace-context.js';
 import {
   createWorkspaceTypeRegistry,
@@ -8350,41 +8347,15 @@ export async function startServer({
       projectIsUnmaterializedSharedPlaceholder(projectId),
     sendApiError,
   });
-  // NEXTORE: a project that carries a NexTore mapping must also pass the
-  // module's ACL (NXD-D07). Projects without a mapping keep today's behavior,
-  // so this becomes enforcing only once D08 starts writing the mapping.
-  const nextoreProjectAccessCache = nextoreClient ? createProjectAccessCache() : null;
-  const readNextoreProjectMapping = (projectId: string): string | null => {
-    try {
-      const metadata = getProject(db, projectId)?.metadata as
-        | { nextoreProjectId?: string }
-        | null
-        | undefined;
-      return metadata?.nextoreProjectId?.trim() || null;
-    } catch {
-      return null;
-    }
-  };
-  const authorizeProjectRequest: AuthorizeProjectRequest = nextoreClient && nextoreConfig && nextoreProjectAccessCache
-    ? createNextoreProjectAuthorizer(localAuthorizeProjectRequest, {
-        edition,
-        cache: nextoreProjectAccessCache,
-        load: async (accessToken, projectId) =>
-          normalizeAccess(await nextoreClient.projectAccess<unknown>(accessToken, projectId)),
-        readSession: (res) => {
-          const session = (res as {
-            locals?: { nextoreSession?: { accessToken?: string; memberId?: number } };
-          }).locals?.nextoreSession;
-          return typeof session?.accessToken === 'string' && typeof session.memberId === 'number'
-            ? { accessToken: session.accessToken, memberId: session.memberId }
-            : null;
-        },
-        readProjectMapping: readNextoreProjectMapping,
-        readShareGrant: (memberId, projectId) =>
-          hasValidShareGrant(db, memberId, projectId),
-        deny: (res, status, code, message) => sendApiError(res as never, status, code, message),
-      })
-    : localAuthorizeProjectRequest;
+  const readNextoreProjectMapping = createProjectMappingReader(db);
+  const authorizeProjectRequest: AuthorizeProjectRequest = createProjectAuthorizer({
+    edition,
+    config: nextoreConfig,
+    client: nextoreClient,
+    db,
+    local: localAuthorizeProjectRequest,
+    readProjectMapping: readNextoreProjectMapping,
+  });
   // Legacy registrars still receive the historical bound mutation-gate shape,
   // but production delegates it to the same central authorizer as newer route
   // modules. This keeps placeholder stamps authoritative across Figma import,

@@ -111,7 +111,7 @@ numbers below are measured against the current merge base, not estimates:
 
 | File | Downstream hunks | Added lines | Shape |
 | --- | ---: | ---: | --- |
-| `apps/daemon/src/server.ts` | 55 | 339 | spread through the ~15k-line `startServer` (imports, auth, ACL, routes, health, shutdown); the auth/middleware block already moved to `nextore/host-access.ts` |
+| `apps/daemon/src/server.ts` | 55 | 310 | spread through the ~15k-line `startServer` (imports, auth, ACL, routes, health, shutdown); the auth/middleware block already moved to `nextore/host-access.ts` |
 | `apps/web/src/App.tsx` | 24 | ~120 | imports plus state and hooks scattered through `AppInner` |
 
 These are not one contiguous block, so collapsing them is a real refactor, not a
@@ -128,5 +128,7 @@ before and after; it is the only part of this plan with rollback risk.
 The first slice is done: authentication, the DesignerAccess gate, and the route
 kill switch mount through `mountNextoreAccess()` in
 `apps/daemon/src/nextore/host-access.ts`; the edition API routes register through
-`registerNextoreApiRoutes()` in the same module. Covered by the daemon auth,
-API-token, and nextore-startup suites.
+`registerNextoreApiRoutes()` in the same module; project authorization composes
+through `createProjectAuthorizer()` in `nextore/acl/authorizer-host.ts`.
+Covered by the daemon auth, API-token, nextore-startup, and project-lifecycle
+suites.
