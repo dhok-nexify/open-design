@@ -5149,7 +5149,15 @@ export function CommentSidePanel({
                 >
                   <Icon name="grip-vertical" size={13} />
                 </button>
-                <span className="comment-side-author">
+                {comment.authorKind || comment.authorDisplayName || comment.authorKey || comment.authorAppUserId ? (
+                  <CommentAuthorIdentity
+                    comment={comment}
+                    currentUser={currentUser}
+                    displayNumber={displayCommentNumber(comment, index)}
+                    t={t}
+                  />
+                ) : (
+                  <span className="comment-side-author">
                   {author || nextoreAuthorName ? (
                     <span
                       className="comment-side-avatar"
@@ -5175,7 +5183,8 @@ export function CommentSidePanel({
                       </small>
                     ) : null}
                   </span>
-                </span>
+                  </span>
+                )}
                 {typeof comment.slideIndex === 'number' && deckSlideCount && deckSlideCount > 0 ? (
                   <span className="comment-side-slide">
                     {t('fileViewer.speakerNotesSlide', { current: comment.slideIndex + 1, total: deckSlideCount })}
