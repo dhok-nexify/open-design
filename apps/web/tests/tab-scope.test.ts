@@ -245,12 +245,12 @@ describe('resolveWorkspaceTabsScopeKey', () => {
     })).toBe('user-1::ws-team');
   });
 
-  it('uses the host session when NexTore has no AMR scope', () => {
+  it('uses a member-level host scope when NexTore has no AMR scope', () => {
     expect(resolveWorkspaceTabsScopeKey({
       identityScopeKey: null,
       edition: 'nextore',
       workspaceContext: nextoreWorkspace,
-    })).toBe('nextore-wm-owner::ws-team');
+    })).toBe('nextore-wm-owner::all');
   });
 
   it('stays deferred outside NexTore or before the host workspace resolves', () => {

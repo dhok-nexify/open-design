@@ -1712,6 +1712,38 @@ export function SettingsDialog({
     workspaceContextLoading
       ? null
       : workspaceUpgradeUrl(workspaceContext, workspaceBilling, { fallbackProfile: profile });
+  // MCP configuration is a NexTore functional right, not merely a feature
+  // switch. Probe the same access endpoint the Integrations page uses so the
+  // Settings nav never offers a page that can only answer 403.
+  const [nextoreMcpAllowed, setNextoreMcpAllowed] = useState(
+    NEXTORE_WEB_EDITION !== 'nextore',
+  );
+  useEffect(() => {
+    if (NEXTORE_WEB_EDITION !== 'nextore') return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const response = await fetch('/api/nextore/mcp/access');
+        if (!response.ok) {
+          if (!cancelled) setNextoreMcpAllowed(false);
+          return;
+        }
+        const payload = (await response.json()) as { allowed?: unknown };
+        if (!cancelled) setNextoreMcpAllowed(payload.allowed === true);
+      } catch {
+        if (!cancelled) setNextoreMcpAllowed(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  useEffect(() => {
+    if (nextoreMcpAllowed) return;
+    setActiveSection((current) =>
+      current === 'integrations' || current === 'mcpClient' ? 'general' : current,
+    );
+  }, [nextoreMcpAllowed]);
   const [settingsSidebarCollapsed, setSettingsSidebarCollapsed] = useState(false);
   const [settingsFullscreen, setSettingsFullscreen] = useState(true);
   // Scroll the right-hand content pane back to the top whenever the user
@@ -4494,17 +4526,19 @@ export function SettingsDialog({
                 </span>
               </button>
             ) : null}
-            <button
-              type="button"
-              className={`settings-nav-item${activeSection === 'integrations' ? ' active' : ''}`}
-              onClick={() => setActiveSection('integrations')}
-            >
-              <Icon name="puzzle" size={18} />
-              <span>
-                <strong>{t('settings.mcpServerTitle')}</strong>
-                <small>{t('settings.mcpServerHint')}</small>
-              </span>
-            </button>
+            {NEXTORE_WEB_EDITION !== 'nextore' || nextoreMcpAllowed ? (
+              <button
+                type="button"
+                className={`settings-nav-item${activeSection === 'integrations' ? ' active' : ''}`}
+                onClick={() => setActiveSection('integrations')}
+              >
+                <Icon name="puzzle" size={18} />
+                <span>
+                  <strong>{t('settings.mcpServerTitle')}</strong>
+                  <small>{t('settings.mcpServerHint')}</small>
+                </span>
+              </button>
+            ) : null}
             {NEXTORE_WEB_EDITION !== 'nextore' ? (
               <button
                 type="button"
@@ -5976,13 +6010,15 @@ export function SettingsDialog({
               }}
             />
           ) : null}
-          {activeSection === 'integrations' ? (
+          {activeSection === 'integrations' && (NEXTORE_WEB_EDITION !== 'nextore' || nextoreMcpAllowed) ? (
             NEXTORE_WEB_EDITION === 'nextore'
               ? <McpClientSection surface="settings" />
               : <IntegrationsSection />
           ) : null}
 
-          {activeSection === 'mcpClient' ? <McpClientSection surface="settings" /> : null}
+          {activeSection === 'mcpClient' && (NEXTORE_WEB_EDITION !== 'nextore' || nextoreMcpAllowed)
+            ? <McpClientSection surface="settings" />
+            : null}
 
           {activeSection === 'composio' && isFeatureEnabled('connectors') ? (
             <ConnectorSection

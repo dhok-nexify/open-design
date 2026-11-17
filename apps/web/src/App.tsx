@@ -84,7 +84,7 @@ import { useBrandingRevision } from './nextore/use-branding';
 import { useDesignerAccessGate } from './nextore/use-designer-access';
 import { getNextoreWorkspaceContext, useNextoreWorkspaceContext } from './nextore/workspace-context';
 import { useNextoreSessionView } from './nextore/session-view';
-import { refreshNextoreProjectListing, useNextoreProjectListing } from './nextore/listing-store';
+import { refreshNextoreProjectListing } from './nextore/listing-store';
 import { NEXTORE_WEB_EDITION } from './nextore/features';
 import { BrandSplash } from './components/BrandSplash';
 import { TooltipLayer } from './components/TooltipLayer';
@@ -1020,7 +1020,6 @@ function AppInner() {
   // Workspace context. Subscribe here so the tab scope can be rebuilt when the
   // member or workspace changes.
   const nextoreWorkspaceContext = useNextoreWorkspaceContext();
-  const nextoreListing = useNextoreProjectListing(NEXTORE_WEB_EDITION === 'nextore');
   const nextoreSession = useNextoreSessionView(NEXTORE_WEB_EDITION === 'nextore');
   const {
     context: workspaceContext,
@@ -5230,31 +5229,17 @@ function AppInner() {
   // deferred until the project row + exact membership witness exist, then pin
   // it to that Workspace. Truly unbound local projects retain the ambient
   // account/workspace tab behavior.
-  const nextoreProjectWorkspaceId =
-    route.kind === 'project'
-      ? nextoreListing?.projects.find(
-          (project) => project.designerProjectId === route.projectId,
-        )?.workspaceId ?? null
-      : null;
   const nextoreMemberId =
     nextoreWorkspaceContext?.memberId ?? nextoreSession?.memberId ?? null;
-  // A project route belongs to the project's own workspace (it may be a
-  // shared-out workspace that differs from the one currently selected in the
-  // rail). Wait for the listing before committing a project scope: falling
-  // back to the ambient workspace first would change the scope again as soon
-  // as the listing lands, resetting the very tab we are trying to restore.
-  const nextoreWorkspaceId =
-    route.kind === 'project'
-      ? nextoreProjectWorkspaceId
-        ?? (nextoreListing ? nextoreWorkspaceContext?.workspaceId ?? null : null)
-      : nextoreWorkspaceContext?.workspaceId ?? null;
-  const nextoreTabScopeContext =
-    nextoreMemberId !== null && nextoreWorkspaceId !== null
-      ? {
-          workspaceId: String(nextoreWorkspaceId),
-          workspaceMemberId: String(nextoreMemberId),
-        }
-      : null;
+  // The member owns the chrome tab snapshot. The rail's selected workspace is
+  // a browsing filter, not a tab-scope boundary: a project shared from another
+  // workspace must open without resetting the tab strip back to Home.
+  const nextoreTabScopeContext = nextoreMemberId !== null
+    ? {
+        workspaceId: 'all',
+        workspaceMemberId: String(nextoreMemberId),
+      }
+    : null;
   const ambientTabScopeKey = resolveWorkspaceTabsScopeKey({
     identityScopeKey,
     edition: NEXTORE_WEB_EDITION,

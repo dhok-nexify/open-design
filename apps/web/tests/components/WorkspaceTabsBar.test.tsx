@@ -216,7 +216,7 @@ describe('WorkspaceTabsBar navigation semantics', () => {
       <WorkspaceTabsBar
         route={{ ...projectRoute }}
         projects={[project]}
-        identityScopeKey="nextore-2207::286041"
+        identityScopeKey="nextore-2207::all"
       />,
     );
 
