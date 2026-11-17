@@ -248,8 +248,10 @@ describe('approved access copy on the real ProjectView and ChatPane', () => {
     authority.viewerOnly = true;
     authority.writerAuthority = 'denied';
     mounted.rerender(view()); await tick();
-    expect(screen.getByTestId('access-copy-placeholder')).not.toHaveTextContent('项目同步中，请稍后');
-    expect(sendButton().disabled).toBe(true);
+    // Downstream rule: a confirmed read-only viewer gets one explanation line
+    // instead of a disabled composer, so the composer slot is replaced.
+    expect(screen.queryByTestId('access-copy-placeholder')).toBeNull();
+    expect(screen.getByTestId('chat-composer-view-only')).toBeTruthy();
     expect(streamViaDaemon).not.toHaveBeenCalled();
   });
 
@@ -282,7 +284,7 @@ describe('approved access copy on the real ProjectView and ChatPane', () => {
     expect(streamViaDaemon).not.toHaveBeenCalled();
     expect(onOpenSettings).not.toHaveBeenCalled();
     expect(onAgentChange).not.toHaveBeenCalled();
-    expect(sendButton().disabled).toBe(true);
+    expect(screen.getByTestId('chat-composer-view-only')).toBeTruthy();
     expect(screen.getByText('Build the QA page')).toBeTruthy();
     expect(failedHistory[1]?.events?.[0]).toMatchObject({ detail: 'QA_PROVIDER_CRASH' });
   });
@@ -302,7 +304,13 @@ describe('approved access copy on the real ProjectView and ChatPane', () => {
       authority.viewerOnly = scenario === 'unknown-authority';
       authority.materializationPending = scenario === 'first-materialization';
       render(view()); await tick();
-      expect(sendButton().disabled).toBe(true);
+      if (scenario === 'unknown-authority') {
+        // Unknown authority is treated as read-only: the composer slot is the
+        // one-line explanation, never a disabled-but-visible input.
+        expect(screen.getByTestId('chat-composer-view-only')).toBeTruthy();
+      } else {
+        expect(sendButton().disabled).toBe(true);
+      }
       expect(recoveryButton().disabled).toBe(true);
       expect(screen.queryByText(READ_ONLY_TITLE)).toBeNull();
       expect(screen.queryByText(READ_ONLY_BODY)).toBeNull();

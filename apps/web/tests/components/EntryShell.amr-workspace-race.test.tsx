@@ -742,7 +742,7 @@ describe('EntryShell AMR workspace precheck race', () => {
     );
 
     expect(
-      await screen.findByRole('heading', { name: 'Welcome to OpenDesign' }),
+      await screen.findByRole('heading', { name: 'Welcome to NexTore Designer' }),
     ).toBeTruthy();
     expect(window.location.pathname).toBe('/onboarding');
     expect(screen.queryByRole('alertdialog')).toBeNull();
@@ -835,7 +835,7 @@ describe('EntryShell AMR workspace precheck race', () => {
     await waitFor(() => expect(onCreateProject).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(window.location.pathname).toBe('/onboarding'));
     expect(
-      await screen.findByRole('heading', { name: 'Welcome to OpenDesign' }),
+      await screen.findByRole('heading', { name: 'Welcome to NexTore Designer' }),
     ).toBeTruthy();
     expect(window.localStorage.getItem('open-design:home-composer:prompt')).toBe(
       'Keep this draft through Cloud reauthentication',

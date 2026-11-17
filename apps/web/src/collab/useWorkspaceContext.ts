@@ -20,7 +20,7 @@ import {
 } from '@open-design/contracts';
 import { coalescedGet, forceCoalescedGet } from '../lib/coalesced-get';
 import { BackoffController, type BackoffOptions } from '../lib/backoff';
-import { isFeatureEnabled } from '../nextore/features';
+import { NEXTORE_WEB_EDITION, isFeatureEnabled } from '../nextore/features';
 import {
   markProjectDisplaySnapshotsDirty,
   patchProjectDisplaySnapshots,
@@ -991,6 +991,17 @@ export function useWorkspaceContext(): WorkspaceContextState {
     const refresh = () => {
       void loadContext(sseConnected ? { exactScopeOnly: true } : undefined);
     };
+    // NexTore edition: a focus return must re-list the directory, because
+    // membership and workspace rows change server-side. Upstream keeps its SSE
+    // manager's cheap exact-scope refresh instead.
+    // A focus return always re-lists the workspace directory. Membership and
+    // workspace rows change server-side while a tab is in the background, and a
+    // directory read is coalesced, so the extra listing is cheap. (Upstream lets
+    // its SSE manager cover this with an exact-scope read; the edition needs the
+    // directory itself refreshed.)
+    const onFocus = () => {
+      void loadContext({ fresh: true });
+    };
     // An EXPLICIT refresh means a caller just changed the identity (signed in
     // through onboarding or the rail callout) and is telling us so. Focus and
     // visibility are ambient revalidation and stay silent — only the deliberate
@@ -1049,7 +1060,7 @@ export function useWorkspaceContext(): WorkspaceContextState {
     // While the workspace EventSource is connected, its shared manager owns
     // focus/visibility and labels those reads as ambient exact-scope checks.
     // Keep these listeners only for the poll-only/disconnected fallback.
-    if (!sseConnected) window.addEventListener('focus', refresh);
+    window.addEventListener('focus', onFocus);
     window.addEventListener('pageshow', refresh);
     window.addEventListener(WORKSPACE_CONTEXT_REFRESH_EVENT, refreshAfterIdentityChange);
     window.addEventListener(WORKSPACE_CONTEXT_RETRY_EVENT, onContextRetry);
@@ -1058,7 +1069,7 @@ export function useWorkspaceContext(): WorkspaceContextState {
       document.addEventListener('visibilitychange', onVisibilityChange);
     }
     return () => {
-      if (!sseConnected) window.removeEventListener('focus', refresh);
+      window.removeEventListener('focus', onFocus);
       window.removeEventListener('pageshow', refresh);
       window.removeEventListener(WORKSPACE_CONTEXT_REFRESH_EVENT, refreshAfterIdentityChange);
       window.removeEventListener(WORKSPACE_CONTEXT_RETRY_EVENT, onContextRetry);
