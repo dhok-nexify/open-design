@@ -7020,6 +7020,16 @@ body[data-web-modal-scroll-lock] .entry-main--scroll {
   max-height: min(306px, 45vh);
   overflow: hidden;
 }
+/* The home-area chip is its own positioning context, unlike the rail row.
+   Without this, the menu's absolute `top: calc(100% + 4px)` resolves against
+   the scrolling home view and lands at the bottom of the page. */
+.nextore-switcher.is-chip {
+  position: relative;
+  display: inline-flex;
+  flex: 0 0 auto;
+  width: fit-content;
+  max-width: 100%;
+}
 .entry-nav-rail__account-menu {
   padding: 6px;
   border-radius: var(--radius-lg);

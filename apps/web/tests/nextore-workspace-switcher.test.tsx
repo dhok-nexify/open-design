@@ -1,5 +1,7 @@
 // @vitest-environment jsdom
 
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 
@@ -137,5 +139,15 @@ describe('NextoreWorkspaceSwitcher', () => {
     fireEvent.click(adminTrigger);
     await screen.findByRole('menu');
     expect(screen.getByRole('menuitem', { name: /New team workspace/ })).toBeTruthy();
+  });
+});
+
+describe('Nextore workspace switcher positioning', () => {
+  it('anchors the home chip menu to the chip instead of the scrolling home view', () => {
+    const css = readFileSync(resolve('src/styles/home/entry-layout.css'), 'utf8');
+    const rule = css.match(/\.nextore-switcher\.is-chip\s*\{[^}]+\}/)?.[0] ?? '';
+    expect(rule).toContain('position: relative;');
+    expect(rule).toContain('display: inline-flex;');
+    expect(rule).toContain('width: fit-content;');
   });
 });
