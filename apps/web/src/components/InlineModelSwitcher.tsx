@@ -21,7 +21,7 @@ import {
 } from 'react';
 import { canReachWorkspaceBillingEntrance, type AmrWalletSnapshot } from '@open-design/contracts';
 import { VisuallyHidden } from '@open-design/components';
-import { useT } from '../i18n';
+import { getBrandName, useT } from '../i18n';
 import {
   agentIdToTracking,
   byokProtocolToTracking,
@@ -1646,7 +1646,7 @@ export function InlineModelSwitcher({
                     <span className="inline-switcher__account-text">
                       <span className="inline-switcher__account-name-row">
                         <span className="inline-switcher__account-name">
-                          OpenDesign
+                          {getBrandName()}
                         </span>
                         {amrLoggedIn ? (
                           <PlanBadge plan={amrPlanLabel} size="md" />

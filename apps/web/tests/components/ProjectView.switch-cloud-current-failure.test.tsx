@@ -289,9 +289,9 @@ describe('OPEND-3205 new send owns the current failure presentation', () => {
     await within(host).findByText(oldFailure.content);
     const oldCard = within(host).getByTestId('chat-run-error-card');
     await act(async () => {
-      fireEvent.click(within(oldCard).getByRole('button', { name: '切换到 OpenDesign Cloud' }));
+      fireEvent.click(within(oldCard).getByRole('button', { name: '切换到 NexTore Designer Cloud' }));
     });
-    expect(await view.findByText('已切换到 OpenDesign Cloud，请重新发送任务。')).toBeVisible();
+    expect(await view.findByText('已切换到 NexTore Designer Cloud，请重新发送任务。')).toBeVisible();
     expect(streamViaDaemon).not.toHaveBeenCalled();
     fireEvent.click(within(host).getByTestId('composer-fixture-send'));
     if (balanceBlocked) {
@@ -306,7 +306,7 @@ describe('OPEND-3205 new send owns the current failure presentation', () => {
       await waitFor(() => expect(within(host).getAllByTestId('chat-run-error-card')).toHaveLength(1));
       const currentCard = within(host).getByTestId('chat-run-error-card');
       expect(within(currentCard).getByRole('button', { name: '重试' })).toBeVisible();
-      expect(within(currentCard).queryByRole('button', { name: '切换到 OpenDesign Cloud' })).toBeNull();
+      expect(within(currentCard).queryByRole('button', { name: '切换到 NexTore Designer Cloud' })).toBeNull();
       expect(within(host).queryByTestId('chat-upgrade-card')).toBeNull();
     }
     expect(within(host).getByText(oldFailure.content)).toBeVisible();
@@ -353,7 +353,7 @@ describe('OPEND-3205 new send owns the current failure presentation', () => {
     await waitFor(() => expect(streamViaDaemon).toHaveBeenCalledOnce());
     const current = await restored.findByTestId('chat-run-error-card');
     expect(within(current).getByRole('button', { name: '重试' })).toBeVisible();
-    expect(within(current).queryByRole('button', { name: '切换到 OpenDesign Cloud' })).toBeNull();
+    expect(within(current).queryByRole('button', { name: '切换到 NexTore Designer Cloud' })).toBeNull();
     expect(restored.getByText(oldFailure.content)).toBeVisible();
     expect(oldFailure).toEqual(original);
     expect(vi.mocked(saveMessage).mock.calls.some(([, , message]) =>
@@ -462,7 +462,7 @@ describe('OPEND-3205 new send owns the current failure presentation', () => {
       await view.findByText(secondFailure.content);
       await act(async () => { release(insufficientWallet()); await pending; });
       const secondCard = view.getByTestId('chat-run-error-card');
-      expect(within(secondCard).getByRole('button', { name: '切换到 OpenDesign Cloud' })).toBeVisible();
+      expect(within(secondCard).getByRole('button', { name: '切换到 NexTore Designer Cloud' })).toBeVisible();
       expect(view.queryByTestId('chat-upgrade-card')).toBeNull();
       expect(view.getByText(secondFailure.content)).toBeVisible();
       expect(streamViaDaemon).not.toHaveBeenCalled();
@@ -504,7 +504,7 @@ describe('OPEND-3205 new send owns the current failure presentation', () => {
     await waitFor(() => expect(checkAmrBalanceGate).toHaveBeenCalled());
     expect(await view.findByTestId('chat-upgrade-card')).toBeVisible();
     const sideCard = within(sideHost).getByTestId('chat-run-error-card');
-    expect(within(sideCard).getByRole('button', { name: '切换到 OpenDesign Cloud' })).toBeVisible();
+    expect(within(sideCard).getByRole('button', { name: '切换到 NexTore Designer Cloud' })).toBeVisible();
     expect(within(sideHost).queryByTestId('chat-upgrade-card')).toBeNull();
     expect(within(sideHost).getByText(sideFailure.content)).toBeVisible();
     expect(sideFailure).toEqual(original);

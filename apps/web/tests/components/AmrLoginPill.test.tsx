@@ -107,7 +107,7 @@ describe('AmrAccountControl', () => {
     });
 
     expect(
-      screen.getByRole('group', { name: 'OpenDesign Cloud account status' }),
+      screen.getByRole('group', { name: 'NexTore Designer Cloud account status' }),
     ).toBeTruthy();
     expect(screen.getByText('Not signed in')).toBeTruthy();
     const signIn = screen.getByRole('button', { name: 'Sign in' });

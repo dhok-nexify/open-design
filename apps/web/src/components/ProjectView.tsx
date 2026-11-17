@@ -14986,7 +14986,9 @@ export function ProjectView({
                 || projectMutationReadOnly
                 || homeAttachmentUploads.length > 0
               }
-              viewerOnly={projectMutationReadOnly}
+              // Permission, not transient sync: materialization/content-update keep the
+              // composer visible with a sync placeholder and only disable send.
+              viewerOnly={projectCollab.viewerOnly || nextoreProjectReadOnly}
               composerPlaceholder={
                 projectCollab.materializationPending || projectCollab.contentUpdatePending
                   ? t('collab.contentUpdate.waitToEdit')

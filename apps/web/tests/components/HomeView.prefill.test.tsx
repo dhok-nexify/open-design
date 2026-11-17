@@ -336,9 +336,9 @@ const LIVE_ARTIFACT_IMAGE_TEMPLATE_PLUGIN = {
 };
 
 const AUTHORING_DEFAULT_SCENARIO_INPUTS = {
-  artifactKind: 'OpenDesign plugin',
-  audience: 'OpenDesign plugin authors',
-  topic: 'packaging a reusable workflow as an OpenDesign plugin',
+  artifactKind: 'NexTore Designer plugin',
+  audience: 'NexTore Designer plugin authors',
+  topic: 'packaging a reusable workflow as a NexTore Designer plugin',
 };
 
 const REFLY_DESIGN_SYSTEM = {
@@ -1040,9 +1040,9 @@ describe('HomeView prompt handoff', () => {
     ));
     expect(JSON.parse(String((applyCall?.[1] as RequestInit).body))).toMatchObject({
       inputs: {
-        artifactKind: 'OpenDesign plugin',
-        audience: 'OpenDesign plugin authors',
-        topic: 'packaging a reusable workflow as an OpenDesign plugin',
+        artifactKind: 'NexTore Designer plugin',
+        audience: 'NexTore Designer plugin authors',
+        topic: 'packaging a reusable workflow as a NexTore Designer plugin',
       },
     });
     await waitFor(() => {
@@ -1057,9 +1057,9 @@ describe('HomeView prompt handoff', () => {
       pluginId: 'od-new-generation',
       appliedPluginSnapshotId: 'snap-default',
       pluginInputs: {
-        artifactKind: 'OpenDesign plugin',
-        audience: 'OpenDesign plugin authors',
-        topic: 'packaging a reusable workflow as an OpenDesign plugin',
+        artifactKind: 'NexTore Designer plugin',
+        audience: 'NexTore Designer plugin authors',
+        topic: 'packaging a reusable workflow as a NexTore Designer plugin',
       },
       projectKind: 'other',
     }));

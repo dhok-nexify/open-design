@@ -46,7 +46,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { readdirSync, readFileSync } from 'node:fs';
-import { join, relative, resolve } from 'node:path';
+import { join, relative, resolve, sep } from 'node:path';
 
 const SRC = resolve(__dirname, '../../../src');
 const CHAT_DIR = resolve(SRC, 'components/chat');
@@ -110,7 +110,8 @@ function cssFilesUnder(dir: string): string[] {
 const CHAT_RULES: StyleRule[] = (() => {
   const rules: StyleRule[] = [];
   for (const file of cssFilesUnder(CHAT_DIR)) {
-    parseRules(stripComments(readFileSync(file, 'utf8')), relative(SRC, file), rules);
+    // Normalize to forward slashes: the expected/excluded lists are written that way.
+    parseRules(stripComments(readFileSync(file, 'utf8')), relative(SRC, file).split(sep).join('/'), rules);
   }
   return rules;
 })();
