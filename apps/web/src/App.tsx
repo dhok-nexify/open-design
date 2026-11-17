@@ -82,8 +82,9 @@ import { isFeatureEnabled } from './nextore/features';
 import { DesignerAccessRequired } from './nextore/DesignerAccessRequired';
 import { useBrandingRevision } from './nextore/use-branding';
 import { useDesignerAccessGate } from './nextore/use-designer-access';
-import { getNextoreWorkspaceContext } from './nextore/workspace-context';
-import { refreshNextoreProjectListing } from './nextore/listing-store';
+import { getNextoreWorkspaceContext, useNextoreWorkspaceContext } from './nextore/workspace-context';
+import { useNextoreSessionView } from './nextore/session-view';
+import { refreshNextoreProjectListing, useNextoreProjectListing } from './nextore/listing-store';
 import { NEXTORE_WEB_EDITION } from './nextore/features';
 import { BrandSplash } from './components/BrandSplash';
 import { TooltipLayer } from './components/TooltipLayer';
@@ -1015,6 +1016,12 @@ function AppInner() {
   const hostPlatform = useMemo(() => getOpenDesignHost()?.client.platform, []);
   useModalWindowDragGuard();
   const workspaceContextState = useWorkspaceContext();
+  // NexTore carries its identity in the host session rather than the upstream
+  // Workspace context. Subscribe here so the tab scope can be rebuilt when the
+  // member or workspace changes.
+  const nextoreWorkspaceContext = useNextoreWorkspaceContext();
+  const nextoreListing = useNextoreProjectListing(NEXTORE_WEB_EDITION === 'nextore');
+  const nextoreSession = useNextoreSessionView(NEXTORE_WEB_EDITION === 'nextore');
   const {
     context: workspaceContext,
     loading: workspaceContextLoading,
@@ -5223,10 +5230,37 @@ function AppInner() {
   // deferred until the project row + exact membership witness exist, then pin
   // it to that Workspace. Truly unbound local projects retain the ambient
   // account/workspace tab behavior.
+  const nextoreProjectWorkspaceId =
+    route.kind === 'project'
+      ? nextoreListing?.projects.find(
+          (project) => project.designerProjectId === route.projectId,
+        )?.workspaceId ?? null
+      : null;
+  const nextoreMemberId =
+    nextoreWorkspaceContext?.memberId ?? nextoreSession?.memberId ?? null;
+  // A project route belongs to the project's own workspace (it may be a
+  // shared-out workspace that differs from the one currently selected in the
+  // rail). Wait for the listing before committing a project scope: falling
+  // back to the ambient workspace first would change the scope again as soon
+  // as the listing lands, resetting the very tab we are trying to restore.
+  const nextoreWorkspaceId =
+    route.kind === 'project'
+      ? nextoreProjectWorkspaceId
+        ?? (nextoreListing ? nextoreWorkspaceContext?.workspaceId ?? null : null)
+      : nextoreWorkspaceContext?.workspaceId ?? null;
+  const nextoreTabScopeContext =
+    nextoreMemberId !== null && nextoreWorkspaceId !== null
+      ? {
+          workspaceId: String(nextoreWorkspaceId),
+          workspaceMemberId: String(nextoreMemberId),
+        }
+      : null;
   const ambientTabScopeKey = resolveWorkspaceTabsScopeKey({
     identityScopeKey,
     edition: NEXTORE_WEB_EDITION,
-    workspaceContext,
+    workspaceContext: NEXTORE_WEB_EDITION === 'nextore'
+      ? nextoreTabScopeContext ?? workspaceContext
+      : workspaceContext,
   });
   const workspaceTabsIdentityScopeKey =
     route.kind === 'project'
@@ -5235,11 +5269,14 @@ function AppInner() {
         : activeProject.workspaceId
           ? activeProjectWorkspaceContext && identityScopeKey !== null
             ? `${nextTabScopeAccountId}::${activeProjectWorkspaceContext.workspaceId}`
-            : NEXTORE_WEB_EDITION === 'nextore' && activeProjectWorkspaceContext
+            : NEXTORE_WEB_EDITION === 'nextore'
+                && (activeProjectWorkspaceContext || nextoreTabScopeContext)
               ? resolveWorkspaceTabsScopeKey({
                   identityScopeKey,
                   edition: NEXTORE_WEB_EDITION,
-                  workspaceContext: activeProjectWorkspaceContext,
+                  workspaceContext: NEXTORE_WEB_EDITION === 'nextore'
+                    ? nextoreTabScopeContext ?? activeProjectWorkspaceContext
+                    : activeProjectWorkspaceContext,
                 })
               : null
           : ambientTabScopeKey

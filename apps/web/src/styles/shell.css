@@ -2449,7 +2449,11 @@ a.avatar-item:visited {
 .comment-float-host {
   position: fixed;
   z-index: 60;
-  top: 96px;
+  /* Clear both workspace chrome rows AND the 52px viewer toolbar. At 96px
+     the floating card (and its collapsed 42px rail) sat on top of the
+     toolbar's overflow button, so opening comments made the ⋯ menu
+     unreachable. */
+  top: 148px;
   right: 16px;
   bottom: 16px;
   display: flex;
@@ -2462,18 +2466,10 @@ a.avatar-item:visited {
   background: #FAFAFA;
   box-shadow: none;
 }
-/* The floating comments card lives outside the workspace grid, so it does not
-   naturally reduce the preview's layout width. Reserve the card's 320px width,
-   its 16px viewport inset, and the same 12px breathing room as the local dock
-   while the portal is populated. Keeping the reservation on `.viewer-body`
-   makes the iframe, annotation overlays, and composer popover share one
-   unobstructed coordinate space; the toolbar may continue beneath the float.
-   Preserve a small usable canvas on narrow split layouts instead of allowing
-   padding to consume the whole viewer. */
-.split:has(> .comment-float-host:not(:empty)) .viewer-body {
-  box-sizing: border-box;
-  padding-right: max(0px, min(348px, calc(100% - 160px)));
-}
+/* The floating comments card is an overlay, not a dock. It must never reserve
+   space on .viewer-body: changing the preview's width reflows the pooled iframe
+   (and invalidates comment anchors) every time the panel opens or closes.
+   Collapse or close the card to reveal the preview underneath. */
 /* The portal target is pre-mounted so opening comments never waits a frame
    for parent state. An empty host must be visually and interactively absent. */
 .comment-float-host:empty {

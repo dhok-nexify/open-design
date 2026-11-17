@@ -207,6 +207,30 @@ describe('WorkspaceTabsBar navigation semantics', () => {
     });
   });
 
+  it('names the open project in the docked switcher under a NexTore host scope', async () => {
+    const dock = document.createElement('div');
+    document.body.append(dock);
+    setWorkspaceTabsDock(dock);
+
+    render(
+      <WorkspaceTabsBar
+        route={{ ...projectRoute }}
+        projects={[project]}
+        identityScopeKey="nextore-2207::286041"
+      />,
+    );
+
+    const trigger = await screen.findByTestId('workspace-tabs-dropdown-trigger');
+    await waitFor(() => expect(trigger.textContent).toContain('Project Alpha'));
+    expect(trigger.textContent).not.toContain('Home');
+
+    fireEvent.click(trigger);
+    const listbox = await screen.findByRole('listbox');
+    expect(within(listbox).getByText('Project Alpha')).toBeTruthy();
+
+    dock.remove();
+  });
+
   it('closes the dock dropdown when its route-owned dock is removed', async () => {
     const firstDock = document.createElement('div');
     const secondDock = document.createElement('div');

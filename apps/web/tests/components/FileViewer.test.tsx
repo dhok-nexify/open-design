@@ -14201,7 +14201,10 @@ describe('FileViewer tweaks toolbar', () => {
     expect(shellRule('.comment-float-host')).toContain('width: min(320px, calc(100vw - 32px));');
     expect(shellRule('.comment-float-host')).toContain('border: 1px solid #E6E6E6;');
     expect(shellRule('.comment-float-host')).toContain('box-shadow: none;');
-    expect(shellCss).toContain('padding-right: max(0px, min(348px, calc(100% - 160px)));');
+    expect(shellRule('.comment-float-host')).toContain('top: 148px;');
+    // The card overlays the preview; reserving width here resized the pooled
+    // iframe on every open/collapse and invalidated its comment anchors.
+    expect(shellCss).not.toContain('padding-right: max(0px, min(348px, calc(100% - 160px)));');
     expect(shellRule('.comment-float-host .comment-side-header')).toContain('min-height: 56px;');
   });
 

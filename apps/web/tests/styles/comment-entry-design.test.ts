@@ -54,7 +54,7 @@ describe('restored comment appearance', () => {
     expect(declarations('.comment-side-rail')).toMatchObject({ 'pointer-events': 'auto' });
   });
 
-  it('reserves matching preview space for the restored floating panel', () => {
+  it('keeps the floating panel out of the preview layout', () => {
     const shell = postcss.parse(readFileSync(resolve('src/styles/shell.css'), 'utf8'));
     const values: Record<string, Record<string, string>> = {};
     shell.walkRules(rule => {
@@ -63,9 +63,13 @@ describe('restored comment appearance', () => {
       rule.walkDecls(decl => { declarations[decl.prop] = decl.value; });
       values[rule.selector] = declarations;
     });
-    expect(values['.comment-float-host']).toMatchObject({ width: 'min(320px, calc(100vw - 32px))' });
-    expect(values['.split:has(> .comment-float-host:not(:empty)) .viewer-body']).toMatchObject({
-      'padding-right': 'max(0px, min(348px, calc(100% - 160px)))',
+    expect(values['.comment-float-host']).toMatchObject({
+      position: 'fixed',
+      width: 'min(320px, calc(100vw - 32px))',
+      top: '148px',
     });
+    // Reserving width here resized the pooled preview iframe on every
+    // open/collapse, invalidating comment anchors. The card overlays instead.
+    expect(values['.split:has(> .comment-float-host:not(:empty)) .viewer-body']).toBeUndefined();
   });
 });
