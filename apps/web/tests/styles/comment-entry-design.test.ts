@@ -43,6 +43,17 @@ describe('restored comment appearance', () => {
     expect(declarations('.od-tooltip-layer.tipd')).toEqual({});
   });
 
+  it('lets the collapsed rail pass clicks through its empty host frame', () => {
+    const shell = postcss.parse(readFileSync(resolve('src/styles/shell.css'), 'utf8'));
+    const host: Record<string, string> = {};
+    shell.walkRules(rule => {
+      if (rule.selector !== '.comment-float-host:has(.comment-side-rail)') return;
+      rule.walkDecls(decl => { host[decl.prop] = decl.value; });
+    });
+    expect(host).toMatchObject({ 'pointer-events': 'none' });
+    expect(declarations('.comment-side-rail')).toMatchObject({ 'pointer-events': 'auto' });
+  });
+
   it('reserves matching preview space for the restored floating panel', () => {
     const shell = postcss.parse(readFileSync(resolve('src/styles/shell.css'), 'utf8'));
     const values: Record<string, Record<string, string>> = {};

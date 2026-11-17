@@ -170,3 +170,30 @@ export function deriveTabIdentityScope(
     nextAccountBucket: accountBucket,
   };
 }
+
+/**
+ * The tab-scope key WorkspaceTabsBar should actually use.
+ *
+ * The upstream derivation only knows the AMR/Cloud identity. The NexTore
+ * edition runs on the host session instead, so its AMR status can stay null
+ * forever. A null scope makes WorkspaceTabsBar defer route reconciliation
+ * indefinitely, which leaves the docked project switcher on the pinned Home
+ * tab with an empty menu. NexTore therefore supplies a stable host-identity
+ * scope: the member bucket resets tabs when the signed-in person changes, and
+ * the workspace bucket isolates each workspace's open project tabs.
+ */
+export function resolveWorkspaceTabsScopeKey(inputs: {
+  identityScopeKey: string | null;
+  edition: string;
+  workspaceContext: Pick<WorkspaceCollabContext, 'workspaceId' | 'workspaceMemberId'> | null;
+}): string | null {
+  if (inputs.identityScopeKey !== null) return inputs.identityScopeKey;
+  // Without an AMR scope, NexTore still has a stable host identity. Using it
+  // is what lets WorkspaceTabsBar reconcile the open project route instead of
+  // deferring forever (and leaving the docked switcher on Home).
+  if (inputs.edition !== 'nextore' || !inputs.workspaceContext) return null;
+  const workspaceId = inputs.workspaceContext.workspaceId.trim();
+  if (!workspaceId) return null;
+  const memberId = inputs.workspaceContext.workspaceMemberId.trim() || 'unknown';
+  return `nextore-${memberId}::${workspaceId}`;
+}

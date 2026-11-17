@@ -2223,6 +2223,7 @@
 }
 .comment-side-rail {
   position: relative;
+  pointer-events: auto;
   width: 42px;
   height: 100%;
   display: flex;

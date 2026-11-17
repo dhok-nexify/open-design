@@ -2489,6 +2489,12 @@ a.avatar-item:visited {
   background: transparent;
   box-shadow: none;
   overflow: visible;
+  /* The collapsed host is still a viewport-tall flex column. Its empty
+     headroom sits over the viewer toolbar (the host is z-index 60, the
+     toolbar 3), so a transparent box used to swallow clicks on the
+     toolbar's overflow menu. Let every uncovered pixel fall through;
+     the rail inside re-enables hit testing for itself. */
+  pointer-events: none;
 }
 .comment-float-host > .comment-side-dock {
   flex: 1 1 auto;

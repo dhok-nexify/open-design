@@ -1182,7 +1182,7 @@ export function EntryTopRightCluster({
   const [logoutSnapshot,setLogoutSnapshot] = useState<VelaLoginStatus | null>(null);
   const [logoutBusy,setLogoutBusy] = useState(false);
   const [accountStatus,setAccountStatus] = useState<VelaLoginStatus | null>(null);
-  const githubStars = useGithubStars();
+  const githubStars = useGithubStars(NEXTORE_WEB_EDITION !== 'nextore');
   // Signed-in account email for the menu head (#5517 shows it under the
   // display name). The workspace context carries no email, so lazily read the
   // vela login-status projection the first time the menu opens — never on
@@ -1393,7 +1393,7 @@ export function EntryTopRightCluster({
           {/* GitHub star chip: its own option in the cluster, right after the
               campaign badge (per product) — it used to live in the account
               menu's social row. */}
-          {clusterVisible ? (
+          {clusterVisible && NEXTORE_WEB_EDITION !== 'nextore' ? (
             <a
               className="entry-top-right-github"
               href={REPO_URL}
@@ -1534,7 +1534,9 @@ export function EntryTopRightCluster({
       {accountInRail
         ? createPortal(
             <div className="entry-nav-rail__account-dock">
-              <RailSocialRow page={page} dimensions={workspaceDimensions} />
+              {NEXTORE_WEB_EDITION !== 'nextore' ? (
+                <RailSocialRow page={page} dimensions={workspaceDimensions} />
+              ) : null}
               <div
                 ref={accountContainerRef}
                 className={`entry-nav-rail__account${accountOpen ? ' is-menu-open' : ''}`}
@@ -1667,31 +1669,35 @@ export function EntryTopRightCluster({
                           capability. 设置 itself left too: it is a rail item
                           under 插件 on this branch, and repeating it here would
                           be the same dialog twice in one column. */}
-                      <a
-                        className="entry-nav-rail__menu-item"
-                        role="menuitem"
-                        href={GITHUB_HELP_URL}
-                        {...externalLinkProps}
-                        onClick={() => {
-                          trackAccountAction('github_help');
-                          closeAccountMenu();
-                        }}
-                      >
-                        <Icon name="comment" size={15} /> {t('entry.accountGithubHelp')}
-                      </a>
-                      <a
-                        className="entry-nav-rail__menu-item"
-                        role="menuitem"
-                        href={GITHUB_FEATURE_URL}
-                        {...externalLinkProps}
-                        onClick={() => {
-                          trackAccountAction('feature_request');
-                          closeAccountMenu();
-                        }}
-                      >
-                        <Icon name="sparkles" size={15} /> {t('entry.accountFeatureRequest')}
-                      </a>
-                      <div className="entry-nav-rail__menu-divider" />
+                      {NEXTORE_WEB_EDITION !== 'nextore' ? (
+                        <>
+                          <a
+                            className="entry-nav-rail__menu-item"
+                            role="menuitem"
+                            href={GITHUB_HELP_URL}
+                            {...externalLinkProps}
+                            onClick={() => {
+                              trackAccountAction('github_help');
+                              closeAccountMenu();
+                            }}
+                          >
+                            <Icon name="comment" size={15} /> {t('entry.accountGithubHelp')}
+                          </a>
+                          <a
+                            className="entry-nav-rail__menu-item"
+                            role="menuitem"
+                            href={GITHUB_FEATURE_URL}
+                            {...externalLinkProps}
+                            onClick={() => {
+                              trackAccountAction('feature_request');
+                              closeAccountMenu();
+                            }}
+                          >
+                            <Icon name="sparkles" size={15} /> {t('entry.accountFeatureRequest')}
+                          </a>
+                          <div className="entry-nav-rail__menu-divider" />
+                        </>
+                      ) : null}
                       <button
                         type="button"
                         className="entry-nav-rail__menu-item"
@@ -2688,7 +2694,9 @@ export function EntryNavRail({
             className="entry-nav-rail__account-dock entry-nav-rail__account-dock--local"
             data-testid="entry-nav-local-account-dock"
           >
-            <RailSocialRow page={analyticsPage} dimensions={workspaceDimensions} />
+            {NEXTORE_WEB_EDITION !== 'nextore' ? (
+              <RailSocialRow page={analyticsPage} dimensions={workspaceDimensions} />
+            ) : null}
           </div>
         </div>
       )}

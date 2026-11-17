@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   deriveTabIdentityScope,
+  resolveWorkspaceTabsScopeKey,
   UNSET_ACCOUNT_BUCKET,
   type TabIdentityScopeInputs,
   type TabScopeLoginStatus,
@@ -230,5 +231,38 @@ describe('deriveTabIdentityScope', () => {
       });
       expect(tick2.scopeKey).toBe('user-1::ws-team-a');
     });
+  });
+});
+
+describe('resolveWorkspaceTabsScopeKey', () => {
+  const nextoreWorkspace = { workspaceId: 'ws-team', workspaceMemberId: 'wm-owner' };
+
+  it('keeps an AMR-derived scope whenever one exists', () => {
+    expect(resolveWorkspaceTabsScopeKey({
+      identityScopeKey: 'user-1::ws-team',
+      edition: 'nextore',
+      workspaceContext: nextoreWorkspace,
+    })).toBe('user-1::ws-team');
+  });
+
+  it('uses the host session when NexTore has no AMR scope', () => {
+    expect(resolveWorkspaceTabsScopeKey({
+      identityScopeKey: null,
+      edition: 'nextore',
+      workspaceContext: nextoreWorkspace,
+    })).toBe('nextore-wm-owner::ws-team');
+  });
+
+  it('stays deferred outside NexTore or before the host workspace resolves', () => {
+    expect(resolveWorkspaceTabsScopeKey({
+      identityScopeKey: null,
+      edition: 'upstream',
+      workspaceContext: nextoreWorkspace,
+    })).toBeNull();
+    expect(resolveWorkspaceTabsScopeKey({
+      identityScopeKey: null,
+      edition: 'nextore',
+      workspaceContext: null,
+    })).toBeNull();
   });
 });

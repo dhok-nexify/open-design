@@ -176,7 +176,7 @@ import {
   useProjectRouteWorkspaceContext,
 } from './collab/useProjectRouteWorkspaceContext';
 import { resolvePlanTier } from './collab/team-plan';
-import { deriveTabIdentityScope, UNSET_ACCOUNT_BUCKET } from './collab/tab-scope';
+import { deriveTabIdentityScope, resolveWorkspaceTabsScopeKey, UNSET_ACCOUNT_BUCKET } from './collab/tab-scope';
 import { seedHomeComposerPrompt } from './components/HomeView';
 import {
   createPluginUseHandoff,
@@ -5223,6 +5223,11 @@ function AppInner() {
   // deferred until the project row + exact membership witness exist, then pin
   // it to that Workspace. Truly unbound local projects retain the ambient
   // account/workspace tab behavior.
+  const ambientTabScopeKey = resolveWorkspaceTabsScopeKey({
+    identityScopeKey,
+    edition: NEXTORE_WEB_EDITION,
+    workspaceContext,
+  });
   const workspaceTabsIdentityScopeKey =
     route.kind === 'project'
       ? activeProject === null
@@ -5230,9 +5235,15 @@ function AppInner() {
         : activeProject.workspaceId
           ? activeProjectWorkspaceContext && identityScopeKey !== null
             ? `${nextTabScopeAccountId}::${activeProjectWorkspaceContext.workspaceId}`
-            : null
-          : identityScopeKey
-      : identityScopeKey;
+            : NEXTORE_WEB_EDITION === 'nextore' && activeProjectWorkspaceContext
+              ? resolveWorkspaceTabsScopeKey({
+                  identityScopeKey,
+                  edition: NEXTORE_WEB_EDITION,
+                  workspaceContext: activeProjectWorkspaceContext,
+                })
+              : null
+          : ambientTabScopeKey
+      : ambientTabScopeKey;
   const activeAuthoritativeProjectName =
     route.kind === 'project'
       ? authoritativeProjectNames[
