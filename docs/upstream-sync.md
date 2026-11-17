@@ -19,20 +19,37 @@ Every file a downstream change touches is either:
 the config. **Budgets only go down.** Raising one is a product decision that needs
 an explicit review, not a convenience for getting a branch merged.
 
-History: the budget moved 488 -> 496 -> 505 on 2026-11-17 while the merged
-Windows-local suite was brought back to green and the walkthrough restored the
-edition's project entries. The 496 entry was measured against the pre-commit
-tree, so it understated the committed divergence; 505 is the committed number.
-The added files are test and wiring adaptations, not product logic:
-per-imported-file stylesheet injection in the jsdom suites, a path-separator
-normalisation in font-weight-normalization.test.ts (upstream bug on Windows),
-a best-effort screenshot assertion in FileViewer.test.tsx, the
-composer-portal-seam source-shape assertion after the ChatPane seam refactor,
-the fork's focus-directory refresh contract in
-useWorkspaceContext.invalidation.test.tsx, and brand-copy expectations that the
-white-label fork necessarily rewrites (those files are declared fork-owned).
+History: the budget moved 488 -> 496 -> 505 -> 522 on 2026-11-17. The 496
+entry was measured against the pre-commit tree, so it understated committed
+divergence. 505 was the committed count at `05d75ad6be`; six later NexTore UI
+fixes (project switcher, tab scope, comment overlay, analytics wiring, invite
+surface) touched 17 additional upstream-owned files, so 522 is the committed
+count at `5d5c925c88`. The added files are test and wiring adaptations, not
+product logic: per-imported-file stylesheet injection in the jsdom suites, a
+path-separator normalisation in font-weight-normalization.test.ts (upstream
+bug on Windows), a best-effort screenshot assertion in FileViewer.test.tsx,
+the composer-portal-seam source-shape assertion after the ChatPane seam
+refactor, the fork's focus-directory refresh contract in
+useWorkspaceContext.invalidation.test.tsx, the NexTore project-switcher and
+comment-overlay styles, and brand-copy expectations that the white-label fork
+necessarily rewrites (those files are declared fork-owned).
 Payback: upstream the path-separator and stylesheet-segment fixes, then drop
-the entries and lower the budget again.
+the entries and lower the budget again. Every later commit must re-run
+`pnpm sync:check`; do not carry a stale budget into the next sync.
+
+### 2026-11-17 snapshot
+
+| Item | Value |
+| --- | --- |
+| Checkpoint tag | `pre-upstream-sync-20261116` (`681e47a9f2`) |
+| Merge commit | `559bcc3c33` |
+| Upstream tip merged | `84dd08b570` |
+| Divergence budget | 522 upstream-owned files |
+| Merge conflicts | 71 |
+| Modify/delete conflicts | 3 |
+
+Later upstream tips do not change this snapshot; re-run `pnpm sync:report` for
+the next sync.
 
 ## Commands
 
@@ -70,13 +87,109 @@ Each conflict is classified and gets a default route:
    `git switch -c sync/upstream-<date>` then `git merge --no-ff --no-commit upstream/main`.
 5. Resolve in this order: `scripted` → `take-upstream` → `review`. Keep
    "conflict resolution" and "adaptation fixes" as separate commits.
-6. Run `pnpm guard`, `pnpm typecheck`, `pnpm i18n:check`, and the tests for the
-   packages that changed. Then open a pull request into the integration branch.
-7. Lower the budgets in `scripts/upstream-sync.config.json` when the sync paid
-   down debt.
+6. Run the post-merge verification ladder below. Do not open the pull request
+   until every rung passes or the exception is written down in the PR.
+7. Commit the resolution and adaptation work first, then measure with
+   `pnpm sync:check --conflicts`. The check compares `upstream/main...HEAD`, so a
+   dirty worktree is invisible to it. Lower the budgets in
+   `scripts/upstream-sync.config.json` when the sync paid down debt; raise one
+   only with a written payback plan.
 
 Enable `git rerere` and `merge.conflictStyle=zdiff3` locally; rerere replays
 previous resolutions and zdiff3 makes "ours vs theirs" decisions obvious.
+
+### Restarting safely
+
+Once a resolution decision has been made, do not run `git merge --abort`: it
+throws away every resolved path and the rerere cache you just trained. If the
+merge must be restarted, reset the scratch branch to the checkpoint tag
+(`git reset --hard pre-upstream-sync-<date>`) and re-run `pnpm sync:report`.
+
+## Post-merge verification ladder
+
+Run the rungs in order. Each one is cheap; skipping a lower rung is what turns a
+mechanical merge into a week of follow-up fixes.
+
+1. **Merge hygiene.** `git status --short`, `git diff --check`, and
+   `rg -n "^<<<<<<< |^>>>>>>> " --glob "!**/node_modules/**" .` must be clean.
+   Confirm `MERGE_HEAD` is gone after the merge commit.
+2. **Static gates.** `pnpm guard`, `pnpm typecheck`, `pnpm i18n:check`.
+3. **Focused tests.** Run the suites for the packages that changed, not the full
+   local matrix, and name them in the PR. On Windows, daemon lifecycle suites
+   need `--hookTimeout 30000`; large jsdom suites may need `--maxWorkers=6`.
+4. **Product-surface walkthrough.** Open the edition surfaces a user reaches
+   from the project page and the artifact viewer. A passing suite does not prove
+   that an entry point is mounted.
+5. **Orphan wiring scan.** Search for state setters and handlers that survived
+   the merge without a call site:
+   `rg -n "setShareDialogOpen|openNextorePermissions|projectQuarantined" apps/web/src`.
+   A definition with no caller is a lost feature, not dead code.
+6. **Chrome diff.** Compare the changed header and workspace blocks against the
+   checkpoint tag (`git diff <checkpoint>..HEAD -- <files>`). Upstream rewrites
+   chrome blocks wholesale; handlers can survive while their trigger disappears.
+7. **Edition boundaries.** Inventory new upstream route prefixes and add every
+   user-facing surface to `apps/daemon/src/edition/route-kill-switch.ts`. Gate
+   cloud-only UI with `isFeatureEnabled("collab-cloud")` instead of deleting it.
+8. **Brand and locale.** Upstream locale files stay byte-identical; downstream
+   strings live under `apps/web/src/i18n/nextore/`. Confirm there is no new
+   hardcoded upstream product name in source or tests; use `getBrandName()`.
+9. **Debt.** Commit first, then run `pnpm sync:check --conflicts`, and record the
+   measured budget plus its payback plan in this file.
+
+## Merge-review checklist
+
+Copy this into the sync PR and tick every line:
+
+- [ ] Checkpoint tag exists and the merge ran on a scratch branch.
+- [ ] `git diff --check` is clean and no conflict markers remain.
+- [ ] `pnpm guard`, `pnpm typecheck`, and `pnpm i18n:check` pass.
+- [ ] Focused suites for every touched package pass, or the failure is a
+      recorded Windows-only timeout reproduced by a single-file run.
+- [ ] Every new upstream `/api/*` prefix is covered by the edition kill switch.
+- [ ] Every cloud-only surface is behind `isFeatureEnabled("collab-cloud")`.
+- [ ] Project-level entries (share link, permissions, quarantine) have a live
+      mount point and a regression test.
+- [ ] Upstream locale files are unchanged:
+      `git diff --stat upstream/main...HEAD -- apps/web/src/i18n/locales` is empty.
+- [ ] Brand-copy tests use the production mask or `getBrandName()`.
+- [ ] Resolution and adaptation are separate commits.
+- [ ] The worktree is committed before `pnpm sync:check --conflicts`.
+- [ ] Any budget change has a payback plan in this file.
+
+## Pitfalls from the 2026-11-16 sync
+
+| Pitfall | Symptom | Root cause and durable fix | Guard |
+| --- | --- | --- | --- |
+| CRLF ghost changes | `git status` listed about 10,000 modified files while `git diff` was empty, and exact-text tests failed. | A Windows checkout had CRLF line endings plus stale index stat data. `.gitattributes` now pins `* text=auto eol=lf`; tracked text was normalised to LF and the index refreshed once. | Confirm `git diff` is empty before `git add -A`; never commit or discard the ghost set. |
+| Exact-source tests on Windows | Style and copy suites failed on source text that looked correct. | The tests compare raw text, so CRLF is a real difference. The LF policy plus per-imported-file stylesheet injection in jsdom removed the false failures. | Reproduce one failing file with a verbose reporter before assuming a logic regression. |
+| Locale conflicts | Every sync reopened translation files. | Downstream keys lived in upstream locale files. Upstream locale files are now byte-identical and downstream strings live under `apps/web/src/i18n/nextore/`, merged by `nextore/registry.ts`. | Keep the locale diff empty and the overlay key-completeness test green. |
+| Brand-mask gaps | New upstream product names leaked through the white-label surface. | The mask was a curated key list, so new keys escaped it. `merge.ts` now masks every locale value and preserves handles such as `@OpenDesignHQ`. | Brand-references tests plus `getBrandName()` in assertions. |
+| Brand-copy tests | Verbatim "OpenDesign" assertions failed no matter how the source was shaped. | The assertion itself is the brand. Those copy-only files are declared in `ownedPathGlobs`; behaviour tests stay upstream-owned and are adapted in place. | Own only copy assertions, never behaviour tests. |
+| Lost project entries | The share dialog setter, permission handler, and quarantine flag survived with no caller or render site. | Upstream rewrote the project header and removed the mount points while keeping the handlers. `apps/web/src/nextore/project-actions.tsx` now mounts through `FileWorkspace.headerActions`, and the quarantine notice renders in the workspace status row. | Orphan-wiring scan plus a chrome diff against the checkpoint tag. |
+| Cloud Share tab | The artifact viewer offered upstream cloud sharing while `/api/collab` is disabled. | The tab was not edition-gated. `artifactCloudShareAvailable = isFeatureEnabled("collab-cloud")` now hides it; project sharing uses NexTore links. | Audit every share and collab surface for the feature flag. |
+| Kill-switch omission | New `/api/touchpoints/*` routes were reachable in the edition. | Upstream added a route family after the kill-switch table was written. It now shares the `campaigns` rule. | Diff the new route prefixes against `route-kill-switch.ts` on every sync. |
+| jsdom parse timeouts | Large style suites timed out on Windows. | One giant expanded `<style>` element exceeded the test timeout. Styles are injected one element per imported CSS file, with higher timeouts and a Windows worker cap. | Keep style fixtures per file; do not bundle them into one blob. |
+| Stale product-contract test | `chips.removed-types.test.ts` asserted a Home-only catalogue that no longer exists. | The test described removed implementation history. It was replaced by `chips.create-rail.test.ts`, which covers the shared catalogue and edition hiding. | Test the current ownership model, not deleted code. |
+| Intentional focus divergence | An upstream test expected no directory read when the window regained focus. | The fork deliberately refreshes the team directory. The upstream test was adapted with a recorded divergence note. | Record every intentional divergence in the test and in this document. |
+| Pre-commit measurement | `sync:check` reported 496 before the commit and 505 after it. | The check measures `upstream/main...HEAD`, so uncommitted work is invisible. | Run `sync:check` only on a clean tree, after committing. |
+| Stale planning ledger | `IMPLEMENTATION_STATUS.md` outside this repository still named old branches and pending tasks. | The ledger was not updated with the sync state. | Link the ledger update from the sync PR. |
+| Merge abort after resolution | A restart discarded resolved paths and rerere training. | `git merge --abort` is not a checkpoint. | Never abort a partially resolved merge; reset to the checkpoint tag instead. |
+
+## Windows and line endings
+
+The suite asserts exact source text, so the checkout must be LF on every
+platform. `.gitattributes` carries `* text=auto eol=lf`, and Windows is easier
+to reason about with `git config core.autocrlf false` in this repository.
+
+After a merge or a line-ending normalisation, `git status` can show thousands of
+modified files whose `git diff` is empty. That is stale index stat data, not
+content. Confirm `git diff` is empty, then refresh the index once with
+`git add -A`; never commit the ghost set and never "fix" it with
+`git checkout -- .`, which would discard real edits.
+
+Daemon lifecycle suites can exceed the default 10-second hook while loading the
+full server graph on Windows; run them with `--hookTimeout 30000`. Large jsdom
+suites may need `--maxWorkers=6`.
 
 ## What actually reduces manual work
 
@@ -120,7 +233,8 @@ upstream-owned files:
 Once the seam is small, the sync can run unattended:
 
 1. Scheduled job fetches upstream `main` and creates `sync/upstream-<date>`.
-2. `pnpm sync:report` classifies the merge and applies the scripted routes.
+2. `pnpm sync:report` classifies the merge; `pnpm sync:resolve` applies the
+   configured kept-deleted paths; the remaining scripted routes follow.
 3. `pnpm sync:check --conflicts` gates the result.
 4. If only `review` conflicts remain, the job opens a pull request with the
    inventory attached; otherwise it opens an issue with the same report.

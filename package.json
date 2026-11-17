@@ -22,6 +22,7 @@
     "i18n:coverage": "tsx ./scripts/i18n-coverage-report.ts",
     "sync:report": "tsx ./scripts/upstream-sync.ts report",
     "sync:check": "tsx ./scripts/upstream-sync.ts check",
+    "sync:resolve": "tsx ./scripts/upstream-sync.ts resolve",
     "sync:community-pets": "node --experimental-strip-types scripts/sync-community-pets.ts",
     "bake:community-pets": "node --experimental-strip-types scripts/bake-community-pets.ts",
     "seed:test-projects": "node --experimental-strip-types scripts/seed-test-projects.ts",
