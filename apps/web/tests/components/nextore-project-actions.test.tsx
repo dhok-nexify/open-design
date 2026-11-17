@@ -15,7 +15,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   NextoreProjectActions,
   NextoreProjectQuarantineNotice,
-} from '../../src/components/nextore-project-actions';
+} from '../../src/nextore/project-actions';
 import { I18nProvider } from '../../src/i18n';
 import { LOCAL_PROJECT_ACCESS, type NextoreProjectAccessView } from '../../src/nextore/access';
 

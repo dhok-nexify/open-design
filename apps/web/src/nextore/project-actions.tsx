@@ -11,8 +11,8 @@
 import type { ReactElement } from 'react';
 
 import { useT } from '../i18n';
-import type { NextoreProjectAccessView } from '../nextore/access';
-import { Icon } from './Icon';
+import type { NextoreProjectAccessView } from './access';
+import { Icon } from '../components/Icon';
 
 export function NextoreProjectActions({
   access,
