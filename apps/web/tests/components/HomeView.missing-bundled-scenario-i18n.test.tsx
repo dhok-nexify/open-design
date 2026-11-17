@@ -64,10 +64,12 @@ describe('HomeView missing bundled scenario error', () => {
     expect(alert.textContent).not.toContain('Bundled scenario');
   });
 
-  it('brands the English recovery guidance and keeps the diagnostic scenario id', async () => {
+  it('keeps the English recovery guidance and the diagnostic scenario id', async () => {
+    // Upstream now points at the daemon rather than naming the product, so
+    // there is no brand literal left to interpolate here.
     const alert = await renderMissingImageScenario('en');
     expect(alert.textContent).toBe(
-      'Bundled scenario "od-media-generation" is not installed. Reinstall NexTore Designer to restore the default plugin set.',
+      'Bundled scenario "od-media-generation" is not installed. Reinstall the daemon to restore the default plugin set.',
     );
   });
 });

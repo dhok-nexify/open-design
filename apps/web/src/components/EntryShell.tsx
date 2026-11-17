@@ -2293,7 +2293,7 @@ export function EntryShell({
           open={railOpen}
           inviteSlot={<HomeInviteTrigger signedOut={amrLoggedIn === false} context={railWorkspaceContext} />}
           topRightSlot={<>
-            {isFeatureEnabled('campaigns') && (topRightCampaignAudience || (homeCampaignHostsVisible && amrLoggedIn === true)) ? (
+            {topRightCampaignAudience || (homeCampaignHostsVisible && amrLoggedIn === true) ? (
             <>
               {topRightCampaignAudience ? (
                 <WorkbenchCampaignBadge
@@ -4362,7 +4362,7 @@ function OnboardingView({
           <footer className="onboarding-cloud__footer">
             <LanguageMenu placement="up" align="start" />
             <span>
-              © {new Date().getFullYear()} OpenDesign · {t('settings.onboardingCloudRights')}
+              © {new Date().getFullYear()} {t('app.brand')} · {t('settings.onboardingCloudRights')}
             </span>
           </footer>
         </div>

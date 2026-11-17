@@ -71,7 +71,7 @@ describe('输入框 portal 出去时自带主题接缝', () => {
   it('没 portal 的那一支不重复挂 —— 它本来就在接缝里', () => {
     // 非 portal 分支渲染的是 `{shouldPortalComposer ? null : composerNode}`,
     // 那一段外面不应该再套一层接缝
-    const i = chatPane.indexOf('{shouldPortalComposer ? null : composerNode}');
+    const i = chatPane.indexOf('{shouldPortalComposer ? null : composerSlotNode}');
     expect(i).toBeGreaterThan(0);
     const around = chatPane.slice(Math.max(0, i - 400), i);
     expect(around).not.toMatch(/chatSeam\(/);

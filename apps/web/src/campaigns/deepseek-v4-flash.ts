@@ -12,6 +12,8 @@
  * module free of locale strings so workbench surfaces follow the active UI
  * language (19 locales under apps/web/src/i18n/locales).
  */
+import { isFeatureEnabled } from '../nextore/features';
+
 export const DEEPSEEK_V4_FLASH_CAMPAIGN = {
   id: 'deepseek-v4-dual-unlimited-2026',
   /**
@@ -43,6 +45,9 @@ export function isDeepSeekV4FlashCampaignWindowOpen(now: number): boolean {
  * parameters.
  */
 export function isDeepSeekV4FlashCampaignVisible(now: number): boolean {
+  // Campaigns are an upstream growth surface; the NexTore edition stays clean
+  // even if upstream opens a new window.
+  if (!isFeatureEnabled('campaigns')) return false;
   return isDeepSeekV4FlashCampaignWindowOpen(now);
 }
 

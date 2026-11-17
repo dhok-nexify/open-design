@@ -25,11 +25,12 @@ export function maskBrandName(message: string): string {
 export function withOverlay(
   base: BaseDict,
   overlay: LocaleOverlay,
-  brandMaskedKeys: readonly (keyof BaseDict)[],
+  // Kept for call-site compatibility. The overlay now masks every value, so the
+  // curated list can no longer miss a key that upstream adds later.
+  _brandMaskedKeys: readonly (keyof BaseDict)[],
 ): Dict {
-  const merged: Record<string, string> = { ...base };
-  for (const key of brandMaskedKeys) {
-    const value = merged[key];
+  const merged: Record<string, string> = {};
+  for (const [key, value] of Object.entries(base)) {
     if (typeof value === 'string') merged[key] = maskBrandName(value);
   }
   for (const [key, value] of Object.entries(overlay)) {

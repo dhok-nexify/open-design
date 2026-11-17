@@ -124,7 +124,6 @@ import { useWorkspaceInvalidation } from '../collab/workspace-events';
 import { resolveDeepSeekV4FlashCampaignAudience } from '../campaigns/deepseek-v4-flash';
 import { useDeepSeekV4FlashCampaignVisibility } from '../campaigns/use-deepseek-v4-flash-campaign';
 import type { EntryHomeView } from '../router';
-import { isFeatureEnabled } from '../nextore/features';
 import type {
   AccountMenuClickProps,
   TrackingProjectCollectionPage,
@@ -1845,7 +1844,7 @@ export function WorkspaceTopRightAccountCluster({
       billing={billing}
       billingResponse={billingResponse}
       balanceUsd={balanceUsd}
-      leadingSlot={isFeatureEnabled('campaigns') && campaignAudience ? (
+      leadingSlot={campaignAudience ? (
         <WorkbenchCampaignBadge
           audience={campaignAudience}
           page="project"

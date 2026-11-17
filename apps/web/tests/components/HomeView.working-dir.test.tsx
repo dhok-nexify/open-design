@@ -10,6 +10,7 @@ vi.mock('../../src/components/home-hero/PlaceholderCarousel', () => ({
 import { HomeView } from '../../src/components/HomeView';
 import { isOpenDesignHostAvailable, pickHostWorkingDir } from '@open-design/host';
 import { openFolderDialog } from '../../src/providers/registry';
+import { getBrandName } from '../../src/i18n';
 
 vi.mock('@open-design/host', async () => {
   const actual = await vi.importActual<typeof import('@open-design/host')>('@open-design/host');
@@ -77,7 +78,7 @@ describe('HomeView working-dir picker host fallback', () => {
       expect(screen.getByText(/Couldn't open the folder picker/i)).toBeTruthy();
     });
     // A host build without the picker can only be fixed by updating.
-    expect(screen.getByText(/Please update OpenDesign and try again\./)).toBeTruthy();
+    expect(screen.getByText(new RegExp(`Please update ${getBrandName()} and try again\\.`))).toBeTruthy();
     expect(mockedOpenFolderDialog).not.toHaveBeenCalled();
   });
 

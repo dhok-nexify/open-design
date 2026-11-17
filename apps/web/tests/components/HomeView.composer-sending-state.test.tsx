@@ -32,7 +32,7 @@ vi.mock('../../src/collab/useWorkspaceContext', async (importOriginal) => {
 });
 
 import { HomeView } from '../../src/components/HomeView';
-import { I18nProvider } from '../../src/i18n';
+import { I18nProvider, getBrandName } from '../../src/i18n';
 import { ProjectCreateError } from '../../src/state/projects';
 import { writeHomeGuideStage } from '../../src/components/home-hero/firstRunGuide';
 import { setHomeHeroPrompt } from '../helpers/home-hero-lexical';
@@ -211,7 +211,7 @@ describe('home composer sending state', () => {
     // OPEND-2849 S28a:标题 + 正文两行(错误块 `white-space: pre-line`)。
     expect((await screen.findByRole('alert')).textContent?.split('\n')).toEqual([
       'Local connection lost',
-      'Can’t reach the Open Design service on this computer right now. Please restart the app.',
+      `Can’t reach the ${getBrandName()} service on this computer right now. Please restart the app.`,
     ]);
     expect(screen.getByTestId('home-hero-input')).toHaveTextContent(
       'Keep this draft while the daemon reconnects',

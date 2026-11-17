@@ -12,6 +12,7 @@ import {
 } from '@open-design/contracts';
 
 import { FileViewer } from '../../src/components/FileViewer';
+import { getBrandName } from '../../src/i18n';
 import { CollabProvider, type CollabContextValue } from '../../src/collab/collab-context';
 import { resetConsumedActionRequestsForTests } from '../../src/runtime/action-request';
 import { resetCoalescedGet } from '../../src/lib/coalesced-get';
@@ -188,7 +189,9 @@ async function openSharePanel(
 describe('Z11a · ShareTab 搬动前的 DOM 基线', () => {
   it('个人工作区:分享面板提示登录后创建链接', async () => {
     const panel = await openSharePanel(null);
-    expect(panel).toHaveTextContent('Sign in to Open Design to create a share link and invite others to view and comment.');
+    expect(panel).toHaveTextContent(
+      `Sign in to ${getBrandName()} to create a share link and invite others to view and comment.`,
+    );
     expect(within(panel).getByRole('button', { name: 'Sign in to share' })).toBeVisible();
     expect(screen.getByRole('heading', { name: 'Share', level: 2 })).toBeVisible();
   });

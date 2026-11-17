@@ -21,7 +21,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { EntryNavRail, resetWorkspaceDirectoryCache } from '../../src/components/EntryNavRail';
 import { CloudSignInTip } from '../../src/components/CloudSignInTip';
-import { I18nProvider } from '../../src/i18n';
+import { I18nProvider, getBrandName } from '../../src/i18n';
 
 const DISMISSED_KEY = 'od.entry.cloudSignInTip.dismissed';
 const originalFetch = globalThis.fetch;
@@ -110,6 +110,6 @@ describe('EntryNavRail sign-out (recvqbkcLqIFH7)', () => {
     );
 
     expect(screen.getByTestId('entry-cloud-signin-tip')).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'OpenDesign Cloud 版' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: `${getBrandName()} Cloud 版` })).toBeTruthy();
   });
 });

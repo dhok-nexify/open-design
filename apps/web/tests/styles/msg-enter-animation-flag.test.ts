@@ -2,7 +2,7 @@
 
 import { beforeAll, afterEach, describe, expect, it } from 'vitest';
 
-import { readExpandedIndexCss } from '../helpers/read-expanded-css';
+import { readExpandedIndexCssSegments } from '../helpers/read-expanded-css';
 
 /*
  * H3 的 A/B 开关 —— `msg-enter` 入场动画能不能在运行时摘掉。
@@ -24,12 +24,14 @@ import { readExpandedIndexCss } from '../helpers/read-expanded-css';
 
 const MSG_ENTER_DISABLED_ATTRIBUTE = 'data-od-msg-enter-disabled';
 
-let styleEl: HTMLStyleElement;
-
 beforeAll(() => {
-  styleEl = document.createElement('style');
-  styleEl.textContent = readExpandedIndexCss();
-  document.head.appendChild(styleEl);
+  // One <style> per imported file keeps jsdom's per-parse token buffer sized
+  // to the largest sheet instead of the whole cascade.
+  for (const segment of readExpandedIndexCssSegments()) {
+    const styleEl = document.createElement('style');
+    styleEl.textContent = segment;
+    document.head.appendChild(styleEl);
+  }
 });
 
 afterEach(() => {

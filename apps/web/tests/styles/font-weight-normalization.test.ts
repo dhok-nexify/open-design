@@ -1,5 +1,5 @@
 import { readdirSync, readFileSync } from 'node:fs';
-import { extname, relative } from 'node:path';
+import { extname, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
@@ -46,6 +46,11 @@ const pendingNormalization = new Set([
   'apps/web/src/components/WorkspaceQuotaPopover.module.css',
 ]);
 
+/** `relative()` yields backslashes on Windows; the allowlist is slash-delimited. */
+function repoRelative(file: string): string {
+  return relative(repoRoot, file).split(sep).join('/');
+}
+
 function cssFiles(root: string): string[] {
   return readdirSync(root, { withFileTypes: true }).flatMap((entry) => {
     const path = `${root}/${entry.name}`;
@@ -78,7 +83,7 @@ function ladderViolations(file: string): string[] {
   for (const match of css.matchAll(/font-weight\s*:\s*(\d+)\b/g)) {
     const weight = Number(match[1]);
     if (isForbiddenWeight(weight)) {
-      violations.push(`${relative(repoRoot, file)}: ${weight}`);
+      violations.push(`${repoRelative(file)}: ${weight}`);
     }
   }
   for (const match of css.matchAll(/(?:^|[;{])\s*font\s*:\s*([^;}]+)/g)) {
@@ -87,13 +92,13 @@ function ladderViolations(file: string): string[] {
 
     const explicitWeight = shorthand.match(/^(?:(?:normal|italic|oblique)\s+)?([1-9]00)\b/);
     if (!explicitWeight) {
-      violations.push(`${relative(repoRoot, file)}: font shorthand implicit 400`);
+      violations.push(`${repoRelative(file)}: font shorthand implicit 400`);
       continue;
     }
 
     const weight = Number(explicitWeight[1]);
     if (isForbiddenWeight(weight)) {
-      violations.push(`${relative(repoRoot, file)}: font shorthand ${weight}`);
+      violations.push(`${repoRelative(file)}: font shorthand ${weight}`);
     }
   }
   return violations;
@@ -101,7 +106,7 @@ function ladderViolations(file: string): string[] {
 
 describe('product UI font-weight normalization', () => {
   const files = styleRoots.flatMap(cssFiles);
-  const isPending = (file: string) => pendingNormalization.has(relative(repoRoot, file));
+  const isPending = (file: string) => pendingNormalization.has(repoRelative(file));
 
   it('defaults unspecified text and buttons to the 600 step', () => {
     const baseCss = withoutFontFaces(
@@ -131,7 +136,7 @@ describe('product UI font-weight normalization', () => {
         /:where\(\.(?:home-hero|composer|plus-menu__popup)\)\s*button\s*\{[^}]*font-weight/.test(
           css.replace(/\/\*[\s\S]*?\*\//g, ''),
         )
-        ? [relative(repoRoot, file)]
+        ? [repoRelative(file)]
         : [];
     });
     expect(standIns).toEqual([]);
@@ -144,7 +149,7 @@ describe('product UI font-weight normalization', () => {
 
   it('keeps the pending list limited to files that still need it', () => {
     const stale = files.filter((file) => isPending(file) && ladderViolations(file).length === 0);
-    expect(stale.map((file) => relative(repoRoot, file))).toEqual([]);
+    expect(stale.map((file) => repoRelative(file))).toEqual([]);
   });
 
   it('preserves the real ranges registered by the bundled font files', () => {

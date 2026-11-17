@@ -300,6 +300,9 @@ describe('useWorkspaceContext invalidation freshness', () => {
     clock = 251;
     act(() => window.dispatchEvent(new Event('focus')));
     await waitFor(() => expect(contextReads).toBe(3));
-    expect(directoryReads).toBe(2);
+    // Fork divergence: the team-project catalogue also refreshes on focus so a
+    // window regaining focus shows projects created elsewhere. Upstream keeps
+    // focus to the exact-scope context read alone.
+    await waitFor(() => expect(directoryReads).toBe(3));
   });
 });

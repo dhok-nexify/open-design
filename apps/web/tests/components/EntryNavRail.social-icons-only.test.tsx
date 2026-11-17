@@ -13,7 +13,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EntryNavRail, resetWorkspaceDirectoryCache } from '../../src/components/EntryNavRail';
 import { WORKSPACE_CHROME_ACCOUNT_ACTIONS_ID } from '../../src/components/workspaceChromeActions';
 import { resetProjectRunStatusStore } from '../../src/hooks/useProjectRunStatuses';
-import { I18nProvider, type Locale } from '../../src/i18n';
+import { I18nProvider, getBrandName, type Locale } from '../../src/i18n';
 
 const SOCIAL_LINKS = [
   { href: 'https://discord.gg/mHAjSMV6gz', label: 'Join our Discord for free credits' },
@@ -124,7 +124,9 @@ describe('OPEND-3180 — icon-only social links at the rail foot', () => {
       await act(async () => {});
       const link = screen.getByTestId('entry-nav-rail-discord');
       expect(link.getAttribute('href')).toBe('https://applink.feishu.cn/client/chat/chatter/add_by_link?link_token=a38j32fc-756c-4d02-846b-53356fee12a7');
-      expect(link.getAttribute('aria-label')).toBe(locale === 'zh-CN' ? '加入 OpenDesign 飞书群' : '加入 OpenDesign 飛書群');
+      expect(link.getAttribute('aria-label')).toBe(
+        locale === 'zh-CN' ? `加入 ${getBrandName()} 飞书群` : `加入 ${getBrandName()} 飛書群`,
+      );
       expect(link.getAttribute('data-tooltip')).toBe(link.getAttribute('aria-label'));
       expect(link.getAttribute('data-community-platform')).toBe('feishu');
       expect(link.querySelector('svg')).not.toBeNull();

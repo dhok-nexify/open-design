@@ -15,7 +15,7 @@ import {
   AMR_LOGIN_STATUS_EVENT,
   AMR_LOGIN_TIMEOUT_MS,
 } from '../../src/components/amrLoginPolling';
-import { I18nProvider } from '../../src/i18n';
+import { I18nProvider, getBrandName } from '../../src/i18n';
 import { fetchProjectFiles } from '../../src/providers/registry';
 import type { AgentInfo, AppConfig } from '../../src/types';
 import { setHomeHeroPrompt } from '../helpers/home-hero-lexical';
@@ -751,7 +751,7 @@ describe('EntryShell onboarding OpenDesign AMR runtime', () => {
     const entries = await screen.findAllByRole('button', { name: /^Invite$/ });
     expect(entries).toHaveLength(2);
     fireEvent.click(entries[entry === 'header' ? 0 : 1]!);
-    expect(await screen.findByRole('heading', { name: 'Welcome to OpenDesign' })).toBeTruthy();
+    expect(await screen.findByRole('heading', { name: `Welcome to ${getBrandName()}` })).toBeTruthy();
     expect(window.location.pathname).toBe('/onboarding');
     await waitFor(() => expect(fetchMock.mock.calls.filter(([url, init]) => String(url).endsWith('/api/integrations/vela/login') && init?.method === 'POST')).toHaveLength(1));
     expect(screen.getByRole('button', { name: /Cancel sign-in/i })).toBeTruthy();
@@ -771,7 +771,7 @@ describe('EntryShell onboarding OpenDesign AMR runtime', () => {
     const props = renderHome({ config, amrLoggedIn: false });
 
     expect(
-      await screen.findByRole('heading', { name: 'Welcome to OpenDesign' }),
+      await screen.findByRole('heading', { name: `Welcome to ${getBrandName()}` }),
     ).toBeTruthy();
     expect(await screen.findByText('Free Credits')).toBeTruthy();
     expect(screen.getByLabelText('New users get free starter credits to try DeepSeek V4.1 Flash.')).toBeTruthy();
@@ -798,7 +798,7 @@ describe('EntryShell onboarding OpenDesign AMR runtime', () => {
     expect(await screen.findByTestId('home-hero-input')).toBeTruthy();
     expect(window.location.pathname).toBe('/');
     expect(
-      screen.queryByRole('heading', { name: 'Welcome to OpenDesign' }),
+      screen.queryByRole('heading', { name: `Welcome to ${getBrandName()}` }),
     ).toBeNull();
   });
 
@@ -1466,7 +1466,7 @@ describe('EntryShell onboarding OpenDesign AMR runtime', () => {
       onRefreshAgents: vi.fn(() => [cliAgent()]),
     });
 
-    expect(await screen.findByRole('heading', { name: 'Welcome to OpenDesign' })).toBeTruthy();
+    expect(await screen.findByRole('heading', { name: `Welcome to ${getBrandName()}` })).toBeTruthy();
     expect(await findCloudSignInButton()).toBeTruthy();
     expect(screen.queryByRole('button', { name: /OpenDesign AMR/i })).toBeNull();
 
@@ -1488,7 +1488,7 @@ describe('EntryShell onboarding OpenDesign AMR runtime', () => {
     ) as typeof fetch;
     renderOnboarding();
 
-    expect(screen.getByRole('heading', { name: 'Welcome to OpenDesign' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: `Welcome to ${getBrandName()}` })).toBeTruthy();
     expect(await findCloudSignInButton()).toBeTruthy();
     // No runtime card, no AMR version text, no "Sign in to continue" CTA.
     expect(screen.queryByRole('button', { name: /OpenDesign AMR/i })).toBeNull();
@@ -2564,7 +2564,7 @@ describe('EntryShell onboarding OpenDesign AMR runtime', () => {
       onRefreshAgents: vi.fn(() => [cliAgent()]),
     });
 
-    expect(screen.getByRole('heading', { name: 'Welcome to OpenDesign' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: `Welcome to ${getBrandName()}` })).toBeTruthy();
     const primary = screen.getByRole('button', { name: /Loading/i });
     expect(primary).toBeTruthy();
     expect(primary.getAttribute('aria-busy')).toBe('true');

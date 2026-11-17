@@ -229,7 +229,8 @@ describe('derivePluginSourceLinks · author + contribute', () => {
 
 describe('authorInitials', () => {
   it('builds two-letter monograms', () => {
-    expect(authorInitials('NexTore Designer')).toBe('OD');
+    // Brand-neutral sample: keep this assertion independent of the shipped brand.
+    expect(authorInitials('Open Design')).toBe('OD');
     expect(authorInitials('jane')).toBe('J');
     expect(authorInitials('Long Multi Word Name')).toBe('LM');
   });

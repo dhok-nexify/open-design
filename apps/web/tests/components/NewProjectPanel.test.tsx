@@ -11,6 +11,7 @@ import {
   NewProjectPanel,
 } from '../../src/components/NewProjectPanel';
 import { openFolderDialog } from '../../src/providers/registry';
+import { getBrandName } from '../../src/i18n';
 import type { DesignSystemSummary, ProjectTemplate, SkillSummary } from '../../src/types';
 
 vi.mock('@open-design/host', async () => {
@@ -794,7 +795,7 @@ describe('NewProjectPanel working directory picker', () => {
 
     expect(await screen.findByText(/Couldn't open the folder picker/i)).toBeTruthy();
     // A host build without the picker can only be fixed by updating.
-    expect(screen.getByText(/Please update OpenDesign and try again\./)).toBeTruthy();
+    expect(screen.getByText(new RegExp(`Please update ${getBrandName()} and try again\\.`))).toBeTruthy();
     expect(mockedOpenFolderDialog).not.toHaveBeenCalled();
   });
 

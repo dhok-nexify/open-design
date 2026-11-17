@@ -59,7 +59,7 @@ import {
   peekHomeComposerAttachments,
 } from '../state/home-composer-stash';
 import { FigmaImportModal } from './FigmaImportModal';
-import { NEXTORE_WEB_EDITION, isFeatureEnabled } from '../nextore/features';
+import { NEXTORE_WEB_EDITION } from '../nextore/features';
 import { NextoreRemoteProjects } from './NextoreRemoteProjects';
 import { fetchMcpServers } from '../state/mcp';
 import { takeHomeComposerAssetSeed } from '../state/libraryHandoff';
@@ -3174,7 +3174,7 @@ export function HomeView({
       {/* `active` gates the portal-escaping campaign dialog to the ACTIVE home
           view: EntryShell only hides inactive views with display:none, which a
           document.body portal ignores. */}
-      {variant === 'dock' || !isFeatureEnabled('campaigns') ? null : (
+      {variant === 'dock' ? null : (
         <DeepSeekV4FlashCampaign
           audience={deepSeekV4FlashCampaignAudience}
           active={isActive}

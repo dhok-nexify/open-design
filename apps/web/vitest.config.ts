@@ -18,7 +18,14 @@ export default defineConfig({
     include: ['tests/**/*.test.{ts,tsx}'],
     // Keep this above the shared Testing Library asyncUtilTimeout so failed
     // waits retain Testing Library's assertion/DOM diagnostics.
-    testTimeout: 5_000,
+    // jsdom re-parses the expanded stylesheet in the style-contract tests; on a
+    // slower Windows box that parse alone can exceed the old 5 s / 10 s caps.
+    testTimeout: 15_000,
+    hookTimeout: 30_000,
+    // Windows native runs the jsdom-heavy suite with far less timer headroom
+    // than CI's Linux runners. Capping workers keeps mount-heavy tests from
+    // racing each other into spurious timeouts.
+    ...(process.platform === 'win32' ? { maxWorkers: 6 } : {}),
     setupFiles: ['./tests/setup/jsdom-lexical.ts', './tests/setup/coalesced-get-reset.ts', './tests/setup/preload-locales.ts'],
   },
 });

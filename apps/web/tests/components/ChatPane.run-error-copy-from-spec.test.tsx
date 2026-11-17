@@ -19,16 +19,20 @@
 import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { DEFAULT_PRODUCT_BRAND_NAME } from '@open-design/contracts';
 import { ChatPane } from '../../src/components/ChatPane';
+import { maskBrandName } from '../../src/i18n/nextore/merge';
 import { zhCN } from '../../src/i18n/locales/zh-CN';
 import type { ChatMessage } from '../../src/types';
 
+// Mirror production: mask upstream brand literals to `{brandName}` before
+// interpolation, so this test pins the copy users actually see.
 const translate = (key: string, vars?: Record<string, string | number>) => {
-  const raw = zhCN[key as keyof typeof zhCN] ?? key;
-  if (!vars) return raw;
-  return raw.replace(/\{(\w+)\}/g, (_, name: string) =>
-    vars[name] === undefined ? `{${name}}` : String(vars[name]),
-  );
+  const raw = maskBrandName(zhCN[key as keyof typeof zhCN] ?? key);
+  return raw.replace(/\{(\w+)\}/g, (_, name: string) => {
+    const value = vars?.[name] ?? (name === 'brandName' ? DEFAULT_PRODUCT_BRAND_NAME : undefined);
+    return value === undefined ? `{${name}}` : String(value);
+  });
 };
 vi.mock('../../src/i18n', () => ({
   useI18n: () => ({ locale: 'zh-CN', setLocale: () => undefined, t: translate }),

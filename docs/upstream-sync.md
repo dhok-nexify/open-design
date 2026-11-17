@@ -19,6 +19,17 @@ Every file a downstream change touches is either:
 the config. **Budgets only go down.** Raising one is a product decision that needs
 an explicit review, not a convenience for getting a branch merged.
 
+History: the budget moved from 488 to 496 on 2026-11-17 when the Windows-local
+suite was brought back to green. The eight files are test-infrastructure
+adaptations, not product source: per-imported-file stylesheet injection in three
+jsdom suites (jsdom sizes its CSS parse buffer to the largest sheet ever parsed),
+a path-separator normalisation in font-weight-normalization.test.ts (upstream bug
+on Windows), a best-effort screenshot assertion in FileViewer.test.tsx, the
+composer-portal-seam source-shape assertion after the ChatPane seam refactor, and
+the fork's focus-directory refresh contract in
+useWorkspaceContext.invalidation.test.tsx. Payback: upstream the path-separator
+and stylesheet-segment fixes, then drop the entries and lower the budget again.
+
 ## Commands
 
 ```
@@ -90,6 +101,15 @@ upstream-owned files:
    a sync touches a handful of lines instead of dozens of hunks.
 5. **Prompts.** Additive downstream instructions belong in a separate scenario or
    variant, not in the middle of upstream assets.
+
+6. **Brand-copy contract tests (owned).** Upstream tests that assert the product
+   name *verbatim* ("Welcome to OpenDesign", "Reinstall OpenDesign …") cannot pass
+   in a white-label fork no matter how the source is shaped, because the assertion
+   itself is the brand. Those files are listed in `ownedPathGlobs` so a sync keeps
+   the fork's brand-aware expectation instead of reopening the same edit every
+   time; the merge report shows them as owned rather than as new debt. Only
+   copy-assertion tests belong there — behaviour tests stay upstream-owned and are
+   adapted in place when the conformance work changes.
 
 ## Automation path
 

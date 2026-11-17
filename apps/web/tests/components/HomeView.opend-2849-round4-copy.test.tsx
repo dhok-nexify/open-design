@@ -12,6 +12,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 
+import { getBrandName } from '../../src/i18n';
+
 vi.mock('../../src/components/home-hero/PlaceholderCarousel', () => ({
   PlaceholderCarousel: () => null,
 }));
@@ -68,14 +70,14 @@ describe('首页发送失败文案(OPEND-2849 第四轮)', () => {
     const lines = await submitAndReadAlert(vi.fn().mockRejectedValue(
       new ProjectCreateError('AMR sign-in is required.', 401, 'AMR_AUTH_REQUIRED', false, 'request-1'),
     ));
-    expect(lines).toEqual(['Open Design 尚未登录', '请先登录，以便查看项目和继续对话。']);
+    expect(lines).toEqual([`${getBrandName()} 尚未登录`, '请先登录，以便查看项目和继续对话。']);
   });
 
   it('S28a:请求没到 daemon → 「本地连接已断开」+ 正文', async () => {
     const lines = await submitAndReadAlert(vi.fn().mockRejectedValue(new TypeError('fetch failed')));
     expect(lines).toEqual([
       '本地连接已断开',
-      '暂时无法连接这台电脑上的 Open Design 服务，请重启客户端。',
+      `暂时无法连接这台电脑上的 ${getBrandName()} 服务，请重启客户端。`,
     ]);
   });
 });

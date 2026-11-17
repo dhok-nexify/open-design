@@ -37,20 +37,24 @@ import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ChatPane } from '../../../src/components/ChatPane';
-import { readExpandedIndexCss } from '../../helpers/read-expanded-css';
+import { readExpandedIndexCssSegments } from '../../helpers/read-expanded-css';
 import type { ChatMessage } from '../../../src/types';
 
 /** hover 档的探针类。`:hover` 与 `.x` 同为 (0,1,0),替换不动层叠。 */
 const HOVER_PROBE = 'od-probe-hover';
 
-const INDEX_CSS = readExpandedIndexCss();
+const INDEX_CSS_SEGMENTS = readExpandedIndexCssSegments();
 
 function injectStyles(mode: 'rest' | 'hover'): void {
-  const style = document.createElement('style');
-  style.textContent =
-    mode === 'hover' ? INDEX_CSS.replace(/:hover\b/g, `.${HOVER_PROBE}`) : INDEX_CSS;
-  style.dataset.odTestSheet = mode;
-  document.head.appendChild(style);
+  // One <style> per imported file: same cascade order, but jsdom caps its
+  // parse buffer at the largest sheet instead of the whole 1.7 MB cascade.
+  for (const segment of INDEX_CSS_SEGMENTS) {
+    const style = document.createElement('style');
+    style.textContent =
+      mode === 'hover' ? segment.replace(/:hover\b/g, `.${HOVER_PROBE}`) : segment;
+    style.dataset.odTestSheet = mode;
+    document.head.appendChild(style);
+  }
 }
 
 const failedUser: ChatMessage = {
