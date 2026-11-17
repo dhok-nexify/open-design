@@ -1873,7 +1873,14 @@ export function EntryShell({
         // wallet - the only one an old daemon can charge. The re-check below
         // goes through the same helper, or every old-daemon submit would look
         // like a stale identity and be dropped.
-        const gateWorkspaceContext = amrBillingWorkspaceAuthority(gateWorkspaceState);
+        // NexTore bills against the workspace when the daemon supports it; the
+        // upstream edition keeps its original derivation so its funding tests and
+        // behaviour are untouched.
+        const gateWorkspaceContext = NEXTORE_WEB_EDITION === 'nextore'
+          ? amrBillingWorkspaceAuthority(gateWorkspaceState)
+          : gateWorkspaceState.failure === 'unsupported'
+            ? null
+            : workspaceResourceReadContext(gateWorkspaceState);
         const gateWorkspaceIdentity = workspaceIdentityCacheKey(gateWorkspaceContext);
         const gateScope = amrBalanceGateScopeForWorkspaceContext(gateWorkspaceContext);
         let gate = await retryUnavailableAmrBalanceGate(
@@ -1938,7 +1945,11 @@ export function EntryShell({
         if (
           currentWorkspaceAccountGeneration() !== gateAccountGeneration
           || workspaceIdentityCacheKey(
-            amrBillingWorkspaceAuthority(workspaceContextStateRef.current),
+            NEXTORE_WEB_EDITION === 'nextore'
+              ? amrBillingWorkspaceAuthority(workspaceContextStateRef.current)
+              : workspaceContextStateRef.current.failure === 'unsupported'
+                ? null
+                : workspaceResourceReadContext(workspaceContextStateRef.current),
           ) !== gateWorkspaceIdentity
         ) {
           continue;
