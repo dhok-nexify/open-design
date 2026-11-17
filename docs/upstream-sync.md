@@ -65,6 +65,10 @@ pnpm sync:check --conflicts      # budgets plus merge-conflict counts (needs ups
 performs the same merge as `git merge` but writes nothing to the worktree. Pass
 `--input` to replay a saved merge-tree output instead of running git.
 
+It still writes temporary tree objects under `.git/objects`, so a restricted
+sandbox that mounts `.git` read-only must run it with repository write access.
+Otherwise git fails with `insufficient permission for adding an object`.
+
 Each conflict is classified and gets a default route:
 
 | Category | Default action | Meaning |
@@ -173,6 +177,7 @@ Copy this into the sync PR and tick every line:
 | Intentional focus divergence | An upstream test expected no directory read when the window regained focus. | The fork deliberately refreshes the team directory. The upstream test was adapted with a recorded divergence note. | Record every intentional divergence in the test and in this document. |
 | Pre-commit measurement | `sync:check` reported 496 before the commit and 505 after it. | The check measures `upstream/main...HEAD`, so uncommitted work is invisible. | Run `sync:check` only on a clean tree, after committing. |
 | Stale planning ledger | `IMPLEMENTATION_STATUS.md` outside this repository still named old branches and pending tasks. | The ledger was not updated with the sync state. | Link the ledger update from the sync PR. |
+| Read-only `.git` | `sync:report` or `sync:check --conflicts` failed with "insufficient permission for adding an object to repository database". | `git merge-tree --write-tree` writes temporary tree objects. | Run the command with repository write access; this is not a merge conflict. |
 | Merge abort after resolution | A restart discarded resolved paths and rerere training. | `git merge --abort` is not a checkpoint. | Never abort a partially resolved merge; reset to the checkpoint tag instead. |
 
 ## Windows and line endings
