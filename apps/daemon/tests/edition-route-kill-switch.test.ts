@@ -44,6 +44,14 @@ describe('disabledFeatureForPath', () => {
     expect(disabledFeatureForPath('/api/media/models')).toBe('media-providers');
     expect(disabledFeatureForPath('/api/media/providers')).toBe('media-providers');
   });
+  it('closes the marketing touchpoint runtime with the campaigns switch', () => {
+    // The CMS campaign placements ship no edition surface; the runtime must
+    // not answer even before the upstream 401 fallback fires.
+    expect(disabledFeatureForPath('/api/touchpoints/production-runtime')).toBe('campaigns');
+    expect(disabledFeatureForPath('/api/touchpoints')).toBe('campaigns');
+    expect(disabledFeatureForPath('/api/touchpoints-archive')).toBeNull();
+  });
+
   it('leaves process health endpoints available', () => {
     expect(disabledFeatureForPath('/api/health')).toBeNull();
     expect(disabledFeatureForPath('/api/version')).toBeNull();

@@ -139,6 +139,7 @@ import { APP_CHROME_FILE_ACTIONS_ID } from './AppChromeHeader';
 import { FileViewer, LiveArtifactViewer } from './FileViewer';
 import { useIframeKeepAlivePool } from './IframeKeepAlivePool';
 import { Icon, type IconName } from './Icon';
+import { NextoreProjectQuarantineNotice } from './nextore-project-actions';
 import { projectIsSharedWithWorkspace } from '../collab/project-shared-status';
 import { FileSyncBadge, type FileSyncBadgeState } from '../collab/FileSyncBadge';
 import { Toast } from './Toast';
@@ -415,6 +416,8 @@ interface Props {
   emptyLookBeforeFirstListing?: boolean;
   /** Optional override for the read-only notice text. */
   readonlyNotice?: string;
+  /** NexTore: the project no longer exists upstream (NXD quarantine). */
+  quarantineNotice?: string;
   /**
    * Team-share file-sync state for the project. It is rendered on the Design
    * Files root tab and open design-file tabs (never terminal / side-chat /
@@ -1456,6 +1459,7 @@ export function FileWorkspace({
   emptyLookBeforeFirstListing = false,
   projectReadsHeld = false,
   readonlyNotice,
+  quarantineNotice,
   fileSyncBadge = null,
 }: Props) {
   const refreshFilesWithoutResult = useCallback(async () => {
@@ -4384,6 +4388,9 @@ export function FileWorkspace({
           copy there told a personal project's owner it was someone else's
           shared project for as long as the workspace context took to resolve
           (OPEND-2283). Controls stay disabled either way; only the claim waits. */}
+      {quarantineNotice && !initialMaterializationPending
+        ? <NextoreProjectQuarantineNotice message={quarantineNotice} />
+        : null}
       {viewerOnly && readonlyNotice && !initialMaterializationPending ? (
         <div className="workspace-readonly-notice" role="status">
           <Icon name="lock" size={14} />

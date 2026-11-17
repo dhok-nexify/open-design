@@ -364,6 +364,7 @@ import { localizePluginTitle } from './plugins-home/localization';
 import { DesignSystemPicker } from './DesignSystemPicker';
 import { PresenceBar } from '../collab/PresenceBar';
 import { useProjectCollab } from '../collab/useProjectCollab';
+import { NextoreProjectActions } from './nextore-project-actions';
 import { OwnedContentUpdate } from './OwnedContentUpdate';
 import {
   currentUserDirectoryEntry,
@@ -15343,10 +15344,22 @@ export function ProjectView({
           />
         ) : null}
         <FileWorkspace
-          headerActions={projectCollab.enabled && projectCollab.isOwner && projectCollab.requestContentUpdate ? (
-            <OwnedContentUpdate key={`${project.id}:${projectRunWorkspaceContext?.workspaceId}:${projectRunWorkspaceContext?.workspaceMemberId}`}
-              update={projectCollab.ownedContentUpdate ?? null} request={projectCollab.requestContentUpdate} />
-          ) : null}
+          headerActions={(projectCollab.enabled && projectCollab.isOwner && projectCollab.requestContentUpdate)
+            || NEXTORE_WEB_EDITION === 'nextore' ? (<>
+            {projectCollab.enabled && projectCollab.isOwner && projectCollab.requestContentUpdate ? (
+              <OwnedContentUpdate key={`${project.id}:${projectRunWorkspaceContext?.workspaceId}:${projectRunWorkspaceContext?.workspaceMemberId}`}
+                update={projectCollab.ownedContentUpdate ?? null} request={projectCollab.requestContentUpdate} />
+            ) : null}
+            {/* NXD-D12 / NXD-D20: NexTore project entries live in the tab bar so
+                the upstream project-header rewrite cannot drop them again. */}
+            {NEXTORE_WEB_EDITION === 'nextore' ? (
+              <NextoreProjectActions
+                access={nextoreProjectAccess}
+                onOpenShareLinks={() => setShareDialogOpen(true)}
+                onOpenPermissions={() => { void openNextorePermissions(); }}
+              />
+            ) : null}
+          </>) : null}
           projectId={project.id}
           projectName={currentProject.name}
           artifactNetwork={artifactNetworkRules}
@@ -15360,6 +15373,7 @@ export function ProjectView({
               ? t('designFiles.syncing')
               : readonlyNoticeText
           }
+          quarantineNotice={projectQuarantined ? t('workspace.projectQuarantined') : undefined}
           fileSyncBadge={fileSyncBadge}
           projectKind={projectKindFromMetadataToTrackingOrLegacyDefault(currentProject.metadata)}
           rootDirName={(() => {

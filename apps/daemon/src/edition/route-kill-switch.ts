@@ -18,7 +18,10 @@ function rules(feature: NextoreFeature, paths: readonly string[]): DisabledRoute
 const NEXTORE_DISABLED_ROUTE_RULES: readonly DisabledRouteRule[] = Object.freeze([
   ...rules('onboarding', ['/onboarding']),
   ...rules('cloud-amr', ['/api/amr', '/api/integrations/vela']),
-  ...rules('campaigns', ['/api/campaigns']),
+  // Marketing touchpoints (the CMS-driven campaign placements) share the
+  // campaigns switch: the edition ships no campaign surfaces, so its runtime
+  // endpoint must stay closed even before the 401 fallback.
+  ...rules('campaigns', ['/api/campaigns', '/api/touchpoints']),
   ...rules('telemetry', ['/api/analytics', '/api/observability', '/api/telemetry']),
   ...rules('whats-new', ['/api/whats-new']),
   ...rules('updater', ['/api/updater']),

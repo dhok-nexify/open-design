@@ -15876,6 +15876,10 @@ function HtmlViewer({
   // Preview memory policy does not determine publication eligibility. The share
   // plan and POST validate the original file, never the routing-only preview.
   const rawCanShare = isShareableArtifact;
+  // Artifact-level sharing publishes to the OpenDesign cloud (`/api/collab`).
+  // The NexTore edition shares whole projects through revocable NexTore links,
+  // so this surface is hidden there instead of failing on every click.
+  const artifactCloudShareAvailable = isFeatureEnabled('collab-cloud');
   const shareGuideAppUserId = useShareGuideAppUserId();
   const projectShareHistoryState = useProjectShareHistoryState(projectId, workspaceContext, JSON.stringify([file.name, publishedFileSlug, publishedFileUrl]));
   const projectShareHistory = projectShareHistoryState.history;
@@ -16114,7 +16118,7 @@ function HtmlViewer({
     setMenuAnchorId(null);
     setMenuOrigin('toolbar');
     setDeployMenuOpen((v) => {
-      const nextTab = tab === 'share' && !rawCanShare ? 'export' : tab;
+      const nextTab = tab === 'share' && !(rawCanShare && artifactCloudShareAvailable) ? 'export' : tab;
       setUnifiedActionTab(nextTab);
       /*
        * 「再点一次 = 关掉」只在**同一条路、同一个页签**上成立。
@@ -17933,7 +17937,7 @@ function HtmlViewer({
                     <span>{t('fileViewer.unifiedExportTab')}</span>
                   </button>
                 ) : null}
-                  <button
+                  {artifactCloudShareAvailable ? <button
                     type="button"
                     className={`chrome-action chrome-action-secondary chrome-action-with-label chrome-action-text-only chrome-action-unified ${shareEntryStyles.toolbar}`}
                     aria-haspopup="menu"
@@ -17947,7 +17951,7 @@ function HtmlViewer({
                     {/* Owner C0: share the artifact card's forward-arrow glyph. */}
                     <RemixIcon name="share-forward-line" size={15} />
                     <span>{shareMenuLabel}</span>
-                  </button>
+                  </button> : null}
                   {afterExportGuide.noticeId !== null ? (
                     <AfterExportShareGuide
                       key={afterExportGuide.noticeId}
@@ -18017,7 +18021,7 @@ function HtmlViewer({
                         : undefined
                     }
                   >
-                    {unifiedActionTab === 'share' && rawCanShare ? (
+                    {unifiedActionTab === 'share' && rawCanShare && artifactCloudShareAvailable ? (
                       <>
                       <SharePanelHeader
                         title={t('fileViewer.unifiedShareTab')}
