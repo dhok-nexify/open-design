@@ -32,6 +32,7 @@ import {
 } from "react";
 import { useI18n } from "../i18n";
 import styles from "./TestCampaignModal.module.css";
+import { randomUUID } from "../utils/uuid";
 import {
 	emitWebTouchpointDiagnostic,
 	ensureWebTouchpointElement,
@@ -989,7 +990,7 @@ export function TestCampaignModal({
 		let context: TestContext | null = null;
 		let negotiatedMode: TestContextMode | null = inherited ? testContextMode(inherited.context) : null;
 		let round = 0;
-		const correlation = crypto.randomUUID();
+		const correlation = randomUUID();
 		const ownsSelection = () => selectionAuthority.current.compatible &&
 			selectionAuthority.current.owner === owner && selectionAuthority.current.locale === locale &&
 			!!selectedRef.current && sameTestDeployment(selectedRef.current, selected);

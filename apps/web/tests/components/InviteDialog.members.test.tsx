@@ -10,6 +10,19 @@ function email(value: string, index = 0) { fireEvent.change(screen.getAllByRole(
 function response(results: unknown[]) { return new Response(JSON.stringify({ results }), { status: 200 }); }
 
 describe('member-line invitation states', () => {
+  it('renders over a non-secure origin where crypto.randomUUID is unavailable', () => {
+    // LAN/Docker deployments serve the app over plain HTTP, where Chromium
+    // removes crypto.randomUUID while keeping crypto.getRandomValues.
+    const webCrypto = globalThis.crypto;
+    vi.stubGlobal('crypto', {
+      randomUUID: undefined,
+      getRandomValues: webCrypto.getRandomValues.bind(webCrypto),
+    });
+
+    render(<InviteDialog open workspaceContext={owner} onClose={() => {}} />);
+
+    expect(screen.getAllByRole('textbox')).toHaveLength(1);
+  });
   it('initially focuses the ordinary dialog title without marking the email input focused', () => {
     render(<InviteDialog open workspaceContext={owner} onClose={() => {}} />);
     expect(document.activeElement).toBe(screen.getByRole('heading'));
