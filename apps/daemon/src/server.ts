@@ -431,6 +431,10 @@ import { previewScopeMemberMismatch } from './preview-scope-member.js';
 import { addDesignerOrigin } from './nextore-allowed-origin.js';
 import { registerNextoreShareRoutes } from './nextore/share/routes.js';
 import { migrateNextoreDatabase } from './nextore/db.js';
+import { createNextoreSessionStore } from './nextore/auth/session-store.js';
+import { NextoreArtifactRuntime } from './nextore/artifacts/runtime.js';
+import { resolveNextoreArtifactAuthorityMode } from './nextore/artifacts/features.js';
+import { registerNextoreArtifactRoutes } from './nextore/artifacts/routes.js';
 import { nextoreHealthMetadata } from './nextore/routes.js';
 import {
   authorizeCreatedProjectWorkspace,
@@ -3679,6 +3683,16 @@ export async function startServer({
   // NEXTORE: edition-owned tables are applied after the upstream migration,
   // keeping the base schema unchanged for upstream builds.
   if (edition === 'nextore') migrateNextoreDatabase(db);
+  const nextoreArtifactRuntime = edition === 'nextore' && nextoreConfig && nextoreClient && nextoreSecrets
+    ? new NextoreArtifactRuntime({
+        db,
+        client: nextoreClient,
+        sessionStore: createNextoreSessionStore(() => db, nextoreSecrets),
+        config: nextoreConfig,
+        mode: resolveNextoreArtifactAuthorityMode(process.env),
+      })
+    : null;
+  nextoreArtifactRuntime?.start();
   const amrTerminalReportOutbox = createAmrTerminalReportOutboxStore(db);
   // P0-24 N10: notices for turns that end while this process runs (never replayed).
   const runNotices = createRunNoticeLog({
@@ -9388,6 +9402,12 @@ export async function startServer({
       config: nextoreConfig,
       authorizeProject: authorizeProjectRequest,
       readProjectMapping: readNextoreProjectMapping,
+    });
+  }
+  if (edition === 'nextore' && nextoreArtifactRuntime) {
+    registerNextoreArtifactRoutes(app, {
+      runtime: nextoreArtifactRuntime,
+      authorizeProject: authorizeProjectRequest,
     });
   }
 
@@ -17880,6 +17900,40 @@ export async function startServer({
             : {}),
         });
         const { deliverable } = deliverableFinalization;
+        if (
+          nextoreArtifactRuntime
+          && deliverable.valid
+          && typeof run.projectId === 'string'
+          && typeof run.nextoreMemberId === 'number'
+          && run.nextoreMemberId > 0
+        ) {
+          try {
+            const projectRoot = resolveProjectDir(
+              PROJECTS_DIR,
+              run.projectId,
+              projectRecord?.metadata,
+            );
+            nextoreArtifactRuntime.enqueueRun({
+              projectId: run.projectId,
+              artifactId: deliverable.entryFile ?? run.id,
+              projectRoot,
+              runId: run.id,
+              tier: null,
+              memberId: run.nextoreMemberId,
+              deliverable: {
+                valid: deliverable.valid,
+                entryFile: deliverable.entryFile,
+                artifactKind: deliverable.artifactKind,
+                linkedPage: deliverable.linkedPage,
+              },
+            });
+          } catch (error) {
+            console.warn(
+              '[nextore-artifact] enqueue skipped: '
+              + (error instanceof Error ? error.message : String(error)),
+            );
+          }
+        }
         // Adding a second page must not erase an unambiguous pre-run entry.
         // Retain only a verified baseline identity, without replacing a user's
         // explicit selection or metadata changed while this Run was executing.
@@ -19042,6 +19096,7 @@ export async function startServer({
       proactiveContentPull.dispose();
       collabPublishWatcher.dispose();
       collabCloud?.dispose();
+      nextoreArtifactRuntime?.stop();
     };
     const shutdownDaemonRuns = (): Promise<void> => {
       if (daemonShutdownPromise) return daemonShutdownPromise;
