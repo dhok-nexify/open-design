@@ -15,6 +15,7 @@ import {
 import { Icon } from '../Icon';
 import { ArtifactShareForm } from './ArtifactShareForm';
 import { ArtifactStatusChip } from './ArtifactStatusChip';
+import { LegacyShareBanner } from './LegacyShareBanner';
 import styles from './NextoreArtifactDialog.module.css';
 
 /**
@@ -76,7 +77,13 @@ export function NextoreArtifactDialog({
     return () => {
       document.removeEventListener('keydown', onKeyDown);
       const previous = returnFocusRef.current;
-      if (previous instanceof HTMLElement) previous.focus();
+      // Restore after the portal is gone: focusing a node that is about to be
+      // removed drops focus to <body> instead of the opener.
+      if (previous instanceof HTMLElement) {
+        queueMicrotask(() => {
+          if (previous.isConnected) previous.focus();
+        });
+      }
     };
   }, [onClose]);
 
@@ -119,6 +126,7 @@ export function NextoreArtifactDialog({
             <p role="status" aria-live="polite">{t('nextore.artifact.downloadUnavailable')}</p>
           ) : (
             <>
+              <LegacyShareBanner projectId={projectId} />
               <div className={styles.row}>
                 <ArtifactStatusChip projectId={projectId} artifactId={primary.artifactId} />
               </div>

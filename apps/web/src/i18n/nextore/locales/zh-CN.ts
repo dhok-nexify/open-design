@@ -138,6 +138,9 @@ export const zhCNOverlay: LocaleOverlay = {
   "nextore.artifact.dialog.title": "产出",
   "nextore.artifact.download": "下载",
   "nextore.artifact.downloadUnavailable": "尚未有内容发布到 NexTore。",
+  "nextore.artifact.legacy.expired": "此项目有 {count} 个旧分享链接已过期。请改用 NexTore 链接。",
+  "nextore.artifact.legacy.never": "此项目有 {count} 个旧分享链接不会自动过期；将在停用日失效。",
+  "nextore.artifact.legacy.expiresIn": "此项目有 {count} 个旧分享链接将在 {days} 天内过期。",
 };
 
 export const zhCNBrandMaskedKeys = [

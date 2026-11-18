@@ -59,6 +59,27 @@ describe('ArtifactShareDialog', () => {
     expect(onClose).toHaveBeenCalledTimes(2);
   });
 
+  it('exposes a labelled modal dialog and moves focus inside it', () => {
+    const opener = document.createElement('button');
+    opener.textContent = 'open';
+    document.body.appendChild(opener);
+    opener.focus();
+    expect(document.activeElement).toBe(opener);
+
+    const onClose = renderDialog();
+    const dialog = screen.getByRole('dialog');
+    expect(dialog.getAttribute('aria-modal')).toBe('true');
+    const labelledBy = dialog.getAttribute('aria-labelledby');
+    expect(labelledBy).toBeTruthy();
+    expect(document.getElementById(labelledBy!)?.textContent).toBe('Share through NexTore');
+    // Focus moves into the dialog when it opens.
+    expect(dialog.contains(document.activeElement)).toBe(true);
+
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(onClose).toHaveBeenCalledTimes(1);
+    opener.remove();
+  });
+
   it('shows the link as a labelled, read-only field after creation', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({
       url: 'https://share.test/s/xyz',

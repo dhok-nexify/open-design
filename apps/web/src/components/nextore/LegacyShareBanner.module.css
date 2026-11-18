@@ -1,0 +1,11 @@
+.banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--status-warn-border, #b58900);
+  background: var(--status-warn-surface, rgba(181, 137, 0, 0.08));
+  font-size: 12px;
+}

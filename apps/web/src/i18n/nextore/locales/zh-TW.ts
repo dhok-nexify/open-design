@@ -138,6 +138,9 @@ export const zhTWOverlay: LocaleOverlay = {
   "nextore.artifact.dialog.title": "產出",
   "nextore.artifact.download": "下載",
   "nextore.artifact.downloadUnavailable": "尚未有內容發布到 NexTore。",
+  "nextore.artifact.legacy.expired": "此專案有 {count} 個舊分享連結已到期。請改用 NexTore 連結。",
+  "nextore.artifact.legacy.never": "此專案有 {count} 個舊分享連結不會自動到期；會在停用日失效。",
+  "nextore.artifact.legacy.expiresIn": "此專案有 {count} 個舊分享連結將在 {days} 天內到期。",
 };
 
 export const zhTWBrandMaskedKeys = [

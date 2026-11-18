@@ -54,7 +54,13 @@ export function ArtifactShareDialog({
     return () => {
       document.removeEventListener('keydown', onKeyDown);
       const previous = returnFocusRef.current;
-      if (previous instanceof HTMLElement) previous.focus();
+      // Restore after the portal is gone: focusing a node that is about to be
+      // removed drops focus to <body> instead of the opener.
+      if (previous instanceof HTMLElement) {
+        queueMicrotask(() => {
+          if (previous.isConnected) previous.focus();
+        });
+      }
     };
   }, [onClose]);
 

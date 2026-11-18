@@ -187,4 +187,7 @@ export interface NextoreDict {
   'nextore.artifact.dialog.title': string;
   'nextore.artifact.download': string;
   'nextore.artifact.downloadUnavailable': string;
+  'nextore.artifact.legacy.expired': string;
+  'nextore.artifact.legacy.never': string;
+  'nextore.artifact.legacy.expiresIn': string;
 }

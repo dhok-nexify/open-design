@@ -138,6 +138,9 @@ export const esESOverlay: LocaleOverlay = {
   "nextore.artifact.dialog.title": "Artifact",
   "nextore.artifact.download": "Download",
   "nextore.artifact.downloadUnavailable": "Nothing is published to NexTore yet.",
+  "nextore.artifact.legacy.expired": "{count} legacy share link(s) for this project have expired. Create a NexTore link instead.",
+  "nextore.artifact.legacy.never": "{count} legacy share link(s) for this project never expire; they stop working at the sunset date.",
+  "nextore.artifact.legacy.expiresIn": "{count} legacy share link(s) for this project expire within {days} days.",
 };
 
 export const esESBrandMaskedKeys = [
