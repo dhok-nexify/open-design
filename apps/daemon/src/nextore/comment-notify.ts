@@ -119,3 +119,20 @@ export async function notifyComment(
     return 'failed';
   }
 }
+
+/**
+ * Never-throwing wrapper used by the comment route.
+ *
+ * The route only needs "did we try"; a notification failure must not surface
+ * as an HTTP error after the comment was already written.
+ */
+export async function notifyCommentSafely(
+  deps: CommentNotifyDeps,
+  input: CommentNoticeInput,
+): Promise<CommentNoticeOutcome> {
+  try {
+    return await notifyComment(deps, input);
+  } catch {
+    return 'failed';
+  }
+}

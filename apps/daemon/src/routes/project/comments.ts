@@ -1,5 +1,5 @@
 import { jsonBodyByteLength } from '../../http/json-body-size.js';
-import { notifyComment, type CommentNotifyDeps } from '../../nextore/comment-notify.js';
+import { notifyCommentSafely, type CommentNotifyDeps } from '../../nextore/comment-notify.js';
 import type { Express, Request } from 'express';
 import type { CommentSyncStateService } from '../../collab/comment-sync-state.js';
 import type {
@@ -853,7 +853,7 @@ export function registerProjectCommentRoutes(app: Express, ctx: RegisterProjectC
         // P05: never let notification failure affect a saved comment.
         if (ctx.commentNotify) {
           const sharedNotice = ctx.commentNotify;
-          void notifyComment(
+          void notifyCommentSafely(
             {
               ...sharedNotice,
               accessToken: async () => {

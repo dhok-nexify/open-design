@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   buildCommentNoticePayload,
   notifyComment,
+  notifyCommentSafely,
   resolveCommentRecipients,
 } from '../src/nextore/comment-notify.js';
 
@@ -148,5 +149,39 @@ describe('P05 notifyComment', () => {
     );
     expect(outcome).toBe('skipped');
     expect(fetchImpl).not.toHaveBeenCalled();
+  });
+});
+
+describe('notifyCommentSafely (route seam)', () => {
+  it('returns failed instead of throwing when fetch throws', async () => {
+    const fetchImpl = (async () => { throw new Error('boom'); }) as unknown as typeof fetch;
+    const outcome = await notifyCommentSafely(
+      { moduleBaseUrl: 'https://module.test', accessToken: async () => 'tok', fetchImpl },
+      base,
+    );
+    expect(outcome).toBe('failed');
+  });
+
+  it('returns failed instead of throwing when the token resolver throws', async () => {
+    const fetchImpl = vi.fn();
+    const outcome = await notifyCommentSafely(
+      {
+        moduleBaseUrl: 'https://module.test',
+        accessToken: async () => { throw new Error('no token'); },
+        fetchImpl: fetchImpl as unknown as typeof fetch,
+      },
+      base,
+    );
+    expect(outcome).toBe('failed');
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it('returns sent on the normal path', async () => {
+    const fetchImpl = (async () => new Response('{}', { status: 200 })) as unknown as typeof fetch;
+    const outcome = await notifyCommentSafely(
+      { moduleBaseUrl: 'https://module.test', accessToken: async () => 'tok', fetchImpl },
+      base,
+    );
+    expect(outcome).toBe('sent');
   });
 });

@@ -622,6 +622,7 @@ When you write or edit an HTML file in the project folder through the native fil
 - Do not output generated source code in a \`<artifact type="text/html">...</artifact>\` block.
 - Do not duplicate file contents in assistant text after writing them to disk.
 - After the final self-check, briefly name the written file and summarize the result instead.
+- Cap self-verification at two rounds: if the second check still finds nothing new, hand off the result instead of re-checking again.
 - A filesystem run that emits a source-code \`<artifact>\` is treated as an unexpected fallback by the host.`;
 
 // Skills are a read-only resource to every agent: `resolveChatExtraAllowedDirs`
