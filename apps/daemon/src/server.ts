@@ -439,6 +439,7 @@ import { registerNextoreArtifactDownloadRoutes } from './nextore/artifacts/downl
 import { registerNextoreArtifactShareRoutes } from './nextore/artifacts/share-routes.js';
 import { registerNextoreBackfillRoutes } from './nextore/artifacts/backfill-routes.js';
 import { registerCliAuthRoutes } from './nextore/auth/cli-auth-routes.js';
+import { resolveMemberAccessToken } from './nextore/artifacts/session-access.js';
 import { registerNextoreEventRoutes } from './nextore/events/routes.js';
 import { invalidateAllProjectAccess } from './nextore/acl/invalidation.js';
 import { nextoreHealthMetadata } from './nextore/routes.js';
@@ -9642,7 +9643,18 @@ export async function startServer({
     // null so an unauthenticated request simply skips the notification.
     commentNotify: {
       moduleBaseUrl: nextoreConfig?.baseUrl ?? null,
+      // No ambient token: the route passes the caller's session token, and this
+      // fallback resolves the author's module token from the session store for
+      // background/API-token callers. Null means "skip", never "send bare".
       accessToken: async () => null,
+      ...(nextoreConfig && nextoreSecrets
+        ? {
+            resolveMemberToken: (memberId: number) => resolveMemberAccessToken(memberId, {
+              store: createNextoreSessionStore(() => db, nextoreSecrets),
+              config: nextoreConfig,
+            }),
+          }
+        : {}),
     },
     paths: pathDeps,
     projectStore: projectStoreDeps,

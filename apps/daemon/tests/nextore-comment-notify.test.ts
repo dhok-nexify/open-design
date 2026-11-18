@@ -101,6 +101,45 @@ describe('P05 notifyComment', () => {
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 
+  it('falls back to the session store when the request carried no token', async () => {
+    const calls: string[] = [];
+    const fetchImpl = (async (_url: string, init: RequestInit) => {
+      calls.push((init.headers as Record<string, string>).APIkey);
+      return new Response('{}', { status: 200 });
+    }) as unknown as typeof fetch;
+    const resolveMemberToken = vi.fn(async () => 'store-token');
+
+    const outcome = await notifyComment(
+      {
+        moduleBaseUrl: 'https://module.test',
+        accessToken: async () => null,
+        resolveMemberToken,
+        fetchImpl,
+      },
+      base,
+    );
+
+    expect(outcome).toBe('sent');
+    expect(resolveMemberToken).toHaveBeenCalledWith(7);
+    expect(calls).toEqual(['store-token']);
+  });
+
+  it('skips when neither the request nor the store has a token', async () => {
+    const fetchImpl = vi.fn();
+    const outcome = await notifyComment(
+      {
+        moduleBaseUrl: 'https://module.test',
+        accessToken: async () => null,
+        resolveMemberToken: async () => null,
+        fetchImpl: fetchImpl as unknown as typeof fetch,
+      },
+      base,
+    );
+
+    expect(outcome).toBe('skipped');
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
   it('skips when the module URL is unconfigured', async () => {
     const fetchImpl = vi.fn();
     const outcome = await notifyComment(

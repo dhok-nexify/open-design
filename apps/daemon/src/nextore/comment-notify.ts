@@ -60,6 +60,12 @@ export interface CommentNotifyDeps {
   /** Absolute module base URL incl. any path prefix, or null when unconfigured. */
   moduleBaseUrl: string | null;
   accessToken: () => Promise<string | null>;
+  /**
+   * Fallback used when the request itself carried no session token (e.g. a
+   * background or API-token call): resolve the author's module token from the
+   * session store. Returning null means "skip", never "send anonymously".
+   */
+  resolveMemberToken?: (memberId: number) => Promise<string | null>;
   fetchImpl?: typeof fetch;
   log?: (message: string) => void;
 }
@@ -78,7 +84,10 @@ export async function notifyComment(
   if (payload.recipientIds.length === 0) return 'skipped';
 
   try {
-    const token = await deps.accessToken();
+    let token = await deps.accessToken();
+    if (!token && deps.resolveMemberToken && Number.isInteger(input.authorMemberId) && input.authorMemberId > 0) {
+      token = await deps.resolveMemberToken(input.authorMemberId);
+    }
     if (!token) {
       deps.log?.('[comment-notify] no access token; skipping');
       return 'skipped';
