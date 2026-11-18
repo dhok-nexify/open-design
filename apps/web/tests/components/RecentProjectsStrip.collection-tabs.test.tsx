@@ -254,6 +254,18 @@ describe('Personal workspace shared-project collection', () => {
   });
 });
 
+describe('NexTore project-space badge', () => {
+  it('renders the project-space capsule with the workspace name as context', () => {
+    renderPage({
+      projectSpaceBadges: new Map([
+        ['p-mine', { kind: 'personal', workspaceName: 'My Space' }],
+      ]),
+    });
+    expect(screen.getByText('Personal')).toBeTruthy();
+    expect(screen.getByLabelText('Personal: My Space')).toBeTruthy();
+  });
+});
+
 it.each([true, false])('links shared project open outcome %s to the member and project for later creation', async (opened) => {
   renderPage({ space: 'team', onOpen: async () => opened });
   fireEvent.click(screen.getByText('Shared with the team').closest('button')!);

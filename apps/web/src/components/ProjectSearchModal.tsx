@@ -20,11 +20,15 @@ import { Icon } from './Icon';
 import { useT } from '../i18n';
 import { relativeTimeLong } from '../utils/chatTime';
 import { projectCover, projectCategory, ProjectTag } from './RecentProjectsStrip';
+import type { NextoreProjectSpaceBadge } from '../nextore/workspace-labels';
+import { ProjectSpaceBadge } from './ProjectSpaceBadge';
 import type { WorkspaceCollabContext } from '@open-design/contracts';
 
 interface Props {
   projects: Project[];
   workspaceContext?: WorkspaceCollabContext | null;
+  /** NexTore edition: projectId -> the capsule shown beside the search result. */
+  projectSpaceBadges?: ReadonlyMap<string, NextoreProjectSpaceBadge>;
   onOpenProject: (id: string) => Promise<boolean> | Promise<void> | boolean | void;
   onClose: () => void;
 }
@@ -47,6 +51,7 @@ export function buildProjectSearchCatalog(
 export function ProjectSearchModal({
   projects,
   workspaceContext = null,
+  projectSpaceBadges,
   onOpenProject,
   onClose,
 }: Props) {
@@ -153,6 +158,7 @@ export function ProjectSearchModal({
               const showImage =
                 (cover.kind === 'image' || cover.kind === 'logo') && Boolean(cover.src);
               const active = index === activeIndex;
+              const spaceBadge = projectSpaceBadges?.get(project.id);
               return (
                 <button
                   key={project.id}
@@ -179,6 +185,7 @@ export function ProjectSearchModal({
                   <span className="project-search-item-name">
                     {project.name || t('chat.untitledConversation')}
                   </span>
+                  {spaceBadge ? <ProjectSpaceBadge badge={spaceBadge} /> : null}
                   <span className="project-search-item-tag">
                     <ProjectTag category={projectCategory(project)} />
                   </span>

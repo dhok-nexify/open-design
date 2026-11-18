@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  buildProjectSpaceBadgeMap,
   buildWorkspaceLabelMap,
   countRemoteOnlyProjects,
   groupInScope,
@@ -13,10 +14,11 @@ const group = (
   workspaceName: string,
   sharedOnly: boolean,
   projects: Array<[string, boolean]>,
+  workspaceType: 'personal' | 'team' = sharedOnly ? 'personal' : 'team',
 ): NextoreProjectGroup => ({
   workspaceId,
   workspaceName,
-  workspaceType: sharedOnly ? 'personal' : 'team',
+  workspaceType,
   sharedOnly,
   projects: projects.map(([designerProjectId, hasLocalContent]) => ({
     nextoreProjectId: designerProjectId,
@@ -27,7 +29,7 @@ const group = (
 });
 
 const groups = [
-  group(1, 'admin Workspace', false, [['local-a', true], ['remote-b', false]]),
+  group(1, 'admin Workspace', false, [['local-a', true], ['remote-b', false]], 'personal'),
   group(2, 'Content Team', false, [['local-c', true]]),
   group(9, 'alice Workspace', true, [['shared-d', true], ['shared-e', false]]),
 ];
@@ -60,6 +62,29 @@ describe('buildWorkspaceLabelMap', () => {
 
   it('skips a group without a name', () => {
     expect(buildWorkspaceLabelMap([group(4, '', false, [['x', true]])]).size).toBe(0);
+  });
+});
+
+describe('buildProjectSpaceBadgeMap', () => {
+  it('uses shared access before workspace ownership', () => {
+    const badges = buildProjectSpaceBadgeMap(groups);
+
+    expect(badges.get('local-a')).toEqual({ kind: 'personal', workspaceName: 'admin Workspace' });
+    expect(badges.get('local-c')).toEqual({ kind: 'team', workspaceName: 'Content Team' });
+    expect(badges.get('shared-d')).toEqual({ kind: 'shared', workspaceName: 'alice Workspace' });
+  });
+
+  it('keeps Shared when the same project appears in team and shared groups', () => {
+    const badges = buildProjectSpaceBadgeMap([
+      group(2, 'Content Team', false, [['duplicate', true]]),
+      group(9, 'alice Workspace', true, [['duplicate', true]]),
+    ]);
+    expect(badges.get('duplicate')?.kind).toBe('shared');
+  });
+
+  it('keeps a badge for a project in an unnamed workspace', () => {
+    const badges = buildProjectSpaceBadgeMap([group(4, '', false, [['x', true]])]);
+    expect(badges.get('x')).toEqual({ kind: 'team', workspaceName: '' });
   });
 });
 

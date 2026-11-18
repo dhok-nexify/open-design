@@ -30,6 +30,8 @@ import {
 import type { DesignSystemSummary, Project } from '../types';
 import { Icon } from './Icon';
 import type { IconName } from './Icon';
+import type { NextoreProjectSpaceBadge } from '../nextore/workspace-labels';
+import { ProjectSpaceBadge } from './ProjectSpaceBadge';
 import { RemixIcon } from './RemixIcon';
 import { ProjectDeleteConfirmDialog } from './project-actions/ProjectDeleteConfirmDialog';
 import { useProjectDeleteFlow } from './project-actions/useProjectDeleteFlow';
@@ -158,6 +160,8 @@ interface Props {
    *  recents stay global, so each card carries its own space label to keep the
    *  "did switching spaces lose my work?" anxiety from ever appearing. */
   projectWorkspaceLabels?: ReadonlyMap<string, string>;
+  /** NexTore edition: projectId -> the capsule shown on the card. */
+  projectSpaceBadges?: ReadonlyMap<string, NextoreProjectSpaceBadge>;
 }
 
 /** Fallback for a caller with no sharing surface (no workspace, no grids). */
@@ -378,6 +382,7 @@ export function RecentProjectsStrip({
   canManageProjectCollection,
   isActive = true,
   projectWorkspaceLabels,
+  projectSpaceBadges,
 }: Props) {
   const t = useT();
   const analytics = useAnalytics();
@@ -1511,6 +1516,7 @@ export function RecentProjectsStrip({
             workspaceContext,
           );
           const designSystemProject = isDesignSystemProject(project);
+          const spaceBadge = projectSpaceBadges?.get(project.id);
           const shared = isShared(project.id);
           const selected = selectedProjectIds.has(project.id);
           const readonlyShared = shared && !creator.ownedBySelf;
@@ -1716,7 +1722,9 @@ export function RecentProjectsStrip({
                       ) : (
                         <ProjectTag category={projectCategory(project)} />
                       )}
-                      {projectWorkspaceLabels?.get(project.id) ? (
+                      {spaceBadge ? (
+                        <ProjectSpaceBadge badge={spaceBadge} />
+                      ) : projectWorkspaceLabels?.get(project.id) ? (
                         <span
                           className="project-card-workspace"
                           title={projectWorkspaceLabels.get(project.id)}

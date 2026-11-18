@@ -113,6 +113,7 @@ import {
   type NextoreProjectScope,
 } from '../nextore/project-scope';
 import {
+  buildProjectSpaceBadgeMap,
   buildWorkspaceLabelMap,
   countRemoteOnlyProjects,
   scopeProjectIds,
@@ -1115,6 +1116,10 @@ export function EntryShell({
   // card with its workspace; the Projects view does the same inside its scope.
   const nextoreWorkspaceLabels = useMemo(
     () => buildWorkspaceLabelMap(nextoreGroups),
+    [nextoreGroups],
+  );
+  const nextoreProjectSpaceBadges = useMemo(
+    () => buildProjectSpaceBadgeMap(nextoreGroups),
     [nextoreGroups],
   );
   // Projects in the active scope with no content on this device have no card
@@ -2359,6 +2364,9 @@ export function EntryShell({
             // The pull-first handler still opens not-yet-local shared projects.
             projects={projectSearchProjects}
             workspaceContext={workspaceContext}
+            {...(NEXTORE_WEB_EDITION === 'nextore'
+              ? { projectSpaceBadges: nextoreProjectSpaceBadges }
+              : {})}
             onOpenProject={handleOpenAllProjects}
             onClose={() => setProjectSearchOpen(false)}
           />
@@ -2451,6 +2459,7 @@ export function EntryShell({
                     {...(NEXTORE_WEB_EDITION === 'nextore'
                       ? {
                           projectWorkspaceLabels: nextoreWorkspaceLabels,
+                          projectSpaceBadges: nextoreProjectSpaceBadges,
                           remoteOnlyCount: nextoreRemoteOnlyCount,
                         }
                       : {})}
@@ -2692,6 +2701,9 @@ export function EntryShell({
                     onRename={onRenameProject}
                     canAssignInviteRoles={workspaceContext?.permissions.canInviteMembers === true}
                     canManageProjectCollection={workspaceContext?.permissions.canShareProjects === true}
+                    {...(NEXTORE_WEB_EDITION === 'nextore'
+                      ? { projectSpaceBadges: nextoreProjectSpaceBadges }
+                      : {})}
                   />
                 </div>
               )

@@ -17,6 +17,47 @@ export function groupInScope(
   return true;
 }
 
+/** The three capsule kinds a project card can show. */
+export type NextoreProjectSpace = 'personal' | 'team' | 'shared';
+
+export interface NextoreProjectSpaceBadge {
+  kind: NextoreProjectSpace;
+  workspaceName: string;
+}
+
+/**
+ * projectId -> the capsule badge shown on Home cards, the Projects grid, and
+ * search results. Access relationship wins over workspace ownership: a project
+ * reached only through a share is "Shared", even when its workspace is a team
+ * workspace. The workspace name remains the tooltip, so replacing the old text
+ * chip with the badge does not remove information.
+ */
+export function buildProjectSpaceBadgeMap(
+  groups: readonly NextoreProjectGroup[],
+): Map<string, NextoreProjectSpaceBadge> {
+  const rank: Record<NextoreProjectSpace, number> = { personal: 0, team: 1, shared: 2 };
+  const badges = new Map<string, NextoreProjectSpaceBadge>();
+  for (const group of groups) {
+    const kind: NextoreProjectSpace = group.sharedOnly
+      ? 'shared'
+      : group.workspaceType === 'team'
+        ? 'team'
+        : 'personal';
+    for (const project of group.projects) {
+      const existing = badges.get(project.designerProjectId);
+      // A project can appear in both its owning workspace and a shared one.
+      // Shared is the strongest access relationship, so it wins regardless of
+      // the order the server returned the groups in.
+      if (existing && rank[existing.kind] >= rank[kind]) continue;
+      badges.set(project.designerProjectId, {
+        kind,
+        workspaceName: group.workspaceName,
+      });
+    }
+  }
+  return badges;
+}
+
 /** projectId -> the workspace name that owns it. Unnamed groups are skipped. */
 export function buildWorkspaceLabelMap(
   groups: readonly NextoreProjectGroup[],

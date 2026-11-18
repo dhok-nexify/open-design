@@ -30,6 +30,8 @@ import type {
 } from "../types";
 import { AnimatePresence } from "motion/react";
 import { Icon } from "./Icon";
+import type { NextoreProjectSpaceBadge } from "../nextore/workspace-labels";
+import { ProjectSpaceBadge } from "./ProjectSpaceBadge";
 import {
 	isDesignSystemProject,
 	isPublishedDesignSystemProject,
@@ -129,6 +131,8 @@ interface Props {
 	 *  Projects view can be scoped to "all" or "shared", so each card has to say
 	 *  where the project actually lives. */
 	projectWorkspaceLabels?: ReadonlyMap<string, string>;
+	/** NexTore edition: projectId -> the capsule shown on the card. */
+	projectSpaceBadges?: ReadonlyMap<string, NextoreProjectSpaceBadge>;
 	/** NexTore edition: projects inside this scope whose content lives on another
 	 *  device and therefore has no card here. Named instead of hidden. */
 	remoteOnlyCount?: number;
@@ -147,6 +151,7 @@ export function DesignsTab({
 	onRefresh,
 	isActive = true,
 	projectWorkspaceLabels,
+	projectSpaceBadges,
 	remoteOnlyCount = 0,
 }: Props) {
 	const renameTitleId = useId();
@@ -836,6 +841,7 @@ export function DesignsTab({
 				<div className="design-grid">
 					{filtered.map((item) => {
 						const p = item.project;
+						const spaceBadge = projectSpaceBadges?.get(p.id);
 						const skill = skillName(p.skillId);
 						const ds = dsName(resolveProjectDesignSystemId(p));
 						if (item.type === "live-artifact") {
@@ -1099,7 +1105,9 @@ export function DesignsTab({
 										) : (
 											<ProjectTag category={projectCategory(p)} />
 										)}
-										{projectWorkspaceLabels?.get(p.id) ? (
+										{spaceBadge ? (
+											<ProjectSpaceBadge badge={spaceBadge} />
+										) : projectWorkspaceLabels?.get(p.id) ? (
 											<span
 												className="project-card-workspace"
 												title={projectWorkspaceLabels.get(p.id)}

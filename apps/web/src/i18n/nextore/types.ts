@@ -41,6 +41,9 @@ export interface NextoreDict {
   'nextoreWorkspace.mine': string;
   
   'nextoreWorkspace.teams': string;
+  'projectSpace.personal': string;
+  'projectSpace.team': string;
+  'projectSpace.shared': string;
   
   'nextoreWorkspace.createHint': string;
   
