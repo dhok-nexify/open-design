@@ -193,6 +193,9 @@ export function installNextoreSessionRedirect(
   // "0" would then read as a probe that just happened.
   let lastStreamErrorProbe: number | null = null;
   function openSessionStream(): void {
+    // The signed-out page has no session to revoke, and its stream would retry
+    // a 401 forever.
+    if (isSignedOut()) return;
     if (typeof EventSource === 'undefined') {
       fallbackTimer = window.setInterval(() => {
         if (document.visibilityState !== 'visible') return;
@@ -222,6 +225,11 @@ export function installNextoreSessionRedirect(
       // EventSource retries by itself, so a server restart heals without help.
       // A revoked session answers 401, which the browser would retry forever,
       // so one plain probe decides whether to keep waiting or sign out.
+      if (isSignedOut()) {
+        source.close();
+        if (sessionStream === source) sessionStream = null;
+        return;
+      }
       if (source.readyState === EventSource.CLOSED) return;
       const at = now();
       if (

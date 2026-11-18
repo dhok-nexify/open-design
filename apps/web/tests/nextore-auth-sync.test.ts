@@ -169,6 +169,18 @@ describe('pushed session revocation', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it('does not open a stream on a page that already signed out', async () => {
+    const { signOut, guard } = await loadEditionModules();
+    signOut.markSignedOut();
+    guard.installNextoreSessionRedirect({
+      fetchImpl: vi.fn(async () => new Response(null, { status: 200 })) as unknown as typeof fetch,
+      navigate: vi.fn(),
+      now: () => 5_000,
+    });
+
+    expect(FakeEventSource.all).toHaveLength(0);
+  });
+
   it('ignores a state other than revoked', async () => {
     const { guard } = await loadEditionModules();
     const navigate = vi.fn();

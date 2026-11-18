@@ -85,8 +85,15 @@ const FORCED_VALIDATE_FLOOR_MS = 9 * 1000;
  */
 const WATCHDOG_INTERVAL_MS = 15 * 1000;
 
-/** Sign-out hints accepted per source address per minute. */
-const HINT_LIMIT = 60;
+/**
+ * Sign-out hints accepted per source address per minute.
+ *
+ * Generous on purpose: behind a reverse proxy every hint shares one address,
+ * and an end-of-day wave of sign-outs must not start rejecting hints. The
+ * limit exists to stop a caller using the daemon as a bootstrap amplifier,
+ * not to ration a real sign-out.
+ */
+const HINT_LIMIT = 600;
 const HINT_WINDOW_MS = 60 * 1000;
 
 /** Keep-alive comment cadence for an idle event stream. */
