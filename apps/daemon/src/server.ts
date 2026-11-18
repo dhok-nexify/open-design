@@ -436,6 +436,7 @@ import { NextoreArtifactRuntime } from './nextore/artifacts/runtime.js';
 import { resolveNextoreArtifactAuthorityMode } from './nextore/artifacts/features.js';
 import { registerNextoreArtifactRoutes } from './nextore/artifacts/routes.js';
 import { registerNextoreArtifactDownloadRoutes } from './nextore/artifacts/download-routes.js';
+import { registerNextoreArtifactShareRoutes } from './nextore/artifacts/share-routes.js';
 import { nextoreHealthMetadata } from './nextore/routes.js';
 import {
   authorizeCreatedProjectWorkspace,
@@ -3685,13 +3686,17 @@ export async function startServer({
   // NEXTORE: edition-owned tables are applied after the upstream migration,
   // keeping the base schema unchanged for upstream builds.
   if (edition === 'nextore') migrateNextoreDatabase(db);
+  // Resolved once so the publish and share surfaces cannot disagree on authority.
+  const nextoreArtifactAuthorityMode = edition === 'nextore'
+    ? resolveNextoreArtifactAuthorityMode(process.env)
+    : 'off';
   const nextoreArtifactRuntime = edition === 'nextore' && nextoreConfig && nextoreClient && nextoreSecrets
     ? new NextoreArtifactRuntime({
         db,
         client: nextoreClient,
         sessionStore: createNextoreSessionStore(() => db, nextoreSecrets),
         config: nextoreConfig,
-        mode: resolveNextoreArtifactAuthorityMode(process.env),
+        mode: nextoreArtifactAuthorityMode,
         readProjectMapping: createProjectMappingReader(db),
         // Out-of-run edits: the artifact a run already published keeps tracking
         // the file the user edits, without a new run or a workspace scan.
@@ -9450,6 +9455,8 @@ export async function startServer({
       config: nextoreConfig,
       authorizeProject: authorizeProjectRequest,
       readProjectMapping: readNextoreProjectMapping,
+      legacyWriteDisabled: nextoreArtifactAuthorityMode === 'publish+share',
+      legacySunsetAt: process.env.NEXTORE_LEGACY_SHARE_SUNSET_AT?.trim() || null,
     });
   }
   if (edition === 'nextore' && nextoreArtifactRuntime) {
@@ -9462,6 +9469,11 @@ export async function startServer({
       client: nextoreClient,
       authorizeProject: authorizeProjectRequest,
       readProjectName: (projectId) => getProject(db, projectId)?.name ?? null,
+    });
+    registerNextoreArtifactShareRoutes(app, {
+      runtime: nextoreArtifactRuntime,
+      client: nextoreClient,
+      authorizeProject: authorizeProjectRequest,
     });
   }
 

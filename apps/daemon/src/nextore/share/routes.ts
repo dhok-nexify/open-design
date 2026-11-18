@@ -19,6 +19,14 @@ export interface RegisterNextoreShareRoutesDeps {
   authorizeProject: AuthorizeProjectRequest;
   /** NexTore project id a local project maps to, or null when unmapped. */
   readProjectMapping: (localProjectId: string) => string | null;
+  /**
+   * P04e: once NexTore ShareObject is the share authority, the custom token
+   * surface stops minting new links. Existing links keep resolving until the
+   * sunset below.
+   */
+  legacyWriteDisabled?: boolean;
+  /** ISO timestamp of the announced legacy sunset, echoed on resolve. */
+  legacySunsetAt?: string | null;
 }
 
 interface ShareSessionView {
@@ -77,6 +85,10 @@ export function registerNextoreShareRoutes(
   };
 
   app.post('/api/nextore/projects/:id/share-links', async (req, res) => {
+    if (deps.legacyWriteDisabled) {
+      deny(res, 410, 'legacy_share_retired', 'Use the NexTore share endpoint; custom share links are retired.');
+      return;
+    }
     const session = requireSession(res);
     if (!session) return;
     const projectId = String(req.params.id ?? '');
@@ -131,6 +143,10 @@ export function registerNextoreShareRoutes(
   });
 
   app.delete('/api/nextore/projects/:id/share-links/:linkId', async (req, res) => {
+    if (deps.legacyWriteDisabled) {
+      deny(res, 410, 'legacy_share_retired', 'Custom share links are retired.');
+      return;
+    }
     const session = requireSession(res);
     if (!session) return;
     const projectId = String(req.params.id ?? '');
@@ -148,6 +164,9 @@ export function registerNextoreShareRoutes(
   // Opening a link does not require DesignerAccess: any authenticated NexTore
   // member may redeem it. It does require the module's global share switch.
   app.post('/api/nextore/share-links/resolve', (req, res) => {
+    if (deps.legacySunsetAt) {
+      res.setHeader('X-NexTore-Legacy-Share', `sunset-at=${deps.legacySunsetAt}`);
+    }
     const session = requireSession(res);
     if (!session) return;
     const body = req.body && typeof req.body === 'object'

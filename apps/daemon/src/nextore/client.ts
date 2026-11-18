@@ -2,6 +2,7 @@ import type {
   CreateNextoreTeamWorkspaceRequest,
   NextoreArtifactPublishRequest,
   NextoreArtifactRepresentation,
+  NextoreArtifactShareRequest,
   NextoreBrandingResponse,
   NextoreModuleHealthResponse,
   NextoreTier,
@@ -157,6 +158,29 @@ export interface NextoreArtifactClient {
   listArtifacts<T>(
     accessToken: string,
     projectId: string,
+    signal?: AbortSignal,
+  ): Promise<T>;
+  /** Create or replace a NexTore ShareObject for one representation. */
+  shareArtifact<T>(
+    accessToken: string,
+    projectId: string,
+    artifactId: string,
+    body: NextoreArtifactShareRequest,
+    signal?: AbortSignal,
+  ): Promise<T>;
+  /** Revoke the caller share link for one representation. */
+  revokeArtifactShare<T>(
+    accessToken: string,
+    projectId: string,
+    artifactId: string,
+    representation: string | undefined,
+    signal?: AbortSignal,
+  ): Promise<T>;
+  /** Create or replace a NexTore ShareObject for the whole project folder. */
+  shareProject<T>(
+    accessToken: string,
+    projectId: string,
+    body: NextoreArtifactShareRequest,
     signal?: AbortSignal,
   ): Promise<T>;
 }
@@ -549,6 +573,47 @@ export function createNextoreClient(
       return request<T>(
         'api/designer/projects/' + encodeURIComponent(projectId) + '/artifacts',
         signal ? { accessToken, signal } : { accessToken },
+      );
+    },
+
+    shareArtifact<T>(
+      accessToken: string,
+      projectId: string,
+      artifactId: string,
+      body: NextoreArtifactShareRequest,
+      signal?: AbortSignal,
+    ) {
+      return request<T>(
+        'api/designer/projects/' + encodeURIComponent(projectId)
+          + '/artifacts/' + encodeURIComponent(artifactId) + '/share',
+        { accessToken, method: 'POST', body, ...(signal ? { signal } : {}) },
+      );
+    },
+
+    revokeArtifactShare<T>(
+      accessToken: string,
+      projectId: string,
+      artifactId: string,
+      representation: string | undefined,
+      signal?: AbortSignal,
+    ) {
+      const query = representation ? '?representation=' + encodeURIComponent(representation) : '';
+      return request<T>(
+        'api/designer/projects/' + encodeURIComponent(projectId)
+          + '/artifacts/' + encodeURIComponent(artifactId) + '/share' + query,
+        { accessToken, method: 'DELETE', ...(signal ? { signal } : {}) },
+      );
+    },
+
+    shareProject<T>(
+      accessToken: string,
+      projectId: string,
+      body: NextoreArtifactShareRequest,
+      signal?: AbortSignal,
+    ) {
+      return request<T>(
+        'api/designer/projects/' + encodeURIComponent(projectId) + '/share',
+        { accessToken, method: 'POST', body, ...(signal ? { signal } : {}) },
       );
     },
 

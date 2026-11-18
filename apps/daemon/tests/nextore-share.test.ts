@@ -282,4 +282,51 @@ describe('share-link routes', () => {
       await new Promise<void>((resolve, reject) => server.close((err) => err ? reject(err) : resolve()));
     }
   });
+
+  it('retires new custom links once NexTore ShareObject owns sharing', async () => {
+    const app = express();
+    app.use(express.json());
+    app.use((_req, res, next) => {
+      res.locals.nextoreSession = { memberId: 7, member: { features: { shareLinks: true } } };
+      next();
+    });
+    registerNextoreShareRoutes(app, {
+      db,
+      config: {
+        baseUrl: 'https://nextore.test',
+        oauthClientId: 'client',
+        designerBaseUrl: 'https://designer.test',
+        secretFile: '/unused',
+        trustProxy: null,
+      },
+      authorizeProject: async () => true,
+      readProjectMapping: () => 'nxt-1',
+      legacyWriteDisabled: true,
+      legacySunsetAt: '2027-02-16T00:00:00.000Z',
+    });
+    const server = http.createServer(app);
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const address = server.address();
+    if (!address || typeof address === 'string') throw new Error('no address');
+    const base = `http://127.0.0.1:${address.port}`;
+    try {
+      const created = await fetch(base + '/api/nextore/projects/proj-1/share-links', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ expiresAt: null }),
+      });
+      expect(created.status).toBe(410);
+      expect(((await created.json()) as { error: { code: string } }).error.code).toBe('legacy_share_retired');
+
+      const resolved = await fetch(base + '/api/nextore/share-links/resolve', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ token: 'not-a-real-token' }),
+      });
+      expect(resolved.headers.get('x-nextore-legacy-share'))
+        .toBe('sunset-at=2027-02-16T00:00:00.000Z');
+    } finally {
+      await new Promise<void>((resolve, reject) => server.close((err) => err ? reject(err) : resolve()));
+    }
+  });
 });

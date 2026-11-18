@@ -190,7 +190,9 @@ export type NextoreArtifactErrorCode =
   | 'share_domain_unconfigured'
   | 'share_not_ready'
   | 'share_forbidden'
+  | 'share_failed'
   | 'folder_share_forbidden'
+  | 'pin_version_unsupported'
   | 'name_conflict'
   | 'name_conflict_foreign'
   | 'name_conflict_race'
@@ -217,7 +219,9 @@ export const NEXTORE_ARTIFACT_ERROR_CODES: readonly NextoreArtifactErrorCode[] =
   'share_domain_unconfigured',
   'share_not_ready',
   'share_forbidden',
+  'share_failed',
   'folder_share_forbidden',
+  'pin_version_unsupported',
   'name_conflict',
   'name_conflict_foreign',
   'name_conflict_race',
