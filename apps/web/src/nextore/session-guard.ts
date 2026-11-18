@@ -21,7 +21,7 @@ import {
   silentReauthAllowed,
   silentReauthUrl,
 } from './silent-reauth';
-import { isSignedOut } from './sign-out';
+import { broadcastSignedOut, isSignedOut, markSignedOut } from './sign-out';
 
 const SESSION_REQUIRED = 'SESSION_REQUIRED';
 const REDIRECT_FLAG = 'nxd:session-redirect';
@@ -116,6 +116,20 @@ export function installNextoreSessionRedirect(
     } catch {
       // Private mode without storage still gets one redirect per page load.
     }
+  }
+
+  /**
+   * The daemon ended this session because the site revoked it (sign-out, lock,
+   * or delete). Do NOT start OAuth here: the site may still be finishing its
+   * own sign-out, and an authorize request in that window answers with a
+   * platform error instead of the login page. The session row is already gone
+   * server-side; show the signed-out page and let the person choose to sign in
+   * again.
+   */
+  function endRevokedSession(): void {
+    markSignedOut();
+    broadcastSignedOut();
+    navigate('/');
   }
 
   function goToSignIn(): void {
@@ -217,9 +231,9 @@ export function installNextoreSessionRedirect(
       if (state !== 'revoked') return;
       source.close();
       if (sessionStream === source) sessionStream = null;
-      // The daemon already ended the row; this only puts the shell on the
-      // sign-in page, with the same "explicit sign-out wins" guard.
-      goToSignIn();
+      // The daemon already ended the row. Land on the signed-out page rather
+      // than bouncing into OAuth (see endRevokedSession).
+      endRevokedSession();
     });
     source.addEventListener('error', () => {
       // EventSource retries by itself, so a server restart heals without help.

@@ -146,8 +146,8 @@ describe('pushed session revocation', () => {
     vi.unstubAllGlobals();
   });
 
-  it('signs out when the daemon pushes a revoked session, without polling', async () => {
-    const { guard } = await loadEditionModules();
+  it('ends on the signed-out page when the daemon pushes a revoked session, without polling', async () => {
+    const { signOut, guard } = await loadEditionModules();
     const navigate = vi.fn();
     const fetchMock = vi.fn(async () => new Response(null, { status: 200 }));
     Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'visible' });
@@ -164,7 +164,14 @@ describe('pushed session revocation', () => {
 
     stream.emit('session', { state: 'revoked' });
 
-    await vi.waitFor(() => expect(navigate).toHaveBeenCalledWith('/auth/start?return=%2F'));
+    // A revoked session is already dead server-side. Starting OAuth here races
+    // the site's own sign-out and lands on a platform error page, so the tab
+    // shows the signed-out page and lets the person sign in again explicitly.
+    await vi.waitFor(() => expect(navigate).toHaveBeenCalledWith('/'));
+    expect(navigate).not.toHaveBeenCalledWith('/auth/start?return=%2F');
+    expect(signOut.isSignedOut()).toBe(true);
+    const channel = FakeBroadcastChannel.channels(signOut.AUTH_SYNC_CHANNEL_NAME)[0];
+    expect(channel?.posted).toEqual([expect.objectContaining({ type: 'signed-out' })]);
     expect(stream.closed).toBe(true);
     expect(fetchMock).not.toHaveBeenCalled();
   });
