@@ -439,6 +439,8 @@ import { registerNextoreArtifactDownloadRoutes } from './nextore/artifacts/downl
 import { registerNextoreArtifactShareRoutes } from './nextore/artifacts/share-routes.js';
 import { registerNextoreBackfillRoutes } from './nextore/artifacts/backfill-routes.js';
 import { registerCliAuthRoutes } from './nextore/auth/cli-auth-routes.js';
+import { registerNextoreEventRoutes } from './nextore/events/routes.js';
+import { invalidateAllProjectAccess } from './nextore/acl/invalidation.js';
 import { nextoreHealthMetadata } from './nextore/routes.js';
 import {
   authorizeCreatedProjectWorkspace,
@@ -3397,6 +3399,30 @@ export async function startServer({
   // exactly the incidents it was built for, and silently: the uploader reports
   // `res.ok` and the export continues without the evidence.
   app.use(CHAT_SCROLL_FORENSICS_PATH, chatScrollForensicsBodyParser);
+  // NXD-P03: raw-body event push must be registered before the JSON parser.
+  if (edition === 'nextore') {
+    const eventSecrets = () => [
+      process.env.NEXTORE_EVENT_SECRET ?? '',
+      process.env.NEXTORE_EVENT_SECRET_PREVIOUS ?? '',
+    ].filter(Boolean);
+    registerNextoreEventRoutes(app, {
+      db: () => db,
+      secrets: eventSecrets,
+      consumerId: process.env.HOSTNAME ?? 'daemon',
+      hooks: {
+        onPermissionChanged: () => invalidateAllProjectAccess(),
+        onProjectGone: () => invalidateAllProjectAccess(),
+        onMemberDisabled: (memberId) => {
+          try {
+            const store = createNextoreSessionStore(() => db, nextoreSecrets);
+            for (const row of store.listByMember(memberId)) store.remove(row.sid);
+          } catch {
+            // A session store failure must not turn a valid delivery into a retry.
+          }
+        },
+      },
+    });
+  }
   app.use(express.json({ limit: '4mb', verify: captureJsonBodySize }));
   if (nextoreAuth) {
     // '/auth/*' must be matched before the SPA fallback.

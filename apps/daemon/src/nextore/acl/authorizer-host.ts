@@ -14,6 +14,7 @@ import type { NextoreConfig } from '../config.js';
 import { hasValidShareGrant } from '../share/service.js';
 import { normalizeAccess } from '../wire.js';
 import { createProjectAccessCache } from './access-cache.js';
+import { registerProjectAccessCache } from './invalidation.js';
 import { createNextoreProjectAuthorizer } from './authorize-project.js';
 
 type ProjectDb = Parameters<typeof getProject>[0];
@@ -52,6 +53,7 @@ export function createProjectAuthorizer(
 ): AuthorizeProjectRequest {
   const { edition, config, client, db, local, readProjectMapping } = options;
   const cache = client ? createProjectAccessCache() : null;
+  if (cache) registerProjectAccessCache(cache);
   if (!client || !config || !cache) return local;
 
   return createNextoreProjectAuthorizer(local, {
