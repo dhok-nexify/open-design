@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 // @ts-nocheck
-import { readFileSync, writeFileSync } from 'node:fs';
+import { createWriteStream, readFileSync, writeFileSync } from 'node:fs';
+import { Readable } from 'node:stream';
+import { pipeline } from 'node:stream/promises';
 import { basename } from 'node:path';
 import { runDaemonCliStartup, startDaemonRuntime } from './daemon-startup.js';
 import { runLiveArtifactsMcpServer } from './mcp-live-artifacts-server.js';
@@ -7558,8 +7560,11 @@ function repeatedFlagValues(argv, name) {
 async function runNextore(args) {
   // Declared inside the function: SUBCOMMAND_MAP dispatches during module
   // evaluation, before top-level consts below the map are initialized.
-  const NEXTORE_STRING_FLAGS = new Set(['daemon-url', 'name', 'group']);
-  const NEXTORE_BOOLEAN_FLAGS = new Set(['help', 'h', 'json']);
+  const NEXTORE_STRING_FLAGS = new Set([
+    'daemon-url', 'name', 'group',
+    'representation', 'out', 'expires-at', 'password', 'version',
+  ]);
+  const NEXTORE_BOOLEAN_FLAGS = new Set(['help', 'h', 'json', 'no-preview']);
 
   if (args.length === 0 || args[0] === 'help' || args.includes('--help') || args.includes('-h')) {
     console.log(`Usage:
@@ -7571,7 +7576,21 @@ async function runNextore(args) {
                     role preset's workspace rights.
 
                     Note: the NexTore edition gates /api by the browser
-                    session; CLI sign-in is tracked as NXD-P10.`);
+                    session; CLI sign-in is tracked as NXD-P10.
+
+  od nextore artifact status <projectId> <artifactId> [--json]
+  od nextore artifact retry <projectId> <artifactId>
+                    [--representation source|snapshot|cover] [--json]
+  od nextore artifact download <projectId> <artifactId> --out <path>
+                    [--representation ...] [--version <n>] [--json]
+  od nextore artifact share <projectId> <artifactId>
+                    [--representation snapshot|source] [--expires-at <iso>]
+                    [--password <value>] [--no-preview] [--json]
+  od nextore artifact unshare <projectId> <artifactId>
+                    [--representation snapshot|source] [--json]
+                    Artifact authority that used to live in Designer now runs
+                    through NexTore; every command needs the browser session
+                    (NXD-P10).`);
     return;
   }
 
@@ -7579,6 +7598,11 @@ async function runNextore(args) {
   const rest = args.slice(1);
   const flags = parseFlags(rest, { string: NEXTORE_STRING_FLAGS, boolean: NEXTORE_BOOLEAN_FLAGS });
   const base = (await cliDaemonBaseUrl(flags)).replace(/\/$/, '');
+
+  if (sub === 'artifact') {
+    await runNextoreArtifact(rest, flags, base, NEXTORE_STRING_FLAGS);
+    return;
+  }
 
   if (sub !== 'workspace') {
     console.error('Unknown nextore command. Try: od nextore workspace create --help');
@@ -7633,6 +7657,132 @@ async function runNextore(args) {
   }
   if (flags.json) return process.stdout.write(JSON.stringify(data, null, 2) + '\n');
   console.log(`[nextore] created team workspace ${data.name ?? name} (${data.id ?? '-'})`);
+}
+
+/**
+ * od nextore artifact ... - the NexTore edition copy of the old Designer
+ * download/share controls. Status, retry, download, share and unshare all call
+ * the same /api/nextore routes the web UI uses.
+ */
+async function runNextoreArtifact(args, flags, base, stringFlags) {
+  const positionals = positionalArgs(args, stringFlags);
+  const action = positionals[0];
+  const projectId = positionals[1];
+  const artifactId = positionals[2];
+
+  const usage = () => {
+    console.error('Usage: od nextore artifact <status|retry|download|share|unshare> <projectId> <artifactId> [flags]');
+    process.exit(2);
+  };
+  if (!action) usage();
+  if (!projectId || !artifactId) usage();
+
+  const projectPath = base + '/api/nextore/projects/' + encodeURIComponent(projectId);
+  const artifactPath = projectPath + '/artifacts/' + encodeURIComponent(artifactId);
+  const representation = typeof flags.representation === 'string' ? flags.representation : undefined;
+
+  const readJson = async (resp) => {
+    const text = await resp.text();
+    if (!text) return {};
+    try {
+      return JSON.parse(text);
+    } catch {
+      return { raw: text };
+    }
+  };
+  const fail = (resp, data) => {
+    const code = data && data.error && data.error.code ? data.error.code : data && data.error;
+    if (code === 'SESSION_REQUIRED') {
+      console.error('This daemon runs the NexTore edition: /api needs a signed-in NexTore session (NXD-P10).');
+      console.error('Use the Designer web UI for now.');
+    }
+    console.error(action + ' failed: ' + resp.status + ' ' + JSON.stringify(data));
+    process.exit(1);
+  };
+
+  if (action === 'status') {
+    const resp = await fetch(artifactPath + '/status');
+    const data = await readJson(resp);
+    if (!resp.ok) fail(resp, data);
+    if (flags.json) return process.stdout.write(JSON.stringify(data, null, 2) + '\n');
+    for (const row of data.representations || []) {
+      const artifact = row.artifact || {};
+      const queue = row.queue || {};
+      console.log([
+        row.representation,
+        artifact.status || '-',
+        'v' + (artifact.currentVersion || '-'),
+        queue.pending ? 'queued' : 'idle',
+        row.share ? 'shared' : 'unshared',
+      ].join('\t'));
+    }
+    return;
+  }
+
+  if (action === 'retry') {
+    const query = representation ? '?representation=' + encodeURIComponent(representation) : '';
+    const resp = await fetch(artifactPath + '/retry' + query, { method: 'POST' });
+    const data = await readJson(resp);
+    if (!resp.ok) fail(resp, data);
+    if (flags.json) return process.stdout.write(JSON.stringify(data, null, 2) + '\n');
+    console.log('[nextore] re-queued ' + (data.representation || representation || 'source') + ' for ' + artifactId);
+    return;
+  }
+
+  if (action === 'download') {
+    const out = typeof flags.out === 'string' ? flags.out : '';
+    if (!out) {
+      console.error('--out <path> is required');
+      process.exit(2);
+    }
+    const query = new URLSearchParams();
+    if (representation) query.set('representation', representation);
+    if (typeof flags.version === 'string') query.set('version', flags.version);
+    const suffix = query.size > 0 ? '?' + query.toString() : '';
+    const resp = await fetch(artifactPath + '/download' + suffix);
+    if (!resp.ok) {
+      fail(resp, await readJson(resp));
+      return;
+    }
+    await pipeline(Readable.fromWeb(resp.body), createWriteStream(out));
+    const bytes = Number(resp.headers.get('content-length') || 0);
+    if (flags.json) {
+      return process.stdout.write(JSON.stringify({ out, bytes }, null, 2) + '\n');
+    }
+    console.log('[nextore] downloaded ' + artifactId + ' -> ' + out);
+    return;
+  }
+
+  if (action === 'share') {
+    const body = {
+      representation: representation || 'snapshot',
+      previewOnly: flags['no-preview'] !== true,
+      ...(typeof flags['expires-at'] === 'string' ? { expiresAt: flags['expires-at'] } : {}),
+      ...(typeof flags.password === 'string' ? { password: flags.password } : {}),
+    };
+    const resp = await fetch(artifactPath + '/share', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await readJson(resp);
+    if (!resp.ok) fail(resp, data);
+    if (flags.json) return process.stdout.write(JSON.stringify(data, null, 2) + '\n');
+    console.log(data.url || '');
+    return;
+  }
+
+  if (action === 'unshare') {
+    const query = representation ? '?representation=' + encodeURIComponent(representation) : '';
+    const resp = await fetch(artifactPath + '/share' + query, { method: 'DELETE' });
+    const data = await readJson(resp);
+    if (!resp.ok) fail(resp, data);
+    if (flags.json) return process.stdout.write(JSON.stringify(data, null, 2) + '\n');
+    console.log('[nextore] revoked share for ' + artifactId);
+    return;
+  }
+
+  usage();
 }
 
 function printProjectShareHelp() {
