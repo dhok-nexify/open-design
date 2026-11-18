@@ -3692,6 +3692,21 @@ export async function startServer({
         config: nextoreConfig,
         mode: resolveNextoreArtifactAuthorityMode(process.env),
         readProjectMapping: createProjectMappingReader(db),
+        // Every publish state transition is forwarded on the project event
+        // stream as `nextore-artifact`. Events are not persisted: the status
+        // route remains the source of truth after a reconnect.
+        onStatus: (event) => {
+          emitProjectEvent(event.projectId, {
+            type: 'nextore-artifact',
+            projectId: event.projectId,
+            artifactId: event.artifactId,
+            representation: event.representation,
+            status: event.status,
+            version: event.version,
+            error: event.error,
+            at: Date.now(),
+          });
+        },
       })
     : null;
   nextoreArtifactRuntime?.start();

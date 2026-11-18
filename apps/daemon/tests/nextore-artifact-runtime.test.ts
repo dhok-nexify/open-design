@@ -153,6 +153,27 @@ describe('NextoreArtifactRuntime', () => {
     });
   });
 
+  it('re-arms an existing queue row and refuses an unknown one', () => {
+    const { runtime: worker } = runtime('publish');
+    worker.enqueueRun({
+      projectId: 'project-1',
+      artifactId: 'artifact-1',
+      projectRoot,
+      runId: 'run-1',
+      tier: 'expert',
+      memberId: 7,
+      deliverable,
+    });
+
+    expect(worker.retry('project-1', 'artifact-1', 'source')).toBe(true);
+    expect(worker.retry('project-1', 'artifact-1', 'snapshot')).toBe(false);
+  });
+
+  it('does not re-arm a queue row in off mode', () => {
+    const { runtime: worker } = runtime('off');
+    expect(worker.retry('project-1', 'artifact-1', 'source')).toBe(false);
+  });
+
   it('does not enqueue in off mode', () => {
     const { runtime: worker } = runtime('off');
     expect(worker.enqueueRun({

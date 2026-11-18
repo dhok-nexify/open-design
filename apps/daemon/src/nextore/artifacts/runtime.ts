@@ -11,7 +11,11 @@ import type { NextoreSessionStore } from '../auth/session-store.js';
 import type { NextoreArtifactClient } from '../client.js';
 import type { NextoreConfig } from '../config.js';
 import { isNextoreArtifactPublishEnabled, type NextoreArtifactAuthorityMode } from './features.js';
-import { enqueueNextorePublish, getNextoreArtifact } from './store.js';
+import {
+  enqueueNextorePublish,
+  getNextoreArtifact,
+  retryNextorePublish,
+} from './store.js';
 import { publishArtifactJob, type PublishOutcomeStatus } from './publisher.js';
 import {
   resolvePublishableArtifacts,
@@ -171,6 +175,22 @@ export class NextoreArtifactRuntime {
 
   status(projectId: string, artifactId: string): NextoreArtifactStatusResponse {
     return buildNextoreArtifactStatus(this.deps.db, projectId, artifactId);
+  }
+
+  /**
+   * Re-arm a failed or dead-lettered queue item and drain immediately.
+   * Returns false when no queue row exists for that representation.
+   */
+  retry(
+    projectId: string,
+    artifactId: string,
+    representation: NextoreArtifactRepresentation,
+  ): boolean {
+    if (!isNextoreArtifactPublishEnabled(this.deps.mode)) return false;
+    const now = this.deps.now ?? Date.now;
+    const reset = retryNextorePublish(this.deps.db, projectId, artifactId, representation, now());
+    if (reset && this.deps.autoDrain !== false) void this.wake();
+    return reset;
   }
 
   /** Published-record lookup used by the download proxy. */

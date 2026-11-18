@@ -148,7 +148,7 @@ export function registerNextoreArtifactDownloadRoutes(
       fail(res, 400, 'invalid_request', 'version must be a positive integer.');
       return;
     }
-    if (!await deps.authorizeProject(req, res, projectId, { mode: 'read' })) return;
+    if (!await deps.authorizeProject(req, res, projectId, { mode: 'read', capability: 'download' })) return;
     const memberId = sessionMemberId(res);
     if (!memberId) {
       fail(res, 401, 'SESSION_REQUIRED', 'A NexTore session is required.');
@@ -191,7 +191,7 @@ export function registerNextoreArtifactDownloadRoutes(
     const runtime = deps.runtime!;
     const client = deps.client!;
     const projectId = String(req.params.id ?? '');
-    if (!await deps.authorizeProject(req, res, projectId, { mode: 'read' })) return;
+    if (!await deps.authorizeProject(req, res, projectId, { mode: 'read', capability: 'download' })) return;
     const memberId = sessionMemberId(res);
     if (!memberId) {
       fail(res, 401, 'SESSION_REQUIRED', 'A NexTore session is required.');
