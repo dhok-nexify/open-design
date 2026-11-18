@@ -67,11 +67,30 @@ import { CenteredLoader } from './components/Loading';
 import { PetOverlay, type PetTaskCenter } from './components/pet/PetOverlay';
 import { buildPetTaskCenter } from './components/pet/taskCenter';
 import { migrateCustomPetAtlas } from './components/pet/pets';
-import {
-  ProjectView,
-  type ProjectRenameFenceToken,
-  type ProjectNameAuthorityResolution,
+import type {
+  ProjectRenameFenceToken,
+  ProjectNameAuthorityResolution,
 } from './components/ProjectView';
+import dynamic from 'next/dynamic';
+
+/**
+ * NXD-PERF: the project workspace (ProjectView -> FileWorkspace /
+ * DesignBrowserPanel) is the heaviest surface in the app. Loading it lazily
+ * keeps Home and the sign-in pages from shipping those bytes, and the skeleton
+ * reserves the same box so the swap does not shift layout.
+ */
+const ProjectView = dynamic(
+  () => import('./components/ProjectView').then((mod) => mod.ProjectView),
+  {
+    ssr: false,
+    loading: () => (
+      <div
+        aria-busy="true"
+        style={{ position: 'absolute', inset: 0, background: 'var(--surface, #fff)' }}
+      />
+    ),
+  },
+);
 import type { ObservedPublicShareLink, ObservedShareUpdateRequest } from './components/share/observed-public-share-link';
 import type { ShareLoginReturn } from './components/share/share-login-return';
 import { SignedOutObservedShare } from './components/share/SignedOutObservedShare';
