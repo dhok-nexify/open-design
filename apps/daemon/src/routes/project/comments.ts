@@ -1,4 +1,5 @@
 import { jsonBodyByteLength } from '../../http/json-body-size.js';
+import { notifyComment, type CommentNotifyDeps } from '../../nextore/comment-notify.js';
 import type { Express, Request } from 'express';
 import type { CommentSyncStateService } from '../../collab/comment-sync-state.js';
 import type {
@@ -49,6 +50,8 @@ export type ProjectCommentWorkspaceContextResolution =
     };
 
 export interface RegisterProjectCommentRoutesDeps extends RouteDeps<'db' | 'projectStore' | 'conversations'> {
+  /** P05: comment notification deps; fixtures omit it (no-op). */
+  commentNotify?: CommentNotifyDeps;
   /** Optional in focused CRUD fixtures; production supplies request-scoped analytics. */
   telemetry?: RouteDeps<'telemetry'>['telemetry'];
   /**
@@ -846,6 +849,31 @@ export function registerProjectCommentRoutes(app: Express, ctx: RegisterProjectC
           )).catch(() => {});
         } catch {
           // Measurement cannot change the successful save or response.
+        }
+        // P05: never let notification failure affect a saved comment.
+        if (ctx.commentNotify) {
+          const sharedNotice = ctx.commentNotify;
+          void notifyComment(
+            {
+              ...sharedNotice,
+              accessToken: async () => {
+                const session = (res.locals as { nextoreSession?: { accessToken?: unknown } })
+                  .nextoreSession;
+                return typeof session?.accessToken === 'string'
+                  ? session.accessToken
+                  : sharedNotice.accessToken();
+              },
+            },
+            {
+              projectId: req.params.id,
+              commentId: String(comment.id),
+              authorMemberId: Number(authorMemberId ?? 0) || 0,
+              isReply: Boolean((comment as { parentId?: unknown }).parentId),
+              projectName: project?.name ?? null,
+              recipientIds: Number.isInteger(Number(ownerMemberId)) && Number(ownerMemberId) > 0
+                ? [Number(ownerMemberId)] : [],
+            },
+          ).catch(() => {});
         }
       }
       res.json({ comment });

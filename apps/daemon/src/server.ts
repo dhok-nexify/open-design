@@ -9637,6 +9637,13 @@ export async function startServer({
       : {}),
     http: httpDeps,
     nextore: nextoreClient ? { client: nextoreClient } : undefined,
+    // P05: comment notifications reuse the module channel. The per-request
+    // caller token wins (see the route); this fallback intentionally returns
+    // null so an unauthenticated request simply skips the notification.
+    commentNotify: {
+      moduleBaseUrl: nextoreConfig?.baseUrl ?? null,
+      accessToken: async () => null,
+    },
     paths: pathDeps,
     projectStore: projectStoreDeps,
     projectFiles: projectFileDeps,
