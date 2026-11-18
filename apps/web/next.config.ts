@@ -24,6 +24,10 @@ const DAEMON_ORIGIN = `http://127.0.0.1:${DAEMON_PORT}`;
 // packaged-size standalone spike uses OD_WEB_OUTPUT_MODE=standalone to ask
 // Next.js for a traced standalone server while keeping the sidecar-owned daemon
 // proxy in front of it at runtime.
+// NXD-P09: optional same-origin sub-path deployment (e.g. /designer).
+// Unset keeps every URL byte-identical to today's root deployment.
+const BASE_PATH = (process.env.NEXT_PUBLIC_BASE_PATH ?? '').trim().replace(/\/+$/, '');
+
 const isProd = process.env.NODE_ENV !== 'development';
 const webOutputMode = process.env.OD_WEB_OUTPUT_MODE;
 const isServerOutput = webOutputMode === 'server' || webOutputMode === 'standalone';
@@ -201,6 +205,7 @@ export function cmsHostReleaseFingerprint(
 }
 
 const nextConfig: NextConfig = {
+  ...(BASE_PATH ? { basePath: BASE_PATH } : {}),
   env: {
     // Embedded in the client at build time. Packaged servers use the already
     // compiled client and need not retain source files to load this config.
