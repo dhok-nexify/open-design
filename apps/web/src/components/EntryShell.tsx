@@ -107,6 +107,7 @@ import { readStoredNextoreTier, writeStoredNextoreTier } from '../nextore/tier';
 import { groupProjectsByWorkspace } from '../nextore-projects';
 import { useNextoreProjectListing } from '../nextore/listing-store';
 import { useNextoreSessionView } from '../nextore/session-view';
+import { fetchNextoreMembers, memberDisplayName } from '../nextore-members';
 import {
   setProjectScope,
   useNextoreProjectScope,
@@ -1147,6 +1148,65 @@ export function EntryShell({
     }),
     [optimisticOwnershipScopeKey, optimisticOwnershipWitnesses, teamProjects.projects],
   );
+  // NexTore names each project's owner in its own listing. The Cloud map above
+  // only knows projects shared through the team hub, so on its own it makes
+  // every team project look self-owned ("我创建") and every shared one look
+  // foreign — the two defects the walkthrough reported. NexTore entries win
+  // where both exist; upstream entries stay as they were.
+  const nextoreProjectOwnerMemberIds = useMemo(() => {
+    const owners = new Map<string, string>();
+    for (const project of nextoreListing?.projects ?? []) {
+      const owner = project.ownerMemberId;
+      if (typeof owner === 'number' && Number.isInteger(owner) && owner > 0) {
+        owners.set(project.designerProjectId, String(owner));
+      }
+    }
+    return owners;
+  }, [nextoreListing]);
+  const cardProjectOwnerMemberIds = useMemo(
+    () => (nextoreProjectOwnerMemberIds.size === 0
+      ? teamProjectOwnerMemberIds
+      : new Map([...teamProjectOwnerMemberIds, ...nextoreProjectOwnerMemberIds])),
+    [teamProjectOwnerMemberIds, nextoreProjectOwnerMemberIds],
+  );
+  const nextoreSelfMemberId = nextoreSession ? String(nextoreSession.memberId) : null;
+  // Names for the "{owner} created" line and the 我/他人 filter. One lookup for
+  // the whole listing; the directory caches per id, so a refresh re-asks only
+  // for new owners.
+  const nextoreOwnerIdsKey = useMemo(() => {
+    const ids = new Set(nextoreProjectOwnerMemberIds.values());
+    if (nextoreSelfMemberId) ids.add(nextoreSelfMemberId);
+    return [...ids].sort().join(',');
+  }, [nextoreProjectOwnerMemberIds, nextoreSelfMemberId]);
+  const [nextoreProjectOwnerNames, setNextoreProjectOwnerNames] =
+    useState<ReadonlyMap<string, string>>(() => new Map());
+  useEffect(() => {
+    if (NEXTORE_WEB_EDITION !== 'nextore' || !nextoreOwnerIdsKey) {
+      setNextoreProjectOwnerNames((current) => (current.size === 0 ? current : new Map()));
+      return undefined;
+    }
+    const ids = nextoreOwnerIdsKey
+      .split(',')
+      .map((value) => Number(value))
+      .filter((value) => Number.isInteger(value) && value > 0);
+    let cancelled = false;
+    void fetchNextoreMembers(ids).then((members) => {
+      if (cancelled) return;
+      const byId = new Map<number, string>();
+      for (const member of members) {
+        byId.set(member.id, memberDisplayName(member, member.id));
+      }
+      const names = new Map<string, string>();
+      for (const [projectId, ownerId] of nextoreProjectOwnerMemberIds) {
+        const name = byId.get(Number(ownerId));
+        if (name) names.set(projectId, name);
+      }
+      setNextoreProjectOwnerNames(names);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [nextoreOwnerIdsKey, nextoreProjectOwnerMemberIds]);
   const contentReadyProjectIdsRef = useRef(new Set<string>());
   const pendingContentReadyProjectIdsRef = useRef(
     new Map<string, { workspaceId: string; workspaceMemberId: string }>(),
@@ -2698,7 +2758,9 @@ export function EntryShell({
                     onProjectShared={markProjectShared}
                     onProjectShareFailed={markProjectShareFailed}
                     onProjectUnshared={markProjectUnshared}
-                    projectOwnerMemberIds={teamProjectOwnerMemberIds}
+                    projectOwnerMemberIds={cardProjectOwnerMemberIds}
+                    projectOwnerNames={nextoreProjectOwnerNames}
+                    selfMemberId={nextoreSelfMemberId}
                     openingProjectId={pullingProjectId}
                     // Pull-first opener: a 团队项目 row that is not local yet
                     // materializes before it opens, like the old team grid.

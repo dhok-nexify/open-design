@@ -18,13 +18,20 @@ function client(overrides: Partial<NextoreClient> = {}): NextoreClient {
   } as unknown as NextoreClient;
 }
 
-const summary = (id: number, designerProjectId: string, name = 'P' + id) => ({
+const summary = (
+  id: number,
+  designerProjectId: string,
+  name = 'P' + id,
+  ownerMemberId = 7,
+) => ({
   id,
   name,
   designerProjectId,
   designSystemId: 'nextore',
   skillId: '',
   status: 'active',
+  // The module reports C# property names on the wire.
+  OwnerMemberId: ownerMemberId,
 });
 
 describe('listNextoreProjects', () => {
@@ -58,6 +65,7 @@ describe('listNextoreProjects', () => {
       skillId: null,
       workspaceId: 2,
       workspaceName: 'Team',
+      ownerMemberId: 7,
     });
     expect(listing.workspaces).toEqual([
       { id: 1, name: 'Me', type: 'personal', readable: true, projectIds: ['local-a'], sharedOnly: false },

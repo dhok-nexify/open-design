@@ -9,6 +9,12 @@ export interface NextoreProjectSummary {
   designSystemId?: string | null;
   skillId?: string | null;
   status?: string | null;
+  /**
+   * The member NexTore records as the project's owner. Absent on a module
+   * older than the walkthrough fix, which reads as "unknown" rather than
+   * "owned by the caller".
+   */
+  ownerMemberId?: number | null;
 }
 
 export interface ListedNextoreProject {
@@ -26,6 +32,8 @@ export interface ListedNextoreProject {
   workspaceType: string;
   /** True when the caller reaches the workspace only through a shared project (NXD-D40). */
   sharedOnly: boolean;
+  /** NexTore's owner member id, or null when the module did not report one. */
+  ownerMemberId: number | null;
 }
 
 export interface ListedNextoreWorkspace {
@@ -64,6 +72,7 @@ function normalizeProject(value: unknown): NextoreProjectSummary | null {
     designSystemId: wireString(value, 'designSystemId', 'DesignSystemId') ?? null,
     skillId: wireString(value, 'skillId', 'SkillId') ?? null,
     status: wireString(value, 'status', 'Status') ?? null,
+    ownerMemberId: wireNumber(value, 'ownerMemberId', 'OwnerMemberId') ?? null,
   };
 }
 
@@ -148,6 +157,7 @@ export async function listNextoreProjects(input: {
       workspaceName: workspace.name,
       workspaceType: workspace.type,
       sharedOnly: workspace.sharedOnly === true,
+      ownerMemberId: summary.ownerMemberId ?? null,
     });
   }
 

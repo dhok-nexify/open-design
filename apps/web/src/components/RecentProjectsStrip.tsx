@@ -30,7 +30,10 @@ import {
 import type { DesignSystemSummary, Project } from '../types';
 import { Icon } from './Icon';
 import type { IconName } from './Icon';
-import type { NextoreProjectSpaceBadge } from '../nextore/workspace-labels';
+import {
+  projectCollectionMatches,
+  type NextoreProjectSpaceBadge,
+} from '../nextore/workspace-labels';
 import { ProjectSpaceBadge } from './ProjectSpaceBadge';
 import { RemixIcon } from './RemixIcon';
 import { ProjectDeleteConfirmDialog } from './project-actions/ProjectDeleteConfirmDialog';
@@ -144,6 +147,12 @@ interface Props {
    *  member directory; a project absent from this map is a local project owned
    *  by the current member ("我创建"). */
   projectOwnerMemberIds?: ReadonlyMap<string, string>;
+  /** projectId → the owner's display name, when the caller already resolved it
+   *  (the NexTore listing knows the owner member id but not their name). */
+  projectOwnerNames?: ReadonlyMap<string, string>;
+  /** The signed-in member id for editions whose workspace context carries no
+   *  identity (NexTore). Without it every owner id looks foreign. */
+  selfMemberId?: string | null;
   /** Project currently being materialized before it can open (a member's
    *  first click on a team-shared card triggers a full content pull). The
    *  card shows a spinner overlay and further clicks are ignored — without
@@ -379,6 +388,8 @@ export function RecentProjectsStrip({
   collection: controlledCollection,
   onCollectionChange,
   projectOwnerMemberIds,
+  projectOwnerNames,
+  selfMemberId: selfMemberIdOverride,
   openingProjectId = null,
   collaborationEnabled,
   canManageProjectCollection,
@@ -421,7 +432,7 @@ export function RecentProjectsStrip({
       ...properties,
     }, requestId ? { requestId } : undefined);
   }
-  const selfMemberId = workspaceContext?.workspaceMemberId ?? null;
+  const selfMemberId = selfMemberIdOverride ?? workspaceContext?.workspaceMemberId ?? null;
   // Project sharing needs an exact Workspace/member identity and permission;
   // the resource plane now accepts Personal workspaces as well as Team.
   const collaborationAvailable =
@@ -582,7 +593,10 @@ export function RecentProjectsStrip({
         ownedBySelf: true,
       };
     }
-    const name = resolveMember(ownerMemberId)?.displayName ?? t('recentProjects.teamMemberCreator');
+    const name =
+      projectOwnerNames?.get(projectId)?.trim()
+      || resolveMember(ownerMemberId)?.displayName
+      || t('recentProjects.teamMemberCreator');
     const initial = (Array.from(name.trim())[0] ?? 'T').toUpperCase();
     return { name, initial, avatarUrl: null, ownedBySelf: false };
   };
@@ -590,12 +604,19 @@ export function RecentProjectsStrip({
     () => sortedProjects
       .map((project) => ({ project, creator: resolveCreator(project.id) }))
       .filter(({ project, creator }) => {
-        // 最近浏览过 is the whole catalog; the other two tabs split it by the one
-        // shared-state answer the grids and the card badge already agree on.
+        // 最近浏览过 is the whole catalog; the other two tabs split it.
+        // NexTore's badge is the authority: the upstream predicate only knows
+        // the Cloud team hub, so it files every team and shared project under
+        // 个人项目. Projects outside the listing (a local orphan) fall back to
+        // that predicate.
         const collectionMatches =
           !showCollectionTabs ||
           collection === 'recent' ||
-          (collection === 'personalProjects' ? !isShared(project.id) : isShared(project.id));
+          projectCollectionMatches({
+            collection,
+            badgeKind: projectSpaceBadges?.get(project.id)?.kind ?? null,
+            isShared: isShared(project.id),
+          });
         const ownerMatches =
           !showOwnerFilter ||
           ownerFilter === 'all' ||
@@ -612,6 +633,8 @@ export function RecentProjectsStrip({
       ownerFilter,
       showCollectionTabs,
       projectOwnerMemberIds,
+      projectOwnerNames,
+      projectSpaceBadges,
       resolveMember,
       resolvedLimit,
       selfMemberId,

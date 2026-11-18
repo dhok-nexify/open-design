@@ -17,6 +17,8 @@ export interface NextoreProjectEntry {
   workspaceId?: number;
   workspaceName?: string;
   workspaceType?: string;
+  /** NexTore's owner member id, when the module reports one. */
+  ownerMemberId?: number | null;
 }
 
 export interface NextoreWorkspaceEntry {
@@ -121,7 +123,19 @@ export async function fetchNextoreProjectListing(
     if (!response.ok) return null;
     const body = (await response.json()) as Partial<NextoreProjectListing>;
     return {
-      projects: Array.isArray(body.projects) ? body.projects : [],
+      projects: Array.isArray(body.projects)
+        ? body.projects
+            .filter((project): project is NextoreProjectEntry => Boolean(project) && typeof project.name === 'string')
+            .map((project) => ({
+              ...project,
+              ownerMemberId:
+                typeof project.ownerMemberId === 'number'
+                && Number.isInteger(project.ownerMemberId)
+                && project.ownerMemberId > 0
+                  ? project.ownerMemberId
+                  : null,
+            }))
+        : [],
       workspaces: Array.isArray(body.workspaces)
         ? body.workspaces
             .filter(

@@ -72,6 +72,28 @@ export function buildWorkspaceLabelMap(
   return labels;
 }
 
+/**
+ * Whether a project belongs in 个人项目 or 团队项目 on the 全部项目 page.
+ *
+ * NexTore answers this from the badge the module listing already produced —
+ * a personal project's own workspace versus a team (or shared-with-you) one —
+ * because the upstream shared-project predicate only knows the Cloud team hub
+ * and reports every NexTore project as personal. Callers that have no badge
+ * (upstream editions) keep the original shared-state answer.
+ */
+export function projectCollectionMatches(input: {
+  collection: 'personalProjects' | 'teamProjects';
+  badgeKind: NextoreProjectSpace | null;
+  isShared: boolean;
+}): boolean {
+  if (input.badgeKind) {
+    return input.collection === 'personalProjects'
+      ? input.badgeKind === 'personal'
+      : input.badgeKind !== 'personal';
+  }
+  return input.collection === 'personalProjects' ? !input.isShared : input.isShared;
+}
+
 /** Projects in the active scope that have no content on this device. */
 export function countRemoteOnlyProjects(
   groups: readonly NextoreProjectGroup[],

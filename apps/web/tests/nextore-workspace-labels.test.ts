@@ -5,6 +5,7 @@ import {
   buildWorkspaceLabelMap,
   countRemoteOnlyProjects,
   groupInScope,
+  projectCollectionMatches,
   scopeProjectIds,
 } from '../src/nextore/workspace-labels';
 import type { NextoreProjectGroup } from '../src/nextore-projects';
@@ -85,6 +86,48 @@ describe('buildProjectSpaceBadgeMap', () => {
   it('keeps a badge for a project in an unnamed workspace', () => {
     const badges = buildProjectSpaceBadgeMap([group(4, '', false, [['x', true]])]);
     expect(badges.get('x')).toEqual({ kind: 'team', workspaceName: '' });
+  });
+});
+
+describe('projectCollectionMatches', () => {
+  it('partitions by the NexTore badge, not the Cloud shared predicate', () => {
+    // A team project is NOT "shared" in the Cloud sense; the old predicate
+    // therefore filed it under 个人项目.
+    expect(projectCollectionMatches({
+      collection: 'teamProjects',
+      badgeKind: 'team',
+      isShared: false,
+    })).toBe(true);
+    expect(projectCollectionMatches({
+      collection: 'personalProjects',
+      badgeKind: 'team',
+      isShared: false,
+    })).toBe(false);
+    // A project reached through a share belongs in 团队项目 even when it is
+    // shared from a personal workspace.
+    expect(projectCollectionMatches({
+      collection: 'teamProjects',
+      badgeKind: 'shared',
+      isShared: true,
+    })).toBe(true);
+    expect(projectCollectionMatches({
+      collection: 'personalProjects',
+      badgeKind: 'personal',
+      isShared: false,
+    })).toBe(true);
+  });
+
+  it('falls back to the shared predicate for a project with no badge', () => {
+    expect(projectCollectionMatches({
+      collection: 'teamProjects',
+      badgeKind: null,
+      isShared: true,
+    })).toBe(true);
+    expect(projectCollectionMatches({
+      collection: 'personalProjects',
+      badgeKind: null,
+      isShared: false,
+    })).toBe(true);
   });
 });
 
