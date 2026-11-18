@@ -250,11 +250,12 @@ export interface NextoreAuthOptions {
   secrets: () => NextoreSecrets;
   now?: () => number;
   /**
-   * One delayed re-check after a sign-out hint whose immediate answer was
+   * Delays for the re-checks after a sign-out hint whose earlier answer was
    * still valid. The module's revocation sweep rides the same platform event
-   * as the hint, so the sweep may not have finished when the hint arrives.
+   * as the hint, and its duration grows with the member's connection count,
+   * so one fixed retry is not enough for an account with many.
    */
-  hintRetryMs?: number;
+  hintRetryDelaysMs?: readonly number[];
   /**
    * Run-scoped tool requests authenticate with a signed tool token instead of
    * a browser session. Returning true lets that one request through.
@@ -464,7 +465,7 @@ function escapeHtml(value: string): string {
 
 export function createNextoreAuth(options: NextoreAuthOptions): NextoreAuth {
   const { config, client, store, secrets, allowRequest } = options;
-  const hintRetryMs = options.hintRetryMs ?? 2_000;
+  const hintRetryDelaysMs = options.hintRetryDelaysMs ?? [2_000, 6_000];
   const now = options.now ?? (() => Date.now());
 
   type MemberResult =
@@ -1155,19 +1156,30 @@ export function createNextoreAuth(options: NextoreAuthOptions): NextoreAuth {
     // wait on this daemon.
     res.status(202).json({ accepted: sessions.length });
     for (const session of sessions) {
+      const retry = (index: number): void => {
+        const delay = hintRetryDelaysMs[index];
+        if (delay === undefined) return;
+        const timer = setTimeout(() => {
+          void revalidateSession(session.sid)
+            .then((result) => {
+              // Revoked or unavailable ends this hint: only a still-valid
+              // session is worth asking about again. The 15 s watchdog is the
+              // outer bound when every attempt lands too early.
+              if (result === 'ok') retry(index + 1);
+            })
+            .catch(() => {
+              // A transient failure leaves the session alone; the watchdog retries.
+            });
+        }, delay);
+        timer.unref?.();
+      };
+
       void revalidateSession(session.sid)
         .then((result) => {
-          if (result !== 'ok') return;
           // The revocation sweep and this hint ride the same platform event,
-          // so the connection may still look alive right now. One delayed
-          // re-check settles it without making the module wait; the 15 s
-          // watchdog remains the outer bound for a missed hint.
-          const timer = setTimeout(() => {
-            void revalidateSession(session.sid).catch(() => {
-              // The watchdog retries a transient failure.
-            });
-          }, hintRetryMs);
-          timer.unref?.();
+          // so the connection may still look alive right now. A short ladder
+          // of re-checks settles it without making the module wait.
+          if (result === 'ok') retry(0);
         })
         .catch(() => {
           // A transient failure leaves the session alone; the watchdog retries.
