@@ -96,7 +96,8 @@ import { Icon, type IconName } from "./Icon";
 import { NextStepActions, type NextStepActionsVariant } from "./NextStepActions";
 import type { DesignToolboxActionId } from "../runtime/design-toolbox";
 import { copyToClipboard } from "../lib/copy-to-clipboard";
-import { useT } from "../i18n";
+import { getBrandName, useT } from "../i18n";
+import { NEXTORE_WEB_EDITION } from "../nextore/features";
 import { deriveFileOps, type FileOpEntry } from "../runtime/file-ops";
 import { dedupeToolUsesById, dropSupersededInFlightToolUses } from "../runtime/tool-events";
 import {
@@ -2102,8 +2103,15 @@ export function assistantRoleNameForAgent(
 
 export function assistantRoleName(
   message: ChatMessage,
-  t: TranslateFn
+  t: TranslateFn,
+  options: { edition?: string; brandName?: string } = {},
 ): string {
+  const edition = options.edition ?? NEXTORE_WEB_EDITION;
+  const brandName = options.brandName ?? getBrandName();
+  // In the NexTore edition the only runtime is the internal byok-opencode
+  // bridge. Its protocol name is an implementation detail the person should
+  // not have to read; the product name is the honest label for this surface.
+  if (edition === 'nextore' && message.agentId === 'byok-opencode') return brandName;
   const resolved = assistantRoleNameForAgent(message.agentName, message.agentId);
   if (resolved) return resolved;
   const starting = message.events?.find(

@@ -1,8 +1,52 @@
 import { describe, expect, it } from 'vitest';
-import { assistantRoleLabel } from '../../src/components/AssistantMessage';
+import { assistantRoleLabel, assistantRoleName } from '../../src/components/AssistantMessage';
 import type { ChatMessage } from '../../src/types';
 
 const t = () => 'Assistant';
+
+describe('assistantRoleName', () => {
+  it('uses the product brand for the byok-opencode bridge in the NexTore edition', () => {
+    const message: ChatMessage = {
+      id: 'message-brand',
+      role: 'assistant',
+      content: '',
+      agentId: 'byok-opencode',
+    };
+
+    expect(assistantRoleName(message, t, {
+      edition: 'nextore',
+      brandName: 'Nextore Designer',
+    })).toBe('Nextore Designer');
+  });
+
+  it('keeps the upstream OpenCode label outside the NexTore edition', () => {
+    const message: ChatMessage = {
+      id: 'message-upstream',
+      role: 'assistant',
+      content: '',
+      agentId: 'byok-opencode',
+    };
+
+    expect(assistantRoleName(message, t, {
+      edition: 'upstream',
+      brandName: 'Nextore Designer',
+    })).toBe('OpenCode');
+  });
+
+  it('keeps the real OpenCode CLI label in the NexTore edition', () => {
+    const message: ChatMessage = {
+      id: 'message-opencode',
+      role: 'assistant',
+      content: '',
+      agentId: 'opencode',
+    };
+
+    expect(assistantRoleName(message, t, {
+      edition: 'nextore',
+      brandName: 'Nextore Designer',
+    })).toBe('OpenCode');
+  });
+});
 
 describe('assistantRoleLabel', () => {
   it('prefers the persisted assistant display name over the protocol id', () => {
