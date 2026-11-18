@@ -162,6 +162,8 @@ interface Props {
   projectWorkspaceLabels?: ReadonlyMap<string, string>;
   /** NexTore edition: projectId -> the capsule shown on the card. */
   projectSpaceBadges?: ReadonlyMap<string, NextoreProjectSpaceBadge>;
+  /** Which NexTore workspace the rail is standing in; Team projects only exist here. */
+  nextoreWorkspaceType?: 'personal' | 'team' | 'shared';
 }
 
 /** Fallback for a caller with no sharing surface (no workspace, no grids). */
@@ -383,6 +385,7 @@ export function RecentProjectsStrip({
   isActive = true,
   projectWorkspaceLabels,
   projectSpaceBadges,
+  nextoreWorkspaceType,
 }: Props) {
   const t = useT();
   const analytics = useAnalytics();
@@ -439,7 +442,9 @@ export function RecentProjectsStrip({
   const showCollectionTabs = space === 'drafts';
   // Every verified workspace may now have projects explicitly shared to its
   // members; a private project still belongs only in the personal collection.
-  const teamCollectionAvailable = workspaceContextHasWorkspaceIdentity(workspaceContext);
+  const teamCollectionAvailable = nextoreWorkspaceType
+    ? nextoreWorkspaceType === 'team'
+    : workspaceContextHasWorkspaceIdentity(workspaceContext);
   const collectionOptions = teamCollectionAvailable
     ? COLLECTION_OPTIONS
     : COLLECTION_OPTIONS.filter((option) => option.id !== 'teamProjects');

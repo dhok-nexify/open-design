@@ -254,7 +254,20 @@ describe('Personal workspace shared-project collection', () => {
   });
 });
 
-describe('NexTore project-space badge', () => {
+describe('NexTore workspace type', () => {
+  it('shows Team projects in a team workspace even without the cloud context', () => {
+    workspaceState.context = null;
+    renderPage({ nextoreWorkspaceType: 'team' });
+    expect(screen.getByTestId('recent-projects-collection-teamProjects')).toBeTruthy();
+  });
+
+  it('hides Team projects in a personal workspace even when the cloud context is team', () => {
+    workspaceState.context = teamContext();
+    const { container } = renderPage({ nextoreWorkspaceType: 'personal' });
+    expect(within(tabs(container)).getAllByRole('radio')).toHaveLength(2);
+    expect(screen.queryByTestId('recent-projects-collection-teamProjects')).toBeNull();
+  });
+
   it('renders the project-space capsule with the workspace name as context', () => {
     renderPage({
       projectSpaceBadges: new Map([

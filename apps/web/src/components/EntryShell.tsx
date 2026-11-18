@@ -1122,6 +1122,14 @@ export function EntryShell({
     () => buildProjectSpaceBadgeMap(nextoreGroups),
     [nextoreGroups],
   );
+  const nextoreActiveGroup = nextoreWorkspaceContext
+    ? nextoreGroups.find((group) => group.workspaceId === nextoreWorkspaceContext.workspaceId)
+    : undefined;
+  const nextoreWorkspaceType = nextoreActiveGroup?.sharedOnly
+    ? 'shared'
+    : nextoreActiveGroup?.workspaceType === 'team'
+      ? 'team'
+      : 'personal';
   // Projects in the active scope with no content on this device have no card
   // to render, so their count is stated instead of silently missing.
   const nextoreRemoteOnlyCount = useMemo(
@@ -2702,7 +2710,10 @@ export function EntryShell({
                     canAssignInviteRoles={workspaceContext?.permissions.canInviteMembers === true}
                     canManageProjectCollection={workspaceContext?.permissions.canShareProjects === true}
                     {...(NEXTORE_WEB_EDITION === 'nextore'
-                      ? { projectSpaceBadges: nextoreProjectSpaceBadges }
+                      ? {
+                          projectSpaceBadges: nextoreProjectSpaceBadges,
+                          nextoreWorkspaceType,
+                        }
                       : {})}
                   />
                 </div>
