@@ -438,6 +438,7 @@ import { registerNextoreArtifactRoutes } from './nextore/artifacts/routes.js';
 import { registerNextoreArtifactDownloadRoutes } from './nextore/artifacts/download-routes.js';
 import { registerNextoreArtifactShareRoutes } from './nextore/artifacts/share-routes.js';
 import { registerNextoreBackfillRoutes } from './nextore/artifacts/backfill-routes.js';
+import { registerCliAuthRoutes } from './nextore/auth/cli-auth-routes.js';
 import { nextoreHealthMetadata } from './nextore/routes.js';
 import {
   authorizeCreatedProjectWorkspace,
@@ -3400,6 +3401,7 @@ export async function startServer({
   if (nextoreAuth) {
     // '/auth/*' must be matched before the SPA fallback.
     nextoreAuth.registerRoutes(app);
+    registerCliAuthRoutes(app, { db: () => db, enabled: process.env.NEXTORE_CLI_AUTH === 'on' });
   }
   const projectPreviewScopes = createProjectPreviewScopeRegistry();
 

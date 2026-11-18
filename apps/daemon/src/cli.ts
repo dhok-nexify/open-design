@@ -18,6 +18,12 @@ import { runLiveArtifactsToolCli } from './tools-live-artifacts-cli.js';
 import { runDeliverableSyntaxToolCli } from './tools-deliverable-syntax-cli.js';
 import { splitResearchSubcommand } from './research/cli-args.js';
 import { resolveDaemonUrl } from './daemon-url.js';
+import {
+  clearCliToken,
+  loginViaBrowser,
+  readCliToken,
+} from './nextore/auth/cli-client.js';
+import { spawn } from 'node:child_process';
 import { byokProviderFromCliOptions } from './runtimes/byok-cli.js';
 import { BYOK_OPENCODE_AGENT_ID } from './runtimes/byok-opencode.js';
 import { redactSecrets } from './connectionTest.js';
@@ -428,6 +434,7 @@ const SUBCOMMAND_MAP = {
   brands: runBrand,
   project: runProject,
   nextore: runNextore,
+  auth: runAuth,
   strategy: runStrategy,
   workspace: runWorkspace,
   automation: runAutomation,
@@ -7557,6 +7564,116 @@ function repeatedFlagValues(argv, name) {
  * team workspace creation is the only command today, and it needs
  * DesignerAdmin just like the dialog.
  */
+/**
+ * od auth login|logout|status - NXD-P10.
+ *
+ * login runs a loopback redirect with PKCE; the browser (already signed in to
+ * NexTore) approves the code, and the CLI exchanges it for a scoped token that
+ * is stored owner-only.
+ */
+async function runAuth(args) {
+  const AUTH_STRING_FLAGS = new Set(['daemon-url', 'redirect-host']);
+  const AUTH_BOOLEAN_FLAGS = new Set(['help', 'h', 'json', 'no-open']);
+  const action = args[0] ?? 'status';
+  if (action === 'help' || args.includes('--help') || args.includes('-h')) {
+    console.log(`Usage:
+  od auth login [--no-open] [--daemon-url <url>] [--json]
+  od auth status [--json]
+  od auth logout [--json]
+
+  Login opens the NexTore sign-in page in a browser; the resulting token can
+  read and write projects and start runs, but never reaches admin settings.
+  Requires the daemon to run with NEXTORE_CLI_AUTH=on.`);
+    return;
+  }
+  const flags = parseFlags(args.slice(1), { string: AUTH_STRING_FLAGS, boolean: AUTH_BOOLEAN_FLAGS });
+  const daemonBase = (await cliDaemonBaseUrl(flags)).replace(/\/$/, '');
+
+  if (action === 'login') {
+    const openBrowser = flags['no-open'] === true ? undefined : (url) => {
+      try {
+        const command = process.platform === 'win32'
+          ? { file: 'cmd', args: ['/c', 'start', '', url] }
+          : process.platform === 'darwin'
+            ? { file: 'open', args: [url] }
+            : { file: 'xdg-open', args: [url] };
+        const child = spawn(command.file, command.args, { detached: true, stdio: 'ignore' });
+        child.unref();
+      } catch {
+        // The URL is already printed; the user can open it manually.
+      }
+    };
+    try {
+      const stored = await loginViaBrowser({ daemonUrl: daemonBase, ...(openBrowser ? { openBrowser } : {}) });
+      if (flags.json) {
+        return process.stdout.write(JSON.stringify({
+          memberId: stored.memberId,
+          scopes: stored.scopes,
+          expiresAt: stored.expiresAt,
+        }, null, 2) + '\n');
+      }
+      console.log('[auth] signed in as member ' + stored.memberId + '; token expires '
+        + new Date(stored.expiresAt).toISOString());
+      return;
+    } catch (error) {
+      console.error('[auth] login failed: ' + (error instanceof Error ? error.message : String(error)));
+      process.exit(1);
+    }
+  }
+
+  if (action === 'status') {
+    const stored = readCliToken();
+    if (!stored) {
+      if (flags.json) return process.stdout.write(JSON.stringify({ signedIn: false }, null, 2) + '\n');
+      console.log('[auth] not signed in. Run: od auth login');
+      return;
+    }
+    let valid = false;
+    try {
+      const response = await fetch(stored.daemonUrl + '/api/projects', {
+        headers: { authorization: 'Bearer ' + stored.token },
+      });
+      valid = response.status !== 401;
+    } catch {
+      valid = false;
+    }
+    const view = {
+      signedIn: valid,
+      memberId: stored.memberId,
+      scopes: stored.scopes,
+      expiresAt: stored.expiresAt,
+      daemonUrl: stored.daemonUrl,
+    };
+    if (flags.json) return process.stdout.write(JSON.stringify(view, null, 2) + '\n');
+    console.log(valid
+      ? '[auth] signed in as member ' + stored.memberId + ' (expires '
+        + new Date(stored.expiresAt).toISOString() + ')'
+      : '[auth] token is no longer valid. Run: od auth login');
+    return;
+  }
+
+  if (action === 'logout') {
+    const stored = readCliToken();
+    if (stored) {
+      try {
+        await fetch(stored.daemonUrl + '/api/auth/cli/token', {
+          method: 'DELETE',
+          headers: { authorization: 'Bearer ' + stored.token },
+        });
+      } catch {
+        // Local removal still happens; the server row expires on its own.
+      }
+    }
+    const cleared = clearCliToken();
+    if (flags.json) return process.stdout.write(JSON.stringify({ signedOut: true, cleared }, null, 2) + '\n');
+    console.log(cleared ? '[auth] signed out' : '[auth] no stored token');
+    return;
+  }
+
+  console.error('Usage: od auth <login|logout|status> [--json]');
+  process.exit(2);
+}
+
 async function runNextore(args) {
   // Declared inside the function: SUBCOMMAND_MAP dispatches during module
   // evaluation, before top-level consts below the map are initialized.

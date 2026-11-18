@@ -123,7 +123,7 @@ const SESSION_COOKIE_REFRESH_MS = 60 * 60 * 1000;
 const TOUCH_INTERVAL_MS = 60 * 1000;
 
 /** Everything an unauthenticated browser may still reach. */
-const PUBLIC_API_PATHS = new Set(['/health', '/ready', '/version', '/branding']);
+const PUBLIC_API_PATHS = new Set(['/health', '/ready', '/version', '/branding', '/auth/cli/token']);
 const PUBLIC_API_SELF_TEST = '/nextore/self-test';
 
 /**

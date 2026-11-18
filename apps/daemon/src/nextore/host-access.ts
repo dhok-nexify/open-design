@@ -10,6 +10,7 @@ import type { Express, NextFunction, Request, Response } from 'express';
 
 import { createEditionRouteKillSwitch, type Edition } from '../edition/index.js';
 import { createNextoreAuth, type NextoreAuth } from './auth/routes.js';
+import { createApiTokenGate } from './auth/api-token-gate.js';
 import { lazyNextoreSecrets, type NextoreSecrets } from './auth/secrets.js';
 import { createNextoreSessionStore } from './auth/session-store.js';
 import type { NextoreClient } from './client.js';
@@ -70,7 +71,7 @@ export function mountNextoreAccess(options: NextoreAccessOptions): NextoreAccess
     // must not be able to make the daemon buffer a 128 MB clipper capture.
     // The gate also verifies the browser Origin before it resolves a session,
     // so a cross-site request cannot trigger a token refresh or touch a row.
-    app.use('/api', auth.gate);
+    app.use('/api', createApiTokenGate(auth.gate, getDb));
     app.use('/artifacts', auth.gate);
     app.use('/frames', auth.gate);
 
