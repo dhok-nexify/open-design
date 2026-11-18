@@ -1,10 +1,12 @@
 import type {
   CreateNextoreTeamWorkspaceRequest,
+  NextoreArtifactPublishRequest,
   NextoreBrandingResponse,
   NextoreModuleHealthResponse,
   NextoreTier,
   SaveNextoreProjectPermissionsRequest,
 } from '@open-design/contracts';
+import { openAsBlob } from 'node:fs';
 import type { NextoreConfig } from './config.js';
 
 const DEFAULT_TIMEOUT_MS = 8_000;
@@ -111,6 +113,22 @@ export interface NextorePermissionClient {
   ): Promise<T>;
 }
 
+/**
+ * Artifact publication added in P04a. Kept as an extension interface for the
+ * same reason as NextorePermissionClient: existing route mocks that only need
+ * the base client must not be rewritten just because a new endpoint landed.
+ */
+export interface NextoreArtifactClient {
+  publishArtifact<T>(
+    accessToken: string,
+    projectId: string,
+    artifactId: string,
+    metadata: NextoreArtifactPublishRequest,
+    file: { path: string; name: string; mimeType: string },
+    signal?: AbortSignal,
+  ): Promise<T>;
+}
+
 function parseJson(text: string): unknown {
   if (!text) return null;
   try {
@@ -149,7 +167,9 @@ function upstreamErrorMessage(payload: unknown): string | undefined {
   return undefined;
 }
 
-export function createNextoreClient(options: NextoreClientOptions): NextoreClient & NextorePermissionClient {
+export function createNextoreClient(
+  options: NextoreClientOptions,
+): NextoreClient & NextorePermissionClient & NextoreArtifactClient {
   const fetchImpl = options.fetch ?? fetch;
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const configuredBase = new URL(options.config.baseUrl);
@@ -201,6 +221,61 @@ export function createNextoreClient(options: NextoreClientOptions): NextoreClien
     } finally {
       clearTimeout(timeout);
       requestOptions.signal?.removeEventListener('abort', onAbort);
+    }
+  }
+
+  const uploadTimeoutMs = 600_000;
+
+  async function requestMultipart<T>(
+    path: string,
+    form: FormData,
+    accessToken: string,
+    signal?: AbortSignal,
+  ): Promise<T> {
+    const url = new URL(path, configuredBase);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), uploadTimeoutMs);
+    const onAbort = () => controller.abort();
+    if (signal?.aborted) controller.abort();
+    else signal?.addEventListener('abort', onAbort, { once: true });
+
+    try {
+      const response = await fetchImpl(url, {
+        method: 'POST',
+        headers: { accept: 'application/json', APIkey: accessToken },
+        body: form,
+        signal: controller.signal,
+      });
+      const text = await response.text();
+      const payload = parseJson(text);
+
+      if (!response.ok) {
+        const code = upstreamErrorCode(payload);
+        throw new NextoreClientError(
+          'nextore_http_error',
+          upstreamErrorMessage(payload)
+            ?? `NexTore rejected ${path} with HTTP ${response.status}.`,
+          response.status,
+          code,
+        );
+      }
+
+      return payload as T;
+    } catch (error) {
+      if (error instanceof NextoreClientError) throw error;
+      if (controller.signal.aborted) {
+        throw new NextoreClientError(
+          'nextore_timeout',
+          `NexTore upload timed out after ${uploadTimeoutMs}ms.`,
+        );
+      }
+      throw new NextoreClientError(
+        'nextore_unreachable',
+        error instanceof Error ? `NexTore is unreachable: ${error.message}` : 'NexTore is unreachable.',
+      );
+    } finally {
+      clearTimeout(timeout);
+      signal?.removeEventListener('abort', onAbort);
     }
   }
 
@@ -334,6 +409,27 @@ export function createNextoreClient(options: NextoreClientOptions): NextoreClien
       return request<T>(
         'api/designer/projects/' + encodeURIComponent(projectId),
         { accessToken, method: 'DELETE', ...(signal ? { signal } : {}) },
+      );
+    },
+
+    async publishArtifact<T>(
+      accessToken: string,
+      projectId: string,
+      artifactId: string,
+      metadata: NextoreArtifactPublishRequest,
+      file: { path: string; name: string; mimeType: string },
+      signal?: AbortSignal,
+    ) {
+      const form = new FormData();
+      form.append('metadata', JSON.stringify(metadata));
+      const blob = await openAsBlob(file.path, { type: file.mimeType });
+      form.append('file', blob, file.name);
+      return requestMultipart<T>(
+        'api/designer/projects/' + encodeURIComponent(projectId)
+          + '/artifacts/' + encodeURIComponent(artifactId) + '/publish',
+        form,
+        accessToken,
+        signal,
       );
     },
 

@@ -1,5 +1,7 @@
 import type Database from 'better-sqlite3';
 
+import { migrateNextoreArtifactSchema } from './artifacts/store.js';
+
 type SqliteDb = Database.Database;
 
 /**
@@ -100,6 +102,8 @@ export function migrateNextoreDatabase(db: SqliteDb): void {
         started_at INTEGER NOT NULL
       );
     `);
+
+    migrateNextoreArtifactSchema(db);
 
     const messageColumns = db
       .prepare(`PRAGMA table_info(messages)`)
