@@ -78,6 +78,30 @@ describe('listNextoreProjects', () => {
     expect(workspaceProjects).toHaveBeenCalledWith('token', 2);
   });
 
+  it('reads an older module that reports no owner as null, not as zero', async () => {
+    const listing = await listNextoreProjects({
+      client: client({
+        workspaces: vi.fn().mockResolvedValue({
+          workspaces: [{ id: 1, name: 'Me', type: 'personal' }],
+        }),
+        workspaceProjects: vi.fn().mockResolvedValue({
+          projects: [{
+            id: 10,
+            name: 'Legacy',
+            designerProjectId: 'legacy-a',
+            designSystemId: '',
+            skillId: '',
+            status: 'active',
+          }],
+        }),
+      }),
+      accessToken: 'token',
+      localProjectIds: [],
+    });
+
+    expect(listing.projects[0]?.ownerMemberId).toBeNull();
+  });
+
   it('carries the sharedOnly flag from the module', async () => {
     const listing = await listNextoreProjects({
       client: client({

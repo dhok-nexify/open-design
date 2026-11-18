@@ -584,7 +584,12 @@ export function RecentProjectsStrip({
   } => {
     const ownerMemberId = projectOwnerMemberIds?.get(projectId) ?? null;
     if (ownerMemberId === selfMemberId || (!ownerMemberId && !isShared(projectId))) {
-      const name = workspaceContext?.displayName?.trim() || t('recentProjects.selfCreator');
+      // The NexTore directory knows the signed-in member's own name too, so
+      // "created by" reads the person rather than the literal "Me" there.
+      const name =
+        projectOwnerNames?.get(projectId)?.trim()
+        || workspaceContext?.displayName?.trim()
+        || t('recentProjects.selfCreator');
       const initial = Array.from(name.trim())[0]?.toUpperCase() ?? 'M';
       return {
         name,
