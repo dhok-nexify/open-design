@@ -81,6 +81,62 @@ describe('P04h share sunset sweep', () => {
     expect(retry).toHaveBeenCalledTimes(1);
   });
 
+  it('does not record anything when the module endpoint 404s', async () => {
+    const fetchImpl = (async () => new Response('nope', { status: 404 })) as unknown as typeof fetch;
+    const { createSunsetSender } = await import('../src/nextore/share/sunset-notices.js');
+    const sender = createSunsetSender({
+      moduleBaseUrl: 'https://module.test',
+      resolveToken: async () => 'token',
+      fetchImpl,
+    });
+
+    const result = await sweep([link({ bucket: 't7' })], (c) => sender({
+      linkId: c.linkId,
+      projectId: c.projectId,
+      ownerMemberId: c.createdByMemberId,
+      expiresAt: c.expiresAt,
+      bucket: c.bucket as 't30' | 't7' | 't1',
+    }));
+
+    expect(result).toMatchObject({ sent: 0, failed: 1 });
+    const rows = db.prepare('SELECT COUNT(*) AS n FROM nextore_share_sunset_notices').get() as { n: number };
+    expect(rows.n).toBe(0);
+  });
+
+  it('records a 204 decision so the same window is never retried', async () => {
+    const fetchImpl = (async () => new Response(null, { status: 204 })) as unknown as typeof fetch;
+    const { createSunsetSender } = await import('../src/nextore/share/sunset-notices.js');
+    const sender = createSunsetSender({
+      moduleBaseUrl: 'https://module.test',
+      resolveToken: async () => 'token',
+      fetchImpl,
+    });
+    const call = (c: { linkId: string; projectId: string; createdByMemberId: number; expiresAt: number | null; bucket: string }) => sender({
+      linkId: c.linkId,
+      projectId: c.projectId,
+      ownerMemberId: c.createdByMemberId,
+      expiresAt: c.expiresAt,
+      bucket: c.bucket as 't30' | 't7' | 't1',
+    });
+
+    await sweep([link({ bucket: 't1' })], call as never);
+    const again = await sweep([link({ bucket: 't1' })], call as never);
+
+    expect(again).toMatchObject({ sent: 0, skippedDuplicate: 1 });
+  });
+
+  it('classifies buckets with the shared rule', async () => {
+    const { classifySunsetBucket } = await import('../src/nextore/share/sunset-notices.js');
+    const now = Date.UTC(2026, 0, 1);
+    const day = 24 * 60 * 60 * 1000;
+    expect(classifySunsetBucket(null, now)).toBe('never');
+    expect(classifySunsetBucket(now - 1, now)).toBe('expired');
+    expect(classifySunsetBucket(now + day, now)).toBe('t1');
+    expect(classifySunsetBucket(now + 3 * day, now)).toBe('t7');
+    expect(classifySunsetBucket(now + 20 * day, now)).toBe('t30');
+    expect(classifySunsetBucket(now + 60 * day, now)).toBe('later');
+  });
+
   it('treats skipped as decided (no retry)', async () => {
     const skip = vi.fn(async () => 'skipped' as const);
     await sweep([link()], skip);

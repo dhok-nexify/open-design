@@ -94,3 +94,113 @@ export async function runShareSunsetSweep(
   }
   return result;
 }
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+export type SunsetBucket = 'never' | 'expired' | 't1' | 't7' | 't30' | 'later';
+
+/**
+ * Single bucketing rule shared by the sunset report and the sweep, so the two
+ * surfaces can never disagree about when a link moves to a new window.
+ */
+export function classifySunsetBucket(expiresAt: number | null, now: number): SunsetBucket {
+  if (expiresAt === null) return 'never';
+  if (expiresAt <= now) return 'expired';
+  if (expiresAt <= now + DAY_MS) return 't1';
+  if (expiresAt <= now + 7 * DAY_MS) return 't7';
+  if (expiresAt <= now + 30 * DAY_MS) return 't30';
+  return 'later';
+}
+
+export interface SunsetSweepCandidate {
+  linkId: string;
+  projectId: string;
+  ownerMemberId: number;
+  expiresAt: number | null;
+  bucket: 't30' | 't7' | 't1';
+}
+
+/** Active, unrevoked legacy links that currently fall in a notice window. */
+export function listSunsetCandidates(db: SqliteDb, now: number): SunsetSweepCandidate[] {
+  ensureSunsetNoticeSchema(db);
+  const rows = db.prepare(`
+    SELECT token_hash, project_id, created_by_member_id, expires_at
+      FROM nextore_share_links
+     WHERE revoked_at IS NULL
+  `).all() as Array<{
+    token_hash: string;
+    project_id: string;
+    created_by_member_id: number;
+    expires_at: number | null;
+  }>;
+  const result: SunsetSweepCandidate[] = [];
+  for (const row of rows) {
+    const bucket = classifySunsetBucket(row.expires_at, now);
+    if (bucket !== 't30' && bucket !== 't7' && bucket !== 't1') continue;
+    result.push({
+      linkId: row.token_hash,
+      projectId: row.project_id,
+      ownerMemberId: row.created_by_member_id,
+      expiresAt: row.expires_at,
+      bucket,
+    });
+  }
+  return result;
+}
+
+export interface SunsetSenderDeps {
+  moduleBaseUrl: string | null;
+  resolveToken: (ownerMemberId: number) => Promise<string | null>;
+  fetchImpl?: typeof fetch;
+  log?: (message: string) => void;
+  projectName?: (projectId: string) => string | null;
+}
+
+/**
+ * Build the sweep sender. 204 means "decided" (sent, disabled or no channel)
+ * and is recorded so the same window never nags again; anything else means
+ * "not delivered" and stays unrecorded so the next sweep retries.
+ */
+export function createSunsetSender(deps: SunsetSenderDeps) {
+  return async (candidate: SunsetSweepCandidate): Promise<'sent' | 'skipped' | 'failed'> => {
+    if (!deps.moduleBaseUrl) return 'failed';
+    let token: string | null = null;
+    try {
+      token = await deps.resolveToken(candidate.ownerMemberId);
+    } catch {
+      token = null;
+    }
+    if (!token) return 'failed';
+
+    const name = deps.projectName?.(candidate.projectId) ?? candidate.projectId;
+    const expires = candidate.expiresAt ? new Date(candidate.expiresAt).toISOString() : 'never';
+    const subject = 'Legacy share link expires soon';
+    const body = '<p>The legacy share link for ' + name + ' expires ' + expires
+      + '. Create a NexTore link instead.</p>';
+
+    try {
+      const fetchImpl = deps.fetchImpl ?? fetch;
+      const response = await fetchImpl(
+        deps.moduleBaseUrl.replace(/\/+$/, '') + '/api/designer/share-links/sunset-notifications',
+        {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', accept: 'application/json', APIkey: token },
+          body: JSON.stringify({
+            linkId: candidate.linkId,
+            bucket: candidate.bucket,
+            ownerMemberId: candidate.ownerMemberId,
+            subject,
+            body,
+          }),
+        },
+      );
+      if (response.status === 204) return 'sent';
+      deps.log?.('[sunset-notices] module answered ' + response.status);
+      return 'failed';
+    } catch (error) {
+      deps.log?.('[sunset-notices] send failed: '
+        + (error instanceof Error ? error.message : String(error)));
+      return 'failed';
+    }
+  };
+}

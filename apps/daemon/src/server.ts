@@ -440,6 +440,8 @@ import { registerNextoreArtifactShareRoutes } from './nextore/artifacts/share-ro
 import { registerNextoreBackfillRoutes } from './nextore/artifacts/backfill-routes.js';
 import { registerCliAuthRoutes } from './nextore/auth/cli-auth-routes.js';
 import { resolveMemberAccessToken } from './nextore/artifacts/session-access.js';
+import { createSunsetSender, listSunsetCandidates, runShareSunsetSweep } from './nextore/share/sunset-notices.js';
+import { createShareSunsetScheduler } from './nextore/share/sunset-scheduler.js';
 import { registerNextoreEventRoutes } from './nextore/events/routes.js';
 import { invalidateAllProjectAccess } from './nextore/acl/invalidation.js';
 import { nextoreHealthMetadata } from './nextore/routes.js';
@@ -3776,6 +3778,41 @@ export async function startServer({
       })
     : null;
   nextoreArtifactRuntime?.start();
+
+  // P04h: daily legacy-share sunset notices. Off unless the operator opts in.
+  const sunsetScheduler = createShareSunsetScheduler({
+    enabled: process.env.NEXTORE_SUNSET_NOTICES === 'on',
+    runSweep: async () => {
+      if (!nextoreConfig || !nextoreSecrets) return;
+      const sender = createSunsetSender({
+        moduleBaseUrl: nextoreConfig.baseUrl,
+        resolveToken: (ownerMemberId) => resolveMemberAccessToken(ownerMemberId, {
+          store: createNextoreSessionStore(() => db, nextoreSecrets),
+          config: nextoreConfig,
+        }),
+        projectName: (projectId) => getProject(db, projectId)?.name ?? null,
+        log: (message) => console.warn(message),
+      });
+      await runShareSunsetSweep({
+        db,
+        listCandidates: () => listSunsetCandidates(db, Date.now()).map((candidate) => ({
+          linkId: candidate.linkId,
+          projectId: candidate.projectId,
+          createdByMemberId: candidate.ownerMemberId,
+          expiresAt: candidate.expiresAt,
+          bucket: candidate.bucket,
+        })),
+        send: (candidate) => sender({
+          linkId: candidate.linkId,
+          projectId: candidate.projectId,
+          ownerMemberId: candidate.createdByMemberId,
+          expiresAt: candidate.expiresAt,
+          bucket: candidate.bucket as 't30' | 't7' | 't1',
+        }),
+      });
+    },
+  });
+  sunsetScheduler.start();
   const amrTerminalReportOutbox = createAmrTerminalReportOutboxStore(db);
   // P0-24 N10: notices for turns that end while this process runs (never replayed).
   const runNotices = createRunNoticeLog({
@@ -19229,6 +19266,7 @@ export async function startServer({
       collabPublishWatcher.dispose();
       collabCloud?.dispose();
       nextoreArtifactRuntime?.stop();
+  sunsetScheduler.stop();
     };
     const shutdownDaemonRuns = (): Promise<void> => {
       if (daemonShutdownPromise) return daemonShutdownPromise;
