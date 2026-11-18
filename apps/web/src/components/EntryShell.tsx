@@ -2416,7 +2416,9 @@ export function EntryShell({
           /* And the same shared-state answer + optimistic markers the grids
              get, so 转入团队空间 from the rail updates every list at once. */
           isSharedRecentProject={isSharedProject}
-          recentProjectOwnerMemberIds={teamProjectOwnerMemberIds}
+          recentProjectOwnerMemberIds={cardProjectOwnerMemberIds}
+          recentProjectSpaceBadges={nextoreProjectSpaceBadges}
+          recentProjectSelfMemberId={nextoreSelfMemberId}
           onRecentProjectShared={markProjectShared}
           onRecentProjectShareFailed={markProjectShareFailed}
           priorityAnnouncementActive={view === 'home' && goPlanSunsetMessagePending}

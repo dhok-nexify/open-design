@@ -12,6 +12,7 @@ import { createPortal } from 'react-dom';
 import type { ProjectDisplayStatus, WorkspaceCollabContext } from '@open-design/contracts';
 
 import { useT } from '../../i18n';
+import type { NextoreProjectSpaceBadge } from '../../nextore/workspace-labels';
 import { Icon } from '../Icon';
 import {
   hasAwaitingReplyTag,
@@ -136,12 +137,50 @@ export function DeleteMark() {
   );
 }
 
+type SpaceLabelKey =
+  | 'projectSpace.personal'
+  | 'projectSpace.team'
+  | 'projectSpace.shared';
+
+const SPACE_LABEL_KEY: Record<NextoreProjectSpaceBadge['kind'], SpaceLabelKey> = {
+  personal: 'projectSpace.personal',
+  team: 'projectSpace.team',
+  shared: 'projectSpace.shared',
+};
+
+/**
+ * Space marker for one recent row.
+ *
+ * A 6px marker, not the cards' text capsule: the rail's rows are 38px tall and
+ * the name already ellipsizes. The kind differs in SHAPE as well as colour
+ * (circle / rounded square / diamond) so the distinction survives colour
+ * blindness and forced-colours mode, and the accessible name carries the
+ * workspace so the marker is never the only signal.
+ */
+function RailSpaceMarker({ badge }: { badge: NextoreProjectSpaceBadge }) {
+  const t = useT();
+  const label = t(SPACE_LABEL_KEY[badge.kind]);
+  const workspace = badge.workspaceName.trim();
+  const title = workspace ? label + ': ' + workspace : label;
+  return (
+    <span
+      className="entry-nav-rail__recent-space"
+      data-space={badge.kind}
+      role="img"
+      aria-label={title}
+      title={title}
+      data-testid="entry-nav-recent-space"
+    />
+  );
+}
+
 export function RailRecentRow({
   project,
   workspaceContext,
   runStatus,
   runId,
   ownedBySelf = true,
+  spaceBadge = null,
   shared = false,
   moveToTeamAvailable = false,
   sharing = false,
@@ -164,6 +203,10 @@ export function RailRecentRow({
    *  so a row someone else shared keeps its mutations disabled with the same
    *  explanation the project cards give (`recentProjects.ownOnlyMutation`). */
   ownedBySelf?: boolean;
+  /** NexTore edition: the space this project lives in. The rail rows are too
+   *  narrow for the cards' text capsule, so this renders as a 6px marker
+   *  whose SHAPE also differs per kind — colour alone would fail WCAG 1.4.1. */
+  spaceBadge?: NextoreProjectSpaceBadge | null;
   /** Already in the team space: 转入团队空间 reads 已在团队空间 and is inert. */
   shared?: boolean;
   /** Whether the workspace has a team plane to move into at all; a personal
@@ -351,6 +394,7 @@ export function RailRecentRow({
             )}
           </span>
           <span className="entry-nav-rail__recent-name">{project.name}</span>
+          {spaceBadge ? <RailSpaceMarker badge={spaceBadge} /> : null}
           {/* P0-24 推测项 A-09:等用户回答时,项目名后面写出「需要你回复」(OPEND-4216) */}
           {runStatus && hasAwaitingReplyTag(runStatus) ? (
             <ProjectAwaitingReplyTag

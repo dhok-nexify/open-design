@@ -525,6 +525,46 @@ describe('EntryNavRail 最近浏览过 section', () => {
     expect(within(menu).getByRole('alert').textContent).toBe('Could not move to team space. Try again.');
   });
 
+  it('marks each recent row with its NexTore space and names it for assistive tech', () => {
+    renderRail({
+      context: null,
+      recentProjectSpaceBadges: new Map([
+        ['p1', { kind: 'personal', workspaceName: 'My workspace' }],
+        ['p2', { kind: 'team', workspaceName: 'Content team' }],
+        ['p3', { kind: 'shared', workspaceName: 'Content team' }],
+      ]),
+      recentProjects: [project('p1', 40), project('p2', 30), project('p3', 20), project('p9', 10)],
+    });
+
+    const rows = screen.getAllByTestId('entry-nav-recent-item');
+    expect(within(rows[0]!).getByTestId('entry-nav-recent-space')).toHaveAttribute('data-space', 'personal');
+    expect(within(rows[1]!).getByTestId('entry-nav-recent-space')).toHaveAttribute('data-space', 'team');
+    expect(within(rows[2]!).getByTestId('entry-nav-recent-space')).toHaveAttribute('data-space', 'shared');
+    // Colour is not the only signal: the marker is an image with a name, and
+    // its title carries the workspace the project lives in.
+    expect(within(rows[1]!).getByRole('img', { name: 'Team: Content team' })).toBeTruthy();
+    expect(within(rows[2]!).getByRole('img', { name: 'Shared: Content team' })).toBeTruthy();
+    // A row with no listing entry (a local orphan) stays unmarked rather than
+    // claiming a space.
+    expect(screen.getAllByTestId('entry-nav-recent-space')).toHaveLength(3);
+  });
+
+  it('uses the explicit member id to keep the owner\'s own rows mutable', () => {
+    renderRail({
+      context: null,
+      recentProjectOwnerMemberIds: new Map([['p1', '42'], ['p2', '77']]),
+      recentProjectSelfMemberId: '42',
+    });
+    fireEvent.click(screen.getAllByTestId('entry-nav-recent-more')[0]!);
+    const ownMenu = screen.getByRole('menu');
+    expect((within(ownMenu).getByRole('menuitem', { name: 'Rename' }) as HTMLButtonElement).disabled).toBe(false);
+    fireEvent.keyDown(document, { key: 'Escape' });
+
+    fireEvent.click(screen.getAllByTestId('entry-nav-recent-more')[1]!);
+    const foreignMenu = screen.getByRole('menu');
+    expect((within(foreignMenu).getByRole('menuitem', { name: 'Rename' }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
   it('disables mutations on a row someone else shared', () => {
     renderRail({
       context: teamContext,

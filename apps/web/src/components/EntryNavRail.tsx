@@ -50,6 +50,7 @@ import {
 import { createPortal } from 'react-dom';
 import { coalescedGet, evictCoalescedGet } from '../lib/coalesced-get';
 import { compareRecentProjects } from '../lib/project-order';
+import type { NextoreProjectSpaceBadge } from '../nextore/workspace-labels';
 import {
   canReachWorkspaceBillingEntrance,
   workspaceSeatCapacityState,
@@ -316,6 +317,12 @@ interface Props {
    *  rows the member may mutate and which are already in the team space. */
   isSharedRecentProject?: SharedProjectPredicate;
   recentProjectOwnerMemberIds?: ReadonlyMap<string, string>;
+  /** projectId → who owns it, for the rail rows' compact space indicator
+   *  (NexTore edition). The rows are too narrow for the text capsule the
+   *  project cards carry, so they use a shape + colour marker instead. */
+  recentProjectSpaceBadges?: ReadonlyMap<string, NextoreProjectSpaceBadge>;
+  /** The signed-in member id when the workspace context carries none. */
+  recentProjectSelfMemberId?: string | null;
   /** Optimistic shared-state markers for a 转入团队空间 from the rail — the
    *  same callbacks EntryShell hands the project cards. */
   onRecentProjectShared?: (project: WorkspaceProjectSummary) => void;
@@ -423,6 +430,8 @@ function RailRecentSection({
   onDuplicate,
   isShared,
   ownerMemberIds,
+  spaceBadges,
+  selfMemberId,
   onProjectShared,
   onProjectShareFailed,
   workspaceContext,
@@ -436,6 +445,8 @@ function RailRecentSection({
   onDuplicate?: (id: string) => Promise<void> | void;
   isShared?: SharedProjectPredicate;
   ownerMemberIds?: ReadonlyMap<string, string>;
+  spaceBadges?: ReadonlyMap<string, NextoreProjectSpaceBadge>;
+  selfMemberId?: string | null;
   onProjectShared?: (project: WorkspaceProjectSummary) => void;
   onProjectShareFailed?: (projectId: string) => void;
   workspaceContext?: WorkspaceCollabContext | null;
@@ -458,7 +469,7 @@ function RailRecentSection({
   const ownedBySelf = (projectId: string) => projectOwnedBySelf({
     projectId,
     ownerMemberIds,
-    selfMemberId: workspaceContext?.workspaceMemberId,
+    selfMemberId: selfMemberId ?? workspaceContext?.workspaceMemberId,
     isShared: isSharedProject,
   });
   // 删除 confirms through the shared project delete dialog (OPEND-2797) — one
@@ -623,6 +634,7 @@ function RailRecentSection({
                     workspaceContext={workspaceContext}
                     runStatus={runStatusByProjectId.get(project.id)}
                     ownedBySelf={ownedBySelf(project.id)}
+                    spaceBadge={spaceBadges?.get(project.id) ?? null}
                     shared={isSharedProject(project.id)}
                     moveToTeamAvailable={moveToTeamAvailable}
                     sharing={moveFlow.sharingId === project.id}
@@ -2006,6 +2018,8 @@ export function EntryNavRail({
   onDuplicateRecentProject,
   isSharedRecentProject,
   recentProjectOwnerMemberIds,
+  recentProjectSpaceBadges,
+  recentProjectSelfMemberId,
   onRecentProjectShared,
   onRecentProjectShareFailed,
   priorityAnnouncementActive,
@@ -2576,6 +2590,8 @@ export function EntryNavRail({
               onDuplicate={onDuplicateRecentProject}
               isShared={isSharedRecentProject}
               ownerMemberIds={recentProjectOwnerMemberIds}
+              spaceBadges={recentProjectSpaceBadges}
+              selfMemberId={recentProjectSelfMemberId}
               onProjectShared={onRecentProjectShared}
               onProjectShareFailed={onRecentProjectShareFailed}
               workspaceContext={context}
@@ -2662,6 +2678,10 @@ export function EntryNavRail({
               onRename={onRenameRecentProject}
               onDelete={onDeleteRecentProject}
               onDuplicate={onDuplicateRecentProject}
+              isShared={isSharedRecentProject}
+              ownerMemberIds={recentProjectOwnerMemberIds}
+              spaceBadges={recentProjectSpaceBadges}
+              selfMemberId={recentProjectSelfMemberId}
               workspaceContext={null}
               analyticsPage={analyticsPage}
               label={t('recentProjects.title')}
