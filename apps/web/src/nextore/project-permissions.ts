@@ -94,6 +94,30 @@ function asString(value: unknown): string {
   return typeof value === 'string' ? value : '';
 }
 
+/**
+ * Reads one field that the module may spell in either JSON casing.
+ *
+ * The module serialises its C# records with PascalCase property names while
+ * the wire helpers elsewhere in the daemon already accept both spellings. The
+ * permission endpoints forward the module body untouched, so the drawer must
+ * accept the same pair or every flag reads as missing.
+ */
+function pick(record: Record<string, unknown>, camel: string, pascal: string): unknown {
+  return record[camel] ?? record[pascal];
+}
+
+function asBoolean(record: Record<string, unknown>, camel: string, pascal: string): boolean {
+  return pick(record, camel, pascal) === true;
+}
+
+function asNumberField(
+  record: Record<string, unknown>,
+  camel: string,
+  pascal: string,
+): number | null {
+  return asPositiveInt(pick(record, camel, pascal));
+}
+
 function asPositiveInt(value: unknown): number | null {
   return typeof value === 'number' && Number.isInteger(value) && value > 0 ? value : null;
 }
@@ -101,44 +125,46 @@ function asPositiveInt(value: unknown): number | null {
 function normalizeRights(value: unknown): NextoreProjectPermissionRights {
   const rights = isRecord(value) ? value : {};
   return {
-    manage: rights.manage === true,
-    read: rights.read === true,
-    edit: rights.edit === true,
-    delete: rights.delete === true,
-    download: rights.download === true,
-    checkOut: rights.checkOut === true,
-    createFile: rights.createFile === true,
-    createFolder: rights.createFolder === true,
+    manage: asBoolean(rights, 'manage', 'Manage'),
+    read: asBoolean(rights, 'read', 'Read'),
+    edit: asBoolean(rights, 'edit', 'Edit'),
+    delete: asBoolean(rights, 'delete', 'Delete'),
+    download: asBoolean(rights, 'download', 'Download'),
+    checkOut: asBoolean(rights, 'checkOut', 'CheckOut'),
+    createFile: asBoolean(rights, 'createFile', 'CreateFile'),
+    createFolder: asBoolean(rights, 'createFolder', 'CreateFolder'),
   };
 }
 
 function normalizePermissionItem(value: unknown): NextoreProjectPermissionItem | null {
   if (!isRecord(value)) return null;
-  const recordId = asPositiveInt(value.recordId);
-  const recordType = value.recordType;
+  const recordId = asNumberField(value, 'recordId', 'RecordId');
+  const recordType = pick(value, 'recordType', 'RecordType');
   if (recordId === null) return null;
   if (recordType !== 'owner' && recordType !== 'group' && recordType !== 'member') return null;
   return {
     recordId,
     recordType,
-    name: asString(value.name),
-    inherited: value.inherited === true,
-    rights: normalizeRights(value.rights),
+    name: asString(pick(value, 'name', 'Name')),
+    inherited: asBoolean(value, 'inherited', 'Inherited'),
+    rights: normalizeRights(pick(value, 'rights', 'Rights')),
   };
 }
 
 export function normalizeProjectPermissions(value: unknown): NextoreProjectPermissions | null {
   if (!isRecord(value)) return null;
-  const customized = Array.isArray(value.customized)
-    ? value.customized.map(normalizePermissionItem).filter((item): item is NextoreProjectPermissionItem => Boolean(item))
+  const customizedValue = pick(value, 'customized', 'Customized');
+  const inheritedValue = pick(value, 'inherited', 'Inherited');
+  const customized = Array.isArray(customizedValue)
+    ? customizedValue.map(normalizePermissionItem).filter((item): item is NextoreProjectPermissionItem => Boolean(item))
     : [];
-  const inherited = Array.isArray(value.inherited)
-    ? value.inherited.map(normalizePermissionItem).filter((item): item is NextoreProjectPermissionItem => Boolean(item))
+  const inherited = Array.isArray(inheritedValue)
+    ? inheritedValue.map(normalizePermissionItem).filter((item): item is NextoreProjectPermissionItem => Boolean(item))
     : [];
   return {
-    exists: value.exists === true,
-    canManage: value.canManage === true,
-    isInherit: value.isInherit === true,
+    exists: asBoolean(value, 'exists', 'Exists'),
+    canManage: asBoolean(value, 'canManage', 'CanManage'),
+    isInherit: asBoolean(value, 'isInherit', 'IsInherit'),
     customized,
     inherited,
   };
@@ -150,35 +176,37 @@ export interface PermissionGroupsResult {
 }
 
 export function normalizePermissionGroups(value: unknown): PermissionGroupsResult {
-  if (!isRecord(value) || !Array.isArray(value.groups)) {
+  const entries = isRecord(value) ? pick(value, 'groups', 'Groups') : null;
+  if (!Array.isArray(entries)) {
     return { groups: [], truncated: false };
   }
   const groups: NextorePermissionGroup[] = [];
-  for (const entry of value.groups) {
+  for (const entry of entries) {
     if (!isRecord(entry)) continue;
-    const id = asPositiveInt(entry.id);
+    const id = asNumberField(entry, 'id', 'Id');
     if (id === null) continue;
     groups.push({
       id,
-      name: asString(entry.name),
-      parentId: asPositiveInt(entry.parentId) ?? 0,
+      name: asString(pick(entry, 'name', 'Name')),
+      parentId: asNumberField(entry, 'parentId', 'ParentId') ?? 0,
     });
   }
-  return { groups, truncated: value.truncated === true };
+  return { groups, truncated: isRecord(value) && asBoolean(value, 'truncated', 'Truncated') };
 }
 
 export function normalizePermissionMembers(value: unknown): NextorePermissionMember[] {
-  if (!isRecord(value) || !Array.isArray(value.members)) return [];
+  const entries = isRecord(value) ? pick(value, 'members', 'Members') : null;
+  if (!Array.isArray(entries)) return [];
   const members: NextorePermissionMember[] = [];
-  for (const entry of value.members) {
+  for (const entry of entries) {
     if (!isRecord(entry)) continue;
-    const id = asPositiveInt(entry.id);
+    const id = asNumberField(entry, 'id', 'Id');
     if (id === null) continue;
     members.push({
       id,
-      login: asString(entry.login),
-      fullName: asString(entry.fullName),
-      email: asString(entry.email),
+      login: asString(pick(entry, 'login', 'Login')),
+      fullName: asString(pick(entry, 'fullName', 'FullName')),
+      email: asString(pick(entry, 'email', 'Email')),
     });
   }
   return members;

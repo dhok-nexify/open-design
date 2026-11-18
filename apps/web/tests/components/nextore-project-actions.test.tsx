@@ -71,13 +71,25 @@ describe('NexTore project entries', () => {
     expect(screen.queryByTestId('nextore-share-link')).toBeNull();
   });
 
-  it('always offers the permission editor entry', () => {
-    const { onOpenPermissions } = renderActions(null);
+  it('offers the permission editor to a manager and opens the drawer', () => {
+    const { onOpenPermissions } = renderActions(LOCAL_PROJECT_ACCESS);
 
     const permissions = screen.getByTestId('nextore-manage-permissions');
     expect(permissions).toHaveTextContent('Permissions');
     fireEvent.click(permissions);
     expect(onOpenPermissions).toHaveBeenCalledTimes(1);
+  });
+
+  it('hides the permission editor from a reader and while access is unknown', () => {
+    // A reader's GET is refused by the module, so the entry must not exist at
+    // all; an unanswered access read is not proof of the right either.
+    cleanup();
+    renderActions({ ...LOCAL_PROJECT_ACCESS, canManage: false });
+    expect(screen.queryByTestId('nextore-manage-permissions')).toBeNull();
+
+    cleanup();
+    renderActions(null);
+    expect(screen.queryByTestId('nextore-manage-permissions')).toBeNull();
   });
 
   it('shows the quarantine notice with its message', () => {

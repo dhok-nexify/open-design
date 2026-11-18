@@ -41,14 +41,21 @@ export function NextoreProjectActions({
           {t('fileViewer.publishSingleFileTitle')}
         </button>
       ) : null}
-      <button
-        type="button"
-        className="chrome-action chrome-action-secondary chrome-action-with-label chrome-action-text-only"
-        data-testid="nextore-manage-permissions"
-        onClick={onOpenPermissions}
-      >
-        {t('plugins.availableDetails.permissions')}
-      </button>
+      {/* The ACL editor is a management surface, not a viewer: the module
+          refuses every read for a member without CanManage, so offering the
+          entry to a reader only produces a "could not load" drawer. It also
+          stays hidden until the access read lands, because an unknown answer
+          is not proof of the right. */}
+      {canManage ? (
+        <button
+          type="button"
+          className="chrome-action chrome-action-secondary chrome-action-with-label chrome-action-text-only"
+          data-testid="nextore-manage-permissions"
+          onClick={onOpenPermissions}
+        >
+          {t('plugins.availableDetails.permissions')}
+        </button>
+      ) : null}
     </>
   );
 }

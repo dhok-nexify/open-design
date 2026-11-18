@@ -79,6 +79,77 @@ describe('project permission normalization', () => {
     });
   });
 
+  it('reads the module payload when its properties are PascalCase', () => {
+    // The module serialises C# records as-is (ProjectPermissionSnapshot,
+    // PermissionGroupSummary, PermissionMemberSummary), while this file's
+    // first tests used the camelCase spelling the daemon uses elsewhere. Both
+    // must land in the same shape or the drawer reads CanManage as false and
+    // renders a read-only matrix for a manager.
+    expect(normalizeProjectPermissions({
+      Exists: true,
+      CanManage: true,
+      IsInherit: false,
+      Customized: [{
+        RecordId: 11,
+        RecordType: 'group',
+        Name: 'Design',
+        Inherited: false,
+        Rights: { Manage: true, Read: true, Edit: true, CheckOut: true },
+      }],
+      Inherited: [{
+        RecordId: 12,
+        RecordType: 'member',
+        Name: 'Ann',
+        Inherited: true,
+        Rights: { Read: true, Download: true },
+      }],
+    })).toEqual({
+      exists: true,
+      canManage: true,
+      isInherit: false,
+      customized: [{
+        recordId: 11,
+        recordType: 'group',
+        name: 'Design',
+        inherited: false,
+        rights: expect.objectContaining({
+          manage: true,
+          read: true,
+          edit: true,
+          checkOut: true,
+          delete: false,
+          createFile: false,
+        }),
+      }],
+      inherited: [{
+        recordId: 12,
+        recordType: 'member',
+        name: 'Ann',
+        inherited: true,
+        rights: expect.objectContaining({ read: true, download: true, manage: false }),
+      }],
+    });
+  });
+
+  it('reads PascalCase group and member payloads', () => {
+    expect(normalizePermissionGroups({
+      Groups: [
+        { Id: 3, Name: 'Operations', ParentId: 0 },
+        { Id: 4, Name: 'Ops / Design', ParentId: 3 },
+      ],
+      Truncated: true,
+    })).toEqual({
+      groups: [
+        { id: 3, name: 'Operations', parentId: 0 },
+        { id: 4, name: 'Ops / Design', parentId: 3 },
+      ],
+      truncated: true,
+    });
+    expect(normalizePermissionMembers({
+      Members: [{ Id: 21, Login: 'reader', FullName: 'Reader', Email: 'reader@example.test' }],
+    })).toEqual([{ id: 21, login: 'reader', fullName: 'Reader', email: 'reader@example.test' }]);
+  });
+
   it('drops malformed rows and defaults unknown flags to false', () => {
     const normalized = normalizeProjectPermissions({
       customized: [
