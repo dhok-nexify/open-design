@@ -6,10 +6,14 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { registerNextoreArtifactRoutes } from '../src/nextore/artifacts/routes.js';
 import type { NextoreArtifactRuntime } from '../src/nextore/artifacts/runtime.js';
 
-function runtimeStub(retried: boolean): NextoreArtifactRuntime {
+function runtimeStub(
+  retried: boolean,
+  reconciled: Record<string, unknown> | null = { adopted: 0, requeued: 0, orphaned: 0, skipped: 0, unavailable: false },
+): NextoreArtifactRuntime {
   return {
     status: vi.fn(() => ({ projectId: 'project-1', artifactId: 'artifact-1', representations: [] })),
     retry: vi.fn(() => retried),
+    reconcileProject: vi.fn(async () => reconciled),
   } as unknown as NextoreArtifactRuntime;
 }
 
@@ -109,6 +113,32 @@ describe('nextore artifact retry route', () => {
 
     expect(response.status).toBe(403);
     expect(runtime.retry).not.toHaveBeenCalled();
+  });
+
+  it('returns the reconciliation summary', async () => {
+    const runtime = runtimeStub(true, { adopted: 2, requeued: 1, orphaned: 0, skipped: 0, unavailable: false });
+    const base = await startApp({ retried: true, runtime });
+
+    const response = await fetch(
+      `${base}/api/nextore/projects/project-1/artifacts/reconcile`,
+      { method: 'POST' },
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ projectId: 'project-1', adopted: 2, requeued: 1 });
+  });
+
+  it('answers 409 when reconciliation cannot run yet', async () => {
+    const runtime = runtimeStub(true, null);
+    const base = await startApp({ retried: true, runtime });
+
+    const response = await fetch(
+      `${base}/api/nextore/projects/project-1/artifacts/reconcile`,
+      { method: 'POST' },
+    );
+
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({ error: 'reconcile_unavailable' });
   });
 
   it('answers 404 when the artifact runtime is disabled', async () => {

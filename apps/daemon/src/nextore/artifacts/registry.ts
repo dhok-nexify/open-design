@@ -66,7 +66,7 @@ function normalizeRelativePath(value: string | null | undefined): string | null 
   return normalized;
 }
 
-function mimeTypeFor(relativePath: string): string {
+export function mimeTypeFor(relativePath: string): string {
   const extension = path.posix.extname(relativePath).toLowerCase();
   return MIME_BY_EXTENSION[extension] ?? 'application/octet-stream';
 }

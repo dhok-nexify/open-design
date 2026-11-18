@@ -14,7 +14,11 @@ import type {
   TokenUpdate,
 } from '../src/nextore/auth/session-store.js';
 import { migrateNextoreDatabase } from '../src/nextore/db.js';
-import { getNextoreArtifact, listNextorePublishQueue } from '../src/nextore/artifacts/store.js';
+import {
+  getNextoreArtifact,
+  listNextorePublishQueue,
+  upsertNextoreArtifact,
+} from '../src/nextore/artifacts/store.js';
 import { NextoreArtifactRuntime, type NextoreArtifactStatusEvent } from '../src/nextore/artifacts/runtime.js';
 
 const config: NextoreConfig = {
@@ -234,5 +238,148 @@ describe('NextoreArtifactRuntime', () => {
     const status = worker.status('project-1', 'artifact-1');
     expect(status.representations).toHaveLength(0);
     expect(listNextorePublishQueue(db, 'project-1')).toHaveLength(1);
+  });
+});
+
+describe('NextoreArtifactRuntime out-of-run trigger', () => {
+  function watchedRuntime(options: {
+    deliverable?: { valid: boolean; entryFile: string | null; artifactKind: string | null; linkedPage: string | null };
+  } = {}) {
+    const store = new FakeSessionStore();
+    store.rows.set('sid-1', {
+      sid: 'sid-1',
+      memberId: 7,
+      member,
+      accessToken: 'token-1',
+      refreshToken: null,
+      tokenExpiresAt: 2_000_000,
+      createdAt: 1_000,
+      lastSeenAt: 1_000,
+      lastValidatedAt: 1_000,
+    });
+    const publish = vi.fn(async () => ({
+      representation: 'source' as const,
+      treeObjectId: 101,
+      version: 1,
+      versionLabel: '1',
+      auditId: 'audit-1',
+    }));
+    let onChange: (() => void) | null = null;
+    const dispose = vi.fn();
+    const worker = new NextoreArtifactRuntime({
+      db,
+      client: { publishArtifact: publish } as unknown as NextoreArtifactClient,
+      sessionStore: store,
+      config,
+      mode: 'publish',
+      now: () => 1_000,
+      autoDrain: false,
+      fileChangeDebounceMs: 20,
+      watchProjectFiles: (_projectId, callback) => {
+        onChange = callback;
+        return dispose;
+      },
+      resolveProjectDeliverable: async () => ({
+        deliverable: options.deliverable ?? {
+          valid: true,
+          entryFile: 'index.html',
+          artifactKind: 'html',
+          linkedPage: null,
+        },
+        projectRoot,
+      }),
+    });
+    return {
+      worker,
+      publish,
+      dispose,
+      fire: () => onChange?.(),
+    };
+  }
+
+  function seedPublishedRecord() {
+    upsertNextoreArtifact(db, {
+      projectId: 'project-1',
+      artifactId: 'artifact-1',
+      representation: 'source',
+      relativePath: 'index.html',
+      treeObjectId: 101,
+      currentVersion: 1,
+      contentHash: 'a'.repeat(64),
+      status: 'published',
+      publishedAt: 1_000,
+      updatedAt: 1_000,
+    });
+  }
+
+  it('re-enqueues the published entry after a debounced out-of-run edit', async () => {
+    seedPublishedRecord();
+    const { worker, fire, publish } = watchedRuntime();
+    worker.enqueueRun({
+      projectId: 'project-1',
+      artifactId: 'artifact-1',
+      projectRoot,
+      runId: 'run-1',
+      tier: 'expert',
+      memberId: 7,
+      deliverable,
+    });
+    // Drop the run-complete row so only the file-change row can be observed.
+    db.prepare('DELETE FROM nextore_publish_queue').run();
+
+    fire();
+    await new Promise((resolve) => setTimeout(resolve, 60));
+
+    expect(publish).not.toHaveBeenCalled();
+    expect(listNextorePublishQueue(db, 'project-1')).toEqual([
+      expect.objectContaining({
+        artifactId: 'artifact-1',
+        representation: 'source',
+        reason: 'file-change',
+        memberId: 7,
+        runId: null,
+      }),
+    ]);
+    worker.unwatchAll();
+  });
+
+  it('ignores an invalid project deliverable', async () => {
+    seedPublishedRecord();
+    const { worker, fire } = watchedRuntime({
+      deliverable: { valid: false, entryFile: null, artifactKind: null, linkedPage: null },
+    });
+    worker.enqueueRun({
+      projectId: 'project-1',
+      artifactId: 'artifact-1',
+      projectRoot,
+      runId: 'run-1',
+      tier: 'expert',
+      memberId: 7,
+      deliverable,
+    });
+    db.prepare('DELETE FROM nextore_publish_queue').run();
+
+    fire();
+    await new Promise((resolve) => setTimeout(resolve, 60));
+
+    expect(listNextorePublishQueue(db, 'project-1')).toHaveLength(0);
+    worker.unwatchAll();
+  });
+
+  it('only watches a project once and disposes every watcher on stop', () => {
+    const { worker, dispose } = watchedRuntime();
+    worker.enqueueRun({
+      projectId: 'project-1',
+      artifactId: 'artifact-1',
+      projectRoot,
+      runId: 'run-1',
+      tier: 'expert',
+      memberId: 7,
+      deliverable,
+    });
+    worker.watchProject('project-1');
+    worker.stop();
+
+    expect(dispose).toHaveBeenCalledTimes(1);
   });
 });

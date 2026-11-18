@@ -14,6 +14,7 @@ import { isNextoreArtifactPublishEnabled, type NextoreArtifactAuthorityMode } fr
 import {
   enqueueNextorePublish,
   getNextoreArtifact,
+  listNextoreArtifacts,
   retryNextorePublish,
 } from './store.js';
 import { publishArtifactJob, type PublishOutcomeStatus } from './publisher.js';
@@ -23,6 +24,10 @@ import {
 } from './registry.js';
 import { resolveMemberAccessToken } from './session-access.js';
 import { buildNextoreArtifactStatus } from './status.js';
+import {
+  reconcileProjectArtifacts,
+  type ReconcileProjectResult,
+} from './reconcile.js';
 import {
   drainNextorePublishQueue,
   jobFromQueueItem,
@@ -60,6 +65,22 @@ export interface NextoreArtifactRuntimeDeps {
   mode: NextoreArtifactAuthorityMode;
   /** Local project id -> NexTore project folder id, from project metadata. */
   readProjectMapping?: (projectId: string) => string | null;
+  /**
+   * Start a watcher for a project tree. Returns a disposer. Out-of-run edits
+   * reuse this so the artifact published by the last run keeps tracking the
+   * file the user actually edits.
+   */
+  watchProjectFiles?: (projectId: string, onChange: () => void) => () => void;
+  /** Resolve the project's current deliverable and root without a run-scoped gate. */
+  resolveProjectDeliverable?: (
+    projectId: string,
+  ) => Promise<{ deliverable: NextoreDeliverableSnapshot; projectRoot: string }>;
+  /** Debounce for out-of-run edits; defaults to 1500 ms. */
+  fileChangeDebounceMs?: number;
+  /** Absolute project root, needed to requeue a drifted artifact. */
+  resolveProjectRoot?: (projectId: string) => string | null;
+  /** Interval between reconciliation sweeps; defaults to 15 minutes. */
+  reconcileIntervalMs?: number;
   workerId?: string;
   now?: () => number;
   onStatus?: (event: NextoreArtifactStatusEvent) => void;
@@ -74,6 +95,10 @@ export class NextoreArtifactRuntime {
   private timer: NodeJS.Timeout | null = null;
   private running = false;
   private wakePending = false;
+  private readonly watchers = new Map<string, () => void>();
+  private readonly fileTimers = new Map<string, NodeJS.Timeout>();
+  private readonly projectMembers = new Map<string, number>();
+  private reconcileTimer: NodeJS.Timeout | null = null;
 
   constructor(private readonly deps: NextoreArtifactRuntimeDeps) {}
 
@@ -108,8 +133,102 @@ export class NextoreArtifactRuntime {
         now: now(),
       });
     }
+    if (artifacts.length > 0) {
+      this.projectMembers.set(input.projectId, input.memberId);
+      this.watchProject(input.projectId);
+    }
     if (artifacts.length > 0 && this.deps.autoDrain !== false) void this.wake();
     return artifacts.length;
+  }
+
+  /**
+   * Watch a project for edits made outside a Run. Only representations that
+   * were already published (or queued) are republished, so a stray edit cannot
+   * invent a new artifact id. The publisher still compares content hashes, so a
+   * touch that changes nothing stays a no-op.
+   */
+  watchProject(projectId: string): void {
+    if (!isNextoreArtifactPublishEnabled(this.deps.mode)) return;
+    if (!this.deps.watchProjectFiles || this.watchers.has(projectId)) return;
+    const dispose = this.deps.watchProjectFiles(projectId, () => {
+      this.scheduleFileChangePublish(projectId);
+    });
+    this.watchers.set(projectId, dispose);
+  }
+
+  /** Stop every out-of-run watcher (shutdown and tests). */
+  unwatchAll(): void {
+    for (const dispose of this.watchers.values()) {
+      try {
+        dispose();
+      } catch {
+        // A watcher that already failed must not block the rest of shutdown.
+      }
+    }
+    this.watchers.clear();
+    for (const timer of this.fileTimers.values()) clearTimeout(timer);
+    this.fileTimers.clear();
+  }
+
+  private scheduleFileChangePublish(projectId: string): void {
+    const memberId = this.projectMembers.get(projectId);
+    if (!memberId) return;
+    const pending = this.fileTimers.get(projectId);
+    if (pending) clearTimeout(pending);
+    const delay = this.deps.fileChangeDebounceMs ?? 1_500;
+    const timer = setTimeout(() => {
+      this.fileTimers.delete(projectId);
+      void this.publishProjectDeliverable(projectId, memberId);
+    }, delay);
+    timer.unref?.();
+    this.fileTimers.set(projectId, timer);
+  }
+
+  private async publishProjectDeliverable(projectId: string, memberId: number): Promise<void> {
+    const resolve = this.deps.resolveProjectDeliverable;
+    if (!resolve) return;
+    let resolved: { deliverable: NextoreDeliverableSnapshot; projectRoot: string };
+    try {
+      resolved = await resolve(projectId);
+    } catch {
+      return;
+    }
+    const { deliverable, projectRoot } = resolved;
+    if (!deliverable.valid || !deliverable.entryFile) return;
+
+    const entry = deliverable.entryFile.replaceAll('\\', '/');
+    const records = listNextoreArtifacts(this.deps.db, projectId)
+      .filter((row) => row.representation === 'source');
+    const match = records.find((row) => row.relativePath === entry)
+      ?? (records.length === 1 ? records[0] : null);
+    if (!match) return;
+
+    const artifacts = resolvePublishableArtifacts({
+      projectId,
+      artifactId: match.artifactId,
+      runId: null,
+      tier: null,
+      deliverable,
+    });
+    if (artifacts.length === 0) return;
+    const now = this.deps.now ?? Date.now;
+    for (const artifact of artifacts) {
+      enqueueNextorePublish(this.deps.db, {
+        projectId: artifact.projectId,
+        artifactId: artifact.artifactId,
+        representation: artifact.representation,
+        memberId,
+        runId: null,
+        tier: null,
+        relativePath: artifact.relativePath,
+        sourcePath: path.resolve(projectRoot, artifact.sourcePath),
+        name: artifact.name,
+        mimeType: artifact.mimeType,
+        reason: 'file-change',
+        now: now(),
+      });
+    }
+    if (this.deps.autoDrain !== false) void this.wake();
   }
 
   async drainOnce(): Promise<number> {
@@ -165,12 +284,52 @@ export class NextoreArtifactRuntime {
       void this.drainOnce();
     }, intervalMs);
     this.timer.unref?.();
+    const reconcileEvery = this.deps.reconcileIntervalMs ?? 15 * 60_000;
+    this.reconcileTimer = setInterval(() => {
+      void this.reconcileKnownProjects();
+    }, reconcileEvery);
+    this.reconcileTimer.unref?.();
     void this.drainOnce();
+  }
+
+  /** Reconcile every project this process has published for. */
+  private async reconcileKnownProjects(): Promise<void> {
+    for (const projectId of [...this.projectMembers.keys()]) {
+      await this.reconcileProject(projectId).catch(() => null);
+    }
+  }
+
+  /**
+   * Compare one project's mapping against the module. Returns null when the
+   * daemon cannot reconcile yet (no member, no mapping, no session).
+   */
+  async reconcileProject(projectId: string): Promise<ReconcileProjectResult | null> {
+    if (!isNextoreArtifactPublishEnabled(this.deps.mode)) return null;
+    const memberId = this.projectMembers.get(projectId);
+    const nextoreProjectId = this.deps.readProjectMapping?.(projectId) ?? null;
+    const projectRoot = this.deps.resolveProjectRoot?.(projectId) ?? null;
+    if (!memberId || !nextoreProjectId || !projectRoot) return null;
+    const accessToken = await this.accessTokenFor(memberId);
+    if (!accessToken) return null;
+    return reconcileProjectArtifacts({
+      db: this.deps.db,
+      client: this.deps.client,
+      projectId,
+      nextoreProjectId,
+      accessToken,
+      projectRoot,
+      memberId,
+      ...(this.deps.now ? { now: this.deps.now } : {}),
+    });
   }
 
   stop(): void {
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
+    if (this.reconcileTimer) clearInterval(this.reconcileTimer);
+    this.reconcileTimer = null;
+    this.unwatchAll();
+    this.projectMembers.clear();
   }
 
   status(projectId: string, artifactId: string): NextoreArtifactStatusResponse {

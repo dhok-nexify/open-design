@@ -153,6 +153,12 @@ export interface NextoreArtifactClient {
     options: { range?: string },
     signal?: AbortSignal,
   ): Promise<Response>;
+  /** ACL-filtered list of the representations the module currently holds. */
+  listArtifacts<T>(
+    accessToken: string,
+    projectId: string,
+    signal?: AbortSignal,
+  ): Promise<T>;
 }
 
 function parseJson(text: string): unknown {
@@ -536,6 +542,13 @@ export function createNextoreClient(
         accessToken,
         options.range,
         signal,
+      );
+    },
+
+    listArtifacts<T>(accessToken: string, projectId: string, signal?: AbortSignal) {
+      return request<T>(
+        'api/designer/projects/' + encodeURIComponent(projectId) + '/artifacts',
+        signal ? { accessToken, signal } : { accessToken },
       );
     },
 

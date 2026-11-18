@@ -30,6 +30,33 @@ export function registerNextoreArtifactRoutes(
   });
 
   /**
+   * POST .../artifacts/reconcile — compare the local mapping with the module.
+   * Reconciliation never tombstones on an outage; it only adopts, repairs a
+   * drift, and orphans a row the module has omitted past its grace window.
+   */
+  app.post('/api/nextore/projects/:id/artifacts/reconcile', async (req, res) => {
+    if (!deps.runtime) {
+      res.status(404).json({ error: 'feature_disabled' });
+      return;
+    }
+    const projectId = String(req.params.id ?? '');
+    if (!projectId) {
+      res.status(400).json({ error: 'BAD_REQUEST', message: 'project id is required' });
+      return;
+    }
+    if (!await deps.authorizeProject(req, res, projectId, { mode: 'write', capability: 'writeFiles' })) return;
+    const result = await deps.runtime.reconcileProject(projectId);
+    if (!result) {
+      res.status(409).json({
+        error: 'reconcile_unavailable',
+        message: 'The daemon has no member, mapping or session to reconcile this project.',
+      });
+      return;
+    }
+    res.json({ projectId, ...result });
+  });
+
+  /**
    * POST .../artifacts/:artifactId/retry — re-arm one failed representation.
    * Dead letters and browser-closed failures are only retried on an explicit
    * operator/user action, never on a timer, so a bad artifact cannot loop.

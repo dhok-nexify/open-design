@@ -558,6 +558,7 @@ import { resolveOpenCodeEditBaseDirs } from './runtimes/opencode-permissions.js'
 import { createAgentStderrVisibilityFilter } from './amr-stderr-filter.js';
 import { createQoderStreamHandler } from './runtimes/qoder-stream.js';
 import { subscribe as subscribeFileEvents } from './project-watchers.js';
+import { validateProjectDeliverable } from './run-deliverable-validation.js';
 import { importFigmaFromBytes } from './figma/figma-import.js';
 import { renderDesignSystemPreview } from './design-systems/preview.js';
 import { renderDesignSystemShowcase } from './design-systems/showcase.js';
@@ -3692,6 +3693,36 @@ export async function startServer({
         config: nextoreConfig,
         mode: resolveNextoreArtifactAuthorityMode(process.env),
         readProjectMapping: createProjectMappingReader(db),
+        // Out-of-run edits: the artifact a run already published keeps tracking
+        // the file the user edits, without a new run or a workspace scan.
+        watchProjectFiles: (projectId, onChange) => {
+          const metadata = getProject(db, projectId)?.metadata;
+          const sub = subscribeFileEvents(PROJECTS_DIR, projectId, (evt) => {
+            if (evt.type === 'file-changed') onChange();
+          }, metadata ? { metadata } : {});
+          return () => {
+            Promise.resolve(sub.unsubscribe()).catch(() => {});
+          };
+        },
+        resolveProjectRoot: (projectId) =>
+          resolveProjectDir(PROJECTS_DIR, projectId, getProject(db, projectId)?.metadata),
+        resolveProjectDeliverable: async (projectId) => {
+          const project = getProject(db, projectId);
+          const result = await validateProjectDeliverable({
+            projectsRoot: PROJECTS_DIR,
+            projectId,
+            projectMetadata: project?.metadata,
+          });
+          return {
+            deliverable: {
+              valid: result.valid,
+              entryFile: result.entryFile,
+              artifactKind: result.artifactKind,
+              linkedPage: result.linkedPage,
+            },
+            projectRoot: resolveProjectDir(PROJECTS_DIR, projectId, project?.metadata),
+          };
+        },
         // Every publish state transition is forwarded on the project event
         // stream as `nextore-artifact`. Events are not persisted: the status
         // route remains the source of truth after a reconnect.
