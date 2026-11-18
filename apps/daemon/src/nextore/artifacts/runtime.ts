@@ -81,6 +81,10 @@ export interface NextoreArtifactRuntimeDeps {
   resolveProjectRoot?: (projectId: string) => string | null;
   /** Interval between reconciliation sweeps; defaults to 15 minutes. */
   reconcileIntervalMs?: number;
+  /** Projects reconciled per sweep; defaults to 5. */
+  reconcileBatchSize?: number;
+  /** Delay between two project reconciles in one sweep; defaults to 250 ms. */
+  reconcileSpacingMs?: number;
   workerId?: string;
   now?: () => number;
   onStatus?: (event: NextoreArtifactStatusEvent) => void;
@@ -99,6 +103,7 @@ export class NextoreArtifactRuntime {
   private readonly fileTimers = new Map<string, NodeJS.Timeout>();
   private readonly projectMembers = new Map<string, number>();
   private reconcileTimer: NodeJS.Timeout | null = null;
+  private reconcileCursor = 0;
 
   constructor(private readonly deps: NextoreArtifactRuntimeDeps) {}
 
@@ -286,17 +291,38 @@ export class NextoreArtifactRuntime {
     this.timer.unref?.();
     const reconcileEvery = this.deps.reconcileIntervalMs ?? 15 * 60_000;
     this.reconcileTimer = setInterval(() => {
-      void this.reconcileKnownProjects();
+      void this.reconcileSweepOnce();
     }, reconcileEvery);
     this.reconcileTimer.unref?.();
     void this.drainOnce();
   }
 
-  /** Reconcile every project this process has published for. */
-  private async reconcileKnownProjects(): Promise<void> {
-    for (const projectId of [...this.projectMembers.keys()]) {
-      await this.reconcileProject(projectId).catch(() => null);
+  /**
+   * Reconcile a bounded slice of the projects this process has published for.
+   *
+   * P04h: a sweep must never hammer the module. It walks the member list
+   * round-robin, reconciles at most `reconcileBatchSize` projects, and leaves
+   * the rest for the next tick.
+   */
+  /** One bounded sweep. Public so ops surfaces and tests can drive it. */
+  async reconcileSweepOnce(): Promise<number> {
+    const projects = [...this.projectMembers.keys()];
+    if (projects.length === 0) return 0;
+    const batchSize = Math.max(1, this.deps.reconcileBatchSize ?? 5);
+    const spacing = Math.max(0, this.deps.reconcileSpacingMs ?? 250);
+    const start = this.reconcileCursor % projects.length;
+    const slice = projects.slice(start, start + batchSize);
+    if (slice.length < batchSize && projects.length > slice.length) {
+      slice.push(...projects.slice(0, Math.min(batchSize - slice.length, start)));
     }
+    for (let i = 0; i < slice.length; i += 1) {
+      if (i > 0 && spacing > 0) {
+        await new Promise((resolve) => setTimeout(resolve, spacing));
+      }
+      await this.reconcileProject(slice[i]!).catch(() => null);
+    }
+    this.reconcileCursor = (start + slice.length) % projects.length;
+    return slice.length;
   }
 
   /**

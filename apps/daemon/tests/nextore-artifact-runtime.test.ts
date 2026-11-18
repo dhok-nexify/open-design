@@ -241,6 +241,71 @@ describe('NextoreArtifactRuntime', () => {
   });
 });
 
+describe('NextoreArtifactRuntime reconciliation sweep', () => {
+  it('reconciles a bounded round-robin slice per sweep', async () => {
+    const store = new FakeSessionStore();
+    store.rows.set('sid-1', {
+      sid: 'sid-1',
+      memberId: 7,
+      member,
+      accessToken: 'token-1',
+      refreshToken: null,
+      tokenExpiresAt: 2_000_000,
+      createdAt: 1_000,
+      lastSeenAt: 1_000,
+      lastValidatedAt: 1_000,
+    });
+    const worker = new NextoreArtifactRuntime({
+      db,
+      client: { publishArtifact: vi.fn() } as unknown as NextoreArtifactClient,
+      sessionStore: store,
+      config,
+      mode: 'publish',
+      autoDrain: false,
+      reconcileBatchSize: 2,
+      reconcileSpacingMs: 0,
+    });
+    for (const projectId of ['p1', 'p2', 'p3']) {
+      worker.enqueueRun({
+        projectId,
+        artifactId: 'artifact-1',
+        projectRoot,
+        runId: 'run-1',
+        tier: null,
+        memberId: 7,
+        deliverable,
+      });
+    }
+    const spy = vi.spyOn(worker, 'reconcileProject').mockResolvedValue(null);
+
+    const first = await worker.reconcileSweepOnce();
+    const second = await worker.reconcileSweepOnce();
+    const third = await worker.reconcileSweepOnce();
+
+    expect(first).toBe(2);
+    expect(second).toBe(2);
+    expect(third).toBe(2);
+    expect(spy.mock.calls.map((call) => call[0])).toEqual([
+      'p1', 'p2',
+      'p3', 'p1',
+      'p2', 'p3',
+    ]);
+  });
+
+  it('does nothing when no project has published yet', async () => {
+    const store = new FakeSessionStore();
+    const worker = new NextoreArtifactRuntime({
+      db,
+      client: { publishArtifact: vi.fn() } as unknown as NextoreArtifactClient,
+      sessionStore: store,
+      config,
+      mode: 'publish',
+      autoDrain: false,
+    });
+    expect(await worker.reconcileSweepOnce()).toBe(0);
+  });
+});
+
 describe('NextoreArtifactRuntime out-of-run trigger', () => {
   function watchedRuntime(options: {
     deliverable?: { valid: boolean; entryFile: string | null; artifactKind: string | null; linkedPage: string | null };
