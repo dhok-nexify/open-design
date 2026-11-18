@@ -14,6 +14,28 @@ import { NEXTORE_WEB_EDITION } from './features';
 
 const SIGNED_OUT_KEY = 'nxd:signed-out';
 
+/** Cross-tab logout channel. Origin-scoped by the platform. */
+export const AUTH_SYNC_CHANNEL_NAME = 'auth_sync_channel';
+
+export interface AuthSyncSignedOutMessage {
+  type: 'signed-out';
+  at: number;
+}
+
+let authChannel: BroadcastChannel | null = null;
+let authSyncCleanup: (() => void) | null = null;
+
+function authSyncChannel(): BroadcastChannel | null {
+  if (typeof window === 'undefined' || typeof BroadcastChannel === 'undefined') return null;
+  if (authChannel) return authChannel;
+  try {
+    authChannel = new BroadcastChannel(AUTH_SYNC_CHANNEL_NAME);
+    return authChannel;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Cached read of the marker.
  *
@@ -50,6 +72,61 @@ export function clearSignedOut(): void {
   setSignedOut(false);
 }
 
+/** Marks this tab signed out without navigating. Used by the cross-tab listener. */
+export function markSignedOut(): void {
+  setSignedOut(true);
+}
+
+/** Tells every other same-origin tab that the shared daemon session ended. */
+export function broadcastSignedOut(nowMs: number = Date.now()): void {
+  const channel = authSyncChannel();
+  if (!channel) return;
+  const message: AuthSyncSignedOutMessage = { type: 'signed-out', at: nowMs };
+  try {
+    channel.postMessage(message);
+  } catch {
+    // A closed channel or a structured-clone failure must not break sign-out.
+  }
+}
+
+/**
+ * Installs the cross-tab listener once per document. The sending tab updates its
+ * own marker first, so this listener deliberately ignores its own message
+ * (BroadcastChannel does not deliver to the sender anyway).
+ */
+export function installAuthSync(
+  onSignedOut: (url: string) => void = (url) => window.location.assign(url),
+): () => void {
+  if (authSyncCleanup) return authSyncCleanup;
+  const channel = authSyncChannel();
+  if (!channel) {
+    authSyncCleanup = () => {};
+    return authSyncCleanup;
+  }
+  const onMessage = (event: MessageEvent<AuthSyncSignedOutMessage>) => {
+    if (event.data?.type !== 'signed-out') return;
+    setSignedOut(true);
+    onSignedOut('/');
+  };
+  channel.addEventListener('message', onMessage);
+  authSyncCleanup = () => {
+    channel.removeEventListener('message', onMessage);
+  };
+  return authSyncCleanup;
+}
+
+/** Test helper: removes the listener and releases the channel. */
+export function resetAuthSyncForTests(): void {
+  authSyncCleanup?.();
+  authSyncCleanup = null;
+  try {
+    authChannel?.close();
+  } catch {
+    // Ignore: the channel may already be closed.
+  }
+  authChannel = null;
+}
+
 /** The OAuth entry point. See `auth-entry.ts` for why the path is filtered. */
 export function signInUrl(returnTo = '/'): string {
   return authStartUrl(returnTo);
@@ -66,6 +143,7 @@ export async function signOutOfDesigner(
     const response = await fetchImpl('/auth/logout', { method: 'POST' });
     if (!response.ok) return false;
     setSignedOut(true);
+    broadcastSignedOut();
     return true;
   } catch {
     return false;

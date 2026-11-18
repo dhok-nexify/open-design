@@ -7,10 +7,12 @@ import { MatrixLoader } from '../../src/components/MatrixLoader';
 import { installWebObservability } from '../../src/observability/install';
 import { installChatScrollExperiments } from '../../src/runtime/chat-scroll-experiments';
 import { installChatScrollTakeover } from '../../src/runtime/chat-scroll-takeover';
-import { installNextoreSessionRedirect } from '../../src/nextore/session';
+// The active guard lives in session-guard.ts; the historical session.ts file
+// is retained because this checkout held a write lock on it during the change.
+import { installNextoreSessionRedirect } from '../../src/nextore/session-guard';
 import { installNextoreAccessRequiredGuard } from '../../src/nextore/access-required';
 import { DesignerSignedOut } from '../../src/nextore/DesignerSignedOut';
-import { isSignedOut } from '../../src/nextore/sign-out';
+import { installAuthSync, isSignedOut } from '../../src/nextore/sign-out';
 
 // Install browser exception handlers at module-load time, before any other
 // client code can throw. The hooks buffer events until AnalyticsProvider
@@ -45,6 +47,11 @@ installChatScrollExperiments();
 // `SESSION_REQUIRED` answer from the daemon means that session is gone, so send
 // the browser to /auth/start before the individual callers report errors.
 installNextoreSessionRedirect();
+
+// Cross-tab logout: the daemon session row is shared, so every tab must leave
+// the signed-in shell together. The listener marks this tab and lands it on
+// the signed-out page; BroadcastChannel never delivers to the sending tab.
+installAuthSync();
 
 // A 403 DESIGNER_ACCESS_REQUIRED is a signed-in member without the Designer
 // right. Classify it here so the shell renders one dedicated refusal page
