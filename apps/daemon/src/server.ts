@@ -442,6 +442,7 @@ import { registerCliAuthRoutes } from './nextore/auth/cli-auth-routes.js';
 import { resolveMemberAccessToken } from './nextore/artifacts/session-access.js';
 import { createSunsetSender, listSunsetCandidates, runShareSunsetSweep } from './nextore/share/sunset-notices.js';
 import { createShareSunsetScheduler } from './nextore/share/sunset-scheduler.js';
+import { createRecipientCache, resolveProjectManageRecipients } from './nextore/comment-recipients.js';
 import { registerNextoreEventRoutes } from './nextore/events/routes.js';
 import { invalidateAllProjectAccess } from './nextore/acl/invalidation.js';
 import { nextoreHealthMetadata } from './nextore/routes.js';
@@ -9692,6 +9693,33 @@ export async function startServer({
             }),
           }
         : {}),
+    },
+    // P05: CanManage recipients come from the module's permission matrix via a
+    // shared 60s cache. Any missing prerequisite returns [] so the caller falls
+    // back to owner-only instead of failing the comment.
+    resolveCommentRecipients: async ({ projectId: localProjectId, ownerMemberId }) => {
+      if (!nextoreClient || !nextoreConfig) return [];
+      const metadata = getProject(db, localProjectId)?.metadata as
+        | { nextoreProjectId?: string }
+        | null
+        | undefined;
+      const nextoreProjectId = metadata?.nextoreProjectId?.trim();
+      if (!nextoreProjectId) return [];
+      const token = ownerMemberId
+        ? await resolveMemberAccessToken(ownerMemberId, {
+            store: createNextoreSessionStore(() => db, nextoreSecrets!),
+            config: nextoreConfig,
+          }).catch(() => null)
+        : null;
+      if (!token) return [];
+      const resolved = await resolveProjectManageRecipients({
+        client: nextoreClient,
+        accessToken: token,
+        nextoreProjectId,
+        ownerMemberId,
+        cache: commentRecipientCache,
+      });
+      return resolved.memberIds;
     },
     paths: pathDeps,
     projectStore: projectStoreDeps,

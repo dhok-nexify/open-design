@@ -52,6 +52,12 @@ export type ProjectCommentWorkspaceContextResolution =
 export interface RegisterProjectCommentRoutesDeps extends RouteDeps<'db' | 'projectStore' | 'conversations'> {
   /** P05: comment notification deps; fixtures omit it (no-op). */
   commentNotify?: CommentNotifyDeps;
+
+  /** Optional: CanManage recipients for P05 notifications. Omitted in fixtures. */
+  resolveCommentRecipients?: (input: {
+    projectId: string;
+    ownerMemberId: number | null;
+  }) => Promise<number[]>;
   /** Optional in focused CRUD fixtures; production supplies request-scoped analytics. */
   telemetry?: RouteDeps<'telemetry'>['telemetry'];
   /**
@@ -852,28 +858,31 @@ export function registerProjectCommentRoutes(app: Express, ctx: RegisterProjectC
         }
         // P05: never let notification failure affect a saved comment.
         if (ctx.commentNotify) {
-          const sharedNotice = ctx.commentNotify;
-          void notifyCommentSafely(
-            {
-              ...sharedNotice,
-              accessToken: async () => {
-                const session = (res.locals as { nextoreSession?: { accessToken?: unknown } })
-                  .nextoreSession;
-                return typeof session?.accessToken === 'string'
-                  ? session.accessToken
-                  : sharedNotice.accessToken();
-              },
-            },
-            {
+          const notifier = ctx.commentNotify;
+          const ownerOnly = ownerMemberId ? [Number(ownerMemberId)] : [];
+          const resolveRecipients = ctx.resolveCommentRecipients;
+          void (async () => {
+            let recipientIds = ownerOnly;
+            if (resolveRecipients) {
+              try {
+                const resolved = await resolveRecipients({
+                  projectId: req.params.id,
+                  ownerMemberId: ownerMemberId ? Number(ownerMemberId) : null,
+                });
+                if (resolved.length > 0) recipientIds = resolved;
+              } catch {
+                // Degrade to the owner; a comment must never fail over a notification.
+              }
+            }
+            await notifyCommentSafely(notifier, {
               projectId: req.params.id,
               commentId: String(comment.id),
               authorMemberId: Number(authorMemberId ?? 0) || 0,
               isReply: Boolean((comment as { parentId?: unknown }).parentId),
               projectName: project?.name ?? null,
-              recipientIds: Number.isInteger(Number(ownerMemberId)) && Number(ownerMemberId) > 0
-                ? [Number(ownerMemberId)] : [],
-            },
-          ).catch(() => {});
+              recipientIds,
+            });
+          })().catch(() => {});
         }
       }
       res.json({ comment });
