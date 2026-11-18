@@ -435,6 +435,7 @@ import { createNextoreSessionStore } from './nextore/auth/session-store.js';
 import { NextoreArtifactRuntime } from './nextore/artifacts/runtime.js';
 import { resolveNextoreArtifactAuthorityMode } from './nextore/artifacts/features.js';
 import { registerNextoreArtifactRoutes } from './nextore/artifacts/routes.js';
+import { registerNextoreArtifactDownloadRoutes } from './nextore/artifacts/download-routes.js';
 import { nextoreHealthMetadata } from './nextore/routes.js';
 import {
   authorizeCreatedProjectWorkspace,
@@ -3690,6 +3691,7 @@ export async function startServer({
         sessionStore: createNextoreSessionStore(() => db, nextoreSecrets),
         config: nextoreConfig,
         mode: resolveNextoreArtifactAuthorityMode(process.env),
+        readProjectMapping: createProjectMappingReader(db),
       })
     : null;
   nextoreArtifactRuntime?.start();
@@ -9409,6 +9411,12 @@ export async function startServer({
       runtime: nextoreArtifactRuntime,
       authorizeProject: authorizeProjectRequest,
     });
+    registerNextoreArtifactDownloadRoutes(app, {
+      runtime: nextoreArtifactRuntime,
+      client: nextoreClient,
+      authorizeProject: authorizeProjectRequest,
+      readProjectName: (projectId) => getProject(db, projectId)?.name ?? null,
+    });
   }
 
   // External services
@@ -10094,6 +10102,19 @@ export async function startServer({
     authorizeProjectRequest,
   });
   app.use('/frames', express.static(FRAMES_DIR));
+  // P04d: in the NexTore edition the published artifact in NexTore is the only
+  // download authority. Shadow the local archive routes so a caller cannot
+  // bypass the module's CanDownload check by reading the daemon's own copy.
+  if (edition === 'nextore') {
+    const denyLocalDownload = (_req: express.Request, res: express.Response) => {
+      res.status(404).json({
+        error: 'nextore_download_required',
+        message: 'Use /api/nextore/projects/:id/download for project downloads.',
+      });
+    };
+    app.get('/api/projects/:id/archive', denyLocalDownload);
+    app.post('/api/projects/:id/archive/batch', denyLocalDownload);
+  }
   registerProjectExportRoutes(app, {
     db,
     http: httpDeps,

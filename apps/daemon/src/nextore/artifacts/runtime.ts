@@ -1,6 +1,7 @@
 import path from 'node:path';
 import type Database from 'better-sqlite3';
 import type {
+  NextoreArtifactRecord,
   NextoreArtifactRepresentation,
   NextoreArtifactStatusResponse,
   NextoreTier,
@@ -10,7 +11,7 @@ import type { NextoreSessionStore } from '../auth/session-store.js';
 import type { NextoreArtifactClient } from '../client.js';
 import type { NextoreConfig } from '../config.js';
 import { isNextoreArtifactPublishEnabled, type NextoreArtifactAuthorityMode } from './features.js';
-import { enqueueNextorePublish } from './store.js';
+import { enqueueNextorePublish, getNextoreArtifact } from './store.js';
 import { publishArtifactJob, type PublishOutcomeStatus } from './publisher.js';
 import {
   resolvePublishableArtifacts,
@@ -53,6 +54,8 @@ export interface NextoreArtifactRuntimeDeps {
   sessionStore: NextoreSessionStore;
   config: NextoreConfig;
   mode: NextoreArtifactAuthorityMode;
+  /** Local project id -> NexTore project folder id, from project metadata. */
+  readProjectMapping?: (projectId: string) => string | null;
   workerId?: string;
   now?: () => number;
   onStatus?: (event: NextoreArtifactStatusEvent) => void;
@@ -126,6 +129,9 @@ export class NextoreArtifactRuntime {
             ...(this.deps.now ? { now: this.deps.now } : {}),
           }),
           ...(this.deps.now ? { now: this.deps.now } : {}),
+          ...(this.deps.readProjectMapping
+            ? { resolveNextoreProjectId: this.deps.readProjectMapping }
+            : {}),
         }),
         ...(this.deps.now ? { now: this.deps.now } : {}),
       };
@@ -165,6 +171,29 @@ export class NextoreArtifactRuntime {
 
   status(projectId: string, artifactId: string): NextoreArtifactStatusResponse {
     return buildNextoreArtifactStatus(this.deps.db, projectId, artifactId);
+  }
+
+  /** Published-record lookup used by the download proxy. */
+  artifactRecord(
+    projectId: string,
+    artifactId: string,
+    representation: NextoreArtifactRepresentation,
+  ): NextoreArtifactRecord | null {
+    return getNextoreArtifact(this.deps.db, projectId, artifactId, representation);
+  }
+
+  /** NexTore project folder id for a local project, or null when unmapped. */
+  nextoreProjectId(projectId: string): string | null {
+    return this.deps.readProjectMapping?.(projectId) ?? null;
+  }
+
+  /** Resolve a still-valid member token for a proxied NexTore call. */
+  async accessTokenFor(memberId: number): Promise<string | null> {
+    return resolveMemberAccessToken(memberId, {
+      store: this.deps.sessionStore,
+      config: this.deps.config,
+      ...(this.deps.now ? { now: this.deps.now } : {}),
+    });
   }
 
   private async wake(): Promise<void> {

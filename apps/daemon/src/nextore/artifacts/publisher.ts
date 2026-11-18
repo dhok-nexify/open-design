@@ -51,6 +51,13 @@ export interface PublisherDeps {
   client: Pick<NextoreArtifactClient, 'publishArtifact'>;
   /** Resolve a still-valid member token; null means the member must sign in again. */
   resolveAccessToken: (memberId: number) => Promise<string | null>;
+  /**
+   * Translate the local Designer project id to the NexTore project folder id.
+   * The module's artifact routes are keyed by the NexTore id, so publishing with
+   * the local id would target a folder that does not exist. Defaults to identity
+   * for unit tests that use an already-mapped id.
+   */
+  resolveNextoreProjectId?: (projectId: string) => string | null;
   hashFile?: (path: string) => Promise<string>;
   now?: () => number;
 }
@@ -179,6 +186,15 @@ export async function publishArtifactJob(
   }
   const accessToken = token;
 
+  const resolveNextoreProjectId = deps.resolveNextoreProjectId ?? ((projectId: string) => projectId);
+  const nextoreProjectId = resolveNextoreProjectId(job.projectId);
+  if (!nextoreProjectId) {
+    const outcome = failed('project_unmapped', 'The project is not linked to a NexTore project.');
+    recordOutcome(deps.db, job, outcome, now());
+    return outcome;
+  }
+  const targetProjectId: string = nextoreProjectId;
+
   try {
     await stat(job.sourcePath);
   } catch {
@@ -218,7 +234,7 @@ export async function publishArtifactJob(
     try {
       const result = await deps.client.publishArtifact<NextoreArtifactPublishResult>(
         accessToken,
-        job.projectId,
+        targetProjectId,
         job.artifactId,
         metadata,
         { path: job.sourcePath, name: job.name, mimeType: job.mimeType },

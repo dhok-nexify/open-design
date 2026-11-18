@@ -92,6 +92,43 @@ describe('publishArtifactJob', () => {
     });
   });
 
+  it('publishes against the mapped NexTore project id, not the local one', async () => {
+    const publish = vi.fn(async () => result);
+    const outcome = await publishArtifactJob(job(), {
+      db,
+      client: client(publish),
+      resolveAccessToken: async () => 'token-1',
+      resolveNextoreProjectId: () => '4242',
+      now: () => 1_000,
+    });
+
+    expect(outcome.status).toBe('published');
+    expect(publish).toHaveBeenCalledTimes(1);
+    expect(publish.mock.calls[0]![1]).toBe('4242');
+    expect(getNextoreArtifact(db, 'project-1', 'artifact-1', 'source')).toMatchObject({
+      projectId: 'project-1',
+      status: 'published',
+    });
+  });
+
+  it('fails without publishing when the project has no NexTore mapping', async () => {
+    const publish = vi.fn(async () => result);
+    const outcome = await publishArtifactJob(job(), {
+      db,
+      client: client(publish),
+      resolveAccessToken: async () => 'token-1',
+      resolveNextoreProjectId: () => null,
+      now: () => 1_000,
+    });
+
+    expect(outcome).toMatchObject({
+      status: 'failed',
+      errorCode: 'project_unmapped',
+      retryable: false,
+    });
+    expect(publish).not.toHaveBeenCalled();
+  });
+
   it('skips the client when the stored hash already matches', async () => {
     const publish = vi.fn(async () => result);
     const deps = {

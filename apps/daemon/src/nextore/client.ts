@@ -1,6 +1,7 @@
 import type {
   CreateNextoreTeamWorkspaceRequest,
   NextoreArtifactPublishRequest,
+  NextoreArtifactRepresentation,
   NextoreBrandingResponse,
   NextoreModuleHealthResponse,
   NextoreTier,
@@ -118,6 +119,13 @@ export interface NextorePermissionClient {
  * same reason as NextorePermissionClient: existing route mocks that only need
  * the base client must not be rewritten just because a new endpoint landed.
  */
+export interface NextoreArtifactDownloadOptions {
+  representation?: NextoreArtifactRepresentation;
+  version?: number;
+  /** Raw Range header forwarded to the module; the module decides support. */
+  range?: string;
+}
+
 export interface NextoreArtifactClient {
   publishArtifact<T>(
     accessToken: string,
@@ -127,6 +135,24 @@ export interface NextoreArtifactClient {
     file: { path: string; name: string; mimeType: string },
     signal?: AbortSignal,
   ): Promise<T>;
+  /**
+   * Open one published representation for streaming. The caller owns the body
+   * and must consume or cancel it; no timeout is applied to the transfer.
+   */
+  downloadArtifact(
+    accessToken: string,
+    projectId: string,
+    artifactId: string,
+    options: NextoreArtifactDownloadOptions,
+    signal?: AbortSignal,
+  ): Promise<Response>;
+  /** Open the project ZIP for streaming. The caller owns the body. */
+  downloadProject(
+    accessToken: string,
+    projectId: string,
+    options: { range?: string },
+    signal?: AbortSignal,
+  ): Promise<Response>;
 }
 
 function parseJson(text: string): unknown {
@@ -276,6 +302,52 @@ export function createNextoreClient(
     } finally {
       clearTimeout(timeout);
       signal?.removeEventListener('abort', onAbort);
+    }
+  }
+
+  /**
+   * Streaming read used by the download proxy. Only the response head is bounded
+   * by the request signal; the body stays open until the caller finishes it.
+   */
+  async function requestDownload(
+    path: string,
+    accessToken: string,
+    range: string | undefined,
+    signal: AbortSignal | undefined,
+  ): Promise<Response> {
+    const url = new URL(path, configuredBase);
+    const headers: Record<string, string> = {
+      accept: 'application/octet-stream',
+      APIkey: accessToken,
+    };
+    if (range) headers.range = range;
+    try {
+      const response = await fetchImpl(url, {
+        method: 'GET',
+        headers,
+        ...(signal ? { signal } : {}),
+      });
+      if (!response.ok) {
+        const text = await response.text();
+        const payload = parseJson(text);
+        throw new NextoreClientError(
+          'nextore_http_error',
+          upstreamErrorMessage(payload)
+            ?? `NexTore rejected ${path} with HTTP ${response.status}.`,
+          response.status,
+          upstreamErrorCode(payload),
+        );
+      }
+      return response;
+    } catch (error) {
+      if (error instanceof NextoreClientError) throw error;
+      if (signal?.aborted) {
+        throw new NextoreClientError('nextore_timeout', 'NexTore download was cancelled.');
+      }
+      throw new NextoreClientError(
+        'nextore_unreachable',
+        error instanceof Error ? `NexTore is unreachable: ${error.message}` : 'NexTore is unreachable.',
+      );
     }
   }
 
@@ -429,6 +501,40 @@ export function createNextoreClient(
           + '/artifacts/' + encodeURIComponent(artifactId) + '/publish',
         form,
         accessToken,
+        signal,
+      );
+    },
+
+    downloadArtifact(
+      accessToken: string,
+      projectId: string,
+      artifactId: string,
+      options: NextoreArtifactDownloadOptions,
+      signal?: AbortSignal,
+    ) {
+      const query = new URLSearchParams();
+      if (options.representation) query.set('representation', options.representation);
+      if (typeof options.version === 'number') query.set('version', String(options.version));
+      const suffix = query.size > 0 ? '?' + query.toString() : '';
+      return requestDownload(
+        'api/designer/projects/' + encodeURIComponent(projectId)
+          + '/artifacts/' + encodeURIComponent(artifactId) + '/download' + suffix,
+        accessToken,
+        options.range,
+        signal,
+      );
+    },
+
+    downloadProject(
+      accessToken: string,
+      projectId: string,
+      options: { range?: string },
+      signal?: AbortSignal,
+    ) {
+      return requestDownload(
+        'api/designer/projects/' + encodeURIComponent(projectId) + '/download',
+        accessToken,
+        options.range,
         signal,
       );
     },
