@@ -27,6 +27,7 @@ import { AnimatePresence } from 'motion/react';
 import { createHtmlArtifactManifest, inferLegacyManifest } from '../artifacts/manifest';
 import { NEXTORE_WEB_EDITION, isFeatureEnabled } from '../nextore/features';
 import { TierToggle } from '../nextore/TierToggle';
+import { ProjectPermissionsDialog } from '../nextore/ProjectPermissionsDialog';
 import { ShareLinkDialog } from './ShareLinkDialog';
 import {
   readStoredNextoreTierForProject,
@@ -2573,6 +2574,7 @@ export function ProjectView({
   const [nextoreProjectAccess, setNextoreProjectAccess] =
     useState<NextoreProjectAccessView | null>(null);
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
+  const [permissionsOpen, setPermissionsOpen] = useState(false);
   useEffect(() => {
     if (NEXTORE_WEB_EDITION !== 'nextore' || !project?.id) {
       setNextoreProjectAccess(null);
@@ -14840,29 +14842,12 @@ export function ProjectView({
     </>
   );
 
-  // NEXTORE: opens the site's permission editor for this project (NXD-D12).
-  // A bound project answers with an absolute URL; anything else surfaces as a
-  // toast instead of opening a blank tab.
-  async function openNextorePermissions() {
+  // NEXTORE: the project page owns the permission matrix now (NXD-D12
+  // follow-up). The module still performs every ACL read and write; this only
+  // opens the drawer for the mapped project.
+  function openNextorePermissions() {
     if (!project?.id) return;
-    try {
-      const response = await fetch(
-        '/api/projects/' + encodeURIComponent(project.id) + '/permission-url',
-        { headers: { accept: 'application/json' } },
-      );
-      if (!response.ok) {
-        setProjectActionsToast({ message: t('chat.referenceProject.loadFailed'), details: null });
-        return;
-      }
-      const body = (await response.json()) as { url?: string };
-      if (!body.url) {
-        setProjectActionsToast({ message: t('chat.referenceProject.loadFailed'), details: null });
-        return;
-      }
-      window.open(body.url, '_blank', 'noopener');
-    } catch {
-      setProjectActionsToast({ message: t('chat.referenceProject.loadFailed'), details: null });
-    }
+    setPermissionsOpen(true);
   }
 
   // The `.app` shell belongs to the caller, not to this component. App.tsx
@@ -15624,6 +15609,13 @@ export function ProjectView({
           />
         ) : null}
       </AnimatePresence>
+      {permissionsOpen && project ? (
+        <ProjectPermissionsDialog
+          projectId={project.id}
+          open={permissionsOpen}
+          onClose={() => setPermissionsOpen(false)}
+        />
+      ) : null}
       {shareDialogOpen && project ? (
         <ShareLinkDialog
           projectId={project.id}

@@ -4,7 +4,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { trackedCommentFilePaths } from '../../collab/local-comment-files.js';
 import { CommentPreparationError, prepareCommentIdentity } from '../../services/comment-preparation.js';
 import { ProjectPublicFileStopPendingError } from '../../collab/project-public-file-stop.js';
-import type { ProjectDeleteResponse } from '@open-design/contracts';
+import type { ProjectDeleteResponse, SaveNextoreProjectPermissionsRequest } from '@open-design/contracts';
 import { publicFileMutationHandler } from '../public-file-mutation-handler.js';
 import { createPublicFileMutations, type PublicFileMutations } from '../../collab/public-file-mutations.js';
 import { rm } from 'node:fs/promises';
@@ -18,7 +18,7 @@ import {
 import type { Express, Request, Response } from 'express';
 import type { LintArtifactRequest, LintArtifactResponse } from '@open-design/contracts';
 import { resolveEdition } from '@open-design/contracts';
-import { NextoreClientError, type NextoreClient } from '../../nextore/client.js';
+import { NextoreClientError, type NextoreClient, type NextorePermissionClient } from '../../nextore/client.js';
 import { readNextoreConfig } from '../../nextore/config.js';
 import { registerNextoreProject } from '../../nextore/projects/register-project.js';
 import { listNextoreProjects } from '../../nextore/projects/list-projects.js';
@@ -6092,6 +6092,174 @@ export function registerProjectRoutes(app: Express, ctx: RegisterProjectRoutesDe
         'NEXTORE_UNAVAILABLE',
         error instanceof Error ? error.message : String(error),
       );
+    }
+  });
+
+  // NEXTORE: inline project permission editor. The module owns the ACL; these
+  // routes only proxy the caller's session and keep the same share gate as the
+  // permission-url deep link.
+  type NextorePermissionTarget = {
+    client: NextoreClient & NextorePermissionClient;
+    accessToken: string;
+    nextoreProjectId: string;
+  };
+
+  async function resolveNextorePermissionTarget(
+    req: Request,
+    res: Response,
+  ): Promise<NextorePermissionTarget | null> {
+    const projectId = typeof req.params.id === 'string' ? req.params.id : '';
+    if (!projectId) {
+      sendApiError(res, 404, 'PROJECT_NOT_FOUND', 'not found');
+      return null;
+    }
+    const project = getProject(db, projectId);
+    if (!project) {
+      sendApiError(res, 404, 'PROJECT_NOT_FOUND', 'not found');
+      return null;
+    }
+    if (!await authorizeProjectRequest(
+      req,
+      res,
+      projectId,
+      { mode: 'read', capability: 'share' },
+    )) return null;
+
+    const metadata = project.metadata as { nextoreProjectId?: string } | null | undefined;
+    const nextoreProjectId = metadata?.nextoreProjectId?.trim();
+    const nextore = ctx.nextore;
+    if (!nextore || resolveEdition(process.env.OD_EDITION) !== 'nextore' || !nextoreProjectId) {
+      sendApiError(res, 404, 'PROJECT_NOT_MAPPED', 'this project has no NexTore record');
+      return null;
+    }
+
+    const session = (res.locals as { nextoreSession?: { accessToken?: string } }).nextoreSession;
+    const accessToken = typeof session?.accessToken === 'string' ? session.accessToken.trim() : '';
+    if (!accessToken) {
+      sendApiError(res, 401, 'SESSION_REQUIRED', 'A NexTore session is required.');
+      return null;
+    }
+
+    const permissionClient = nextore.client as NextoreClient & Partial<NextorePermissionClient>;
+    if (
+      typeof permissionClient.projectPermissions !== 'function'
+      || typeof permissionClient.saveProjectPermissions !== 'function'
+      || typeof permissionClient.permissionGroups !== 'function'
+      || typeof permissionClient.permissionMembers !== 'function'
+    ) {
+      sendApiError(
+        res,
+        503,
+        'NEXTORE_UNAVAILABLE',
+        'The NexTore permission API is unavailable.',
+      );
+      return null;
+    }
+
+    return {
+      client: permissionClient as NextoreClient & NextorePermissionClient,
+      accessToken,
+      nextoreProjectId,
+    };
+  }
+
+  function sendNextorePermissionError(res: Response, error: unknown): void {
+    if (error instanceof NextoreClientError) {
+      if (error.statusCode === 400) {
+        sendApiError(res, 400, 'BAD_REQUEST', error.message);
+        return;
+      }
+      if (error.statusCode === 401) {
+        sendApiError(res, 401, 'SESSION_REQUIRED', error.message);
+        return;
+      }
+      if (error.statusCode === 403) {
+        sendApiError(res, 403, 'PROJECT_FORBIDDEN', error.message);
+        return;
+      }
+      if (error.statusCode === 404) {
+        sendApiError(res, 404, 'PROJECT_NOT_FOUND', error.message);
+        return;
+      }
+      if (error.statusCode === 409) {
+        sendApiError(res, 409, 'CONFLICT', error.message);
+        return;
+      }
+      if (error.statusCode === 502) {
+        sendApiError(res, 502, 'NEXTORE_RESPONSE_INVALID', error.message);
+        return;
+      }
+    }
+    sendApiError(
+      res,
+      503,
+      'NEXTORE_UNAVAILABLE',
+      error instanceof Error ? error.message : String(error),
+    );
+  }
+
+  app.get('/api/projects/:id/permissions', async (req, res) => {
+    const target = await resolveNextorePermissionTarget(req, res);
+    if (!target) return;
+    try {
+      const result = await target.client.projectPermissions<unknown>(
+        target.accessToken,
+        target.nextoreProjectId,
+      );
+      return res.json(result);
+    } catch (error) {
+      return sendNextorePermissionError(res, error);
+    }
+  });
+
+  app.post('/api/projects/:id/permissions', async (req, res) => {
+    const target = await resolveNextorePermissionTarget(req, res);
+    if (!target) return;
+    const body = req.body as SaveNextoreProjectPermissionsRequest | undefined;
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      return sendApiError(res, 400, 'BAD_REQUEST', 'permission body is required');
+    }
+    try {
+      const result = await target.client.saveProjectPermissions<unknown>(
+        target.accessToken,
+        target.nextoreProjectId,
+        body,
+      );
+      return res.json(result);
+    } catch (error) {
+      return sendNextorePermissionError(res, error);
+    }
+  });
+
+  app.get('/api/projects/:id/permission-groups', async (req, res) => {
+    const target = await resolveNextorePermissionTarget(req, res);
+    if (!target) return;
+    const query = typeof req.query.query === 'string' ? req.query.query : undefined;
+    try {
+      const result = await target.client.permissionGroups<unknown>(
+        target.accessToken,
+        target.nextoreProjectId,
+        query,
+      );
+      return res.json(result);
+    } catch (error) {
+      return sendNextorePermissionError(res, error);
+    }
+  });
+
+  app.get('/api/projects/:id/permission-members', async (req, res) => {
+    const target = await resolveNextorePermissionTarget(req, res);
+    if (!target) return;
+    const query = typeof req.query.query === 'string' ? req.query.query : undefined;
+    try {
+      const result = await target.client.permissionMembers<unknown>(
+        target.accessToken,
+        target.nextoreProjectId,
+        query,
+      );
+      return res.json(result);
+    } catch (error) {
+      return sendNextorePermissionError(res, error);
     }
   });
 

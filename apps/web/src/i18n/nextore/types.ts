@@ -13,6 +13,46 @@ export interface NextoreDict {
   'nextoreAccount.signOut': string;
   
   'nextoreAccount.signOutFailed': string;
+  'nextorePermissions.title': string;
+  'nextorePermissions.description': string;
+  'nextorePermissions.inherit': string;
+  'nextorePermissions.inheritedFrom': string;
+  'nextorePermissions.projectAccess': string;
+  'nextorePermissions.groupMember': string;
+  'nextorePermissions.manage': string;
+  'nextorePermissions.read': string;
+  'nextorePermissions.edit': string;
+  'nextorePermissions.delete': string;
+  'nextorePermissions.download': string;
+  'nextorePermissions.lock': string;
+  'nextorePermissions.createFile': string;
+  'nextorePermissions.createFolder': string;
+  'nextorePermissions.add': string;
+  'nextorePermissions.remove': string;
+  'nextorePermissions.applyToChildren': string;
+  'nextorePermissions.inherited': string;
+  'nextorePermissions.owner': string;
+  'nextorePermissions.noCustom': string;
+  'nextorePermissions.noInherited': string;
+  'nextorePermissions.loadFailed': string;
+  'nextorePermissions.saveFailed': string;
+  'nextorePermissions.saved': string;
+  'nextorePermissions.managerRequired': string;
+  'nextorePermissions.group': string;
+  'nextorePermissions.member': string;
+  'nextorePermissions.searchGroups': string;
+  'nextorePermissions.searchMembers': string;
+  'nextorePermissions.noGroups': string;
+  'nextorePermissions.noMembers': string;
+  'nextorePermissions.selectHint': string;
+  'nextorePermissions.addTitle': string;
+  'nextorePermissions.confirmAdd': string;
+  'nextorePermissions.selected': string;
+  'nextorePermissions.expand': string;
+  'nextorePermissions.collapse': string;
+  'nextorePermissions.retry': string;
+  'nextorePermissions.saving': string;
+  'nextorePermissions.readOnly': string;
   
   'signedOut.title': string;
   

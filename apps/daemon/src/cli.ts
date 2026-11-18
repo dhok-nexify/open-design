@@ -268,6 +268,7 @@ const PROJECT_RESOURCE_STRING_FLAGS = new Set([
   ...PROJECT_STRING_FLAGS,
   'workspace',
   'workspace-member',
+  'file',
 ]);
 const PROJECT_BOOLEAN_FLAGS = new Set(['help', 'h', 'json', 'follow', 'thumbnail', 'confirm']);
 const RUN_START_STRING_FLAGS = new Set([
@@ -7826,6 +7827,9 @@ async function runProject(args) {
   od project list                         List projects.
   od project nextore-list [--json]        List the member's NexTore projects,
                                           marking which have local content.
+  od project permissions <id> [--json]     Print the NexTore project ACL matrix.
+  od project permissions-save <id> --file <json-path|-> [--json]
+                                          Save the ACL matrix (project managers).
   od project artifact-network <id> [--policy none|same-origin-readonly]
                     [--paths /a/,/b/] [--json]
                     Show or set the preview artifact network policy. The
@@ -8050,6 +8054,75 @@ Common options:
       const purged = await purgeResp.json();
       if (flags.json) return process.stdout.write(JSON.stringify(purged, null, 2) + '\n');
       console.log(`Purged ${purgeId}.`);
+      return;
+    }
+    case 'permissions': {
+      const id = positionalArgs(rest, PROJECT_RESOURCE_STRING_FLAGS)[0];
+      if (!id) {
+        console.error('Usage: od project permissions <id> [--json]');
+        process.exit(2);
+      }
+      const resp = await fetch(
+        `${base}/api/projects/${encodeURIComponent(id)}/permissions`,
+        { headers: workspaceHeaders },
+      );
+      if (!resp.ok) return structuredHttpFailure(resp);
+      const data = await resp.json();
+      if (flags.json) return process.stdout.write(JSON.stringify(data, null, 2) + '\n');
+      const rows = [
+        ...(Array.isArray(data.customized) ? data.customized : []),
+        ...(Array.isArray(data.inherited) ? data.inherited : []),
+      ] as Array<Record<string, unknown>>;
+      console.log('Group/Member\tManage\tRead\tEdit\tDelete\tDownload\tLock\tCreateFile\tCreateFolder\tInherited');
+      for (const row of rows) {
+        const rights = (row.rights && typeof row.rights === 'object' ? row.rights : {}) as Record<string, unknown>;
+        const cells = ['manage', 'read', 'edit', 'delete', 'download', 'checkOut', 'createFile', 'createFolder']
+          .map((key) => rights[key] === true ? 'x' : '-');
+        console.log([
+          String(row.name ?? row.recordId ?? ''),
+          ...cells,
+          row.inherited === true ? 'yes' : 'no',
+        ].join('\t'));
+      }
+      return;
+    }
+    case 'permissions-save': {
+      const id = positionalArgs(rest, PROJECT_RESOURCE_STRING_FLAGS)[0];
+      const file = typeof flags.file === 'string' ? flags.file.trim() : '';
+      if (!id || !file) {
+        console.error('Usage: od project permissions-save <id> --file <json-path|-> [--json]');
+        process.exit(2);
+      }
+      let raw: string | null = null;
+      try {
+        raw = await readPromptFromFlags({ 'prompt-file': file });
+      } catch (error) {
+        console.error(`Cannot read --file: ${error instanceof Error ? error.message : String(error)}`);
+        process.exit(2);
+      }
+      let body: unknown;
+      try {
+        body = JSON.parse(String(raw ?? ''));
+      } catch {
+        console.error('--file must contain a JSON permission body.');
+        process.exit(2);
+      }
+      if (!body || typeof body !== 'object' || Array.isArray(body)) {
+        console.error('--file must contain a JSON object.');
+        process.exit(2);
+      }
+      const resp = await fetch(
+        `${base}/api/projects/${encodeURIComponent(id)}/permissions`,
+        {
+          method: 'POST',
+          headers: { ...workspaceHeaders, 'content-type': 'application/json' },
+          body: JSON.stringify(body),
+        },
+      );
+      if (!resp.ok) return structuredHttpFailure(resp);
+      const data = await resp.json();
+      if (flags.json) return process.stdout.write(JSON.stringify(data, null, 2) + '\n');
+      console.log(`Saved project permissions for ${id}.`);
       return;
     }
     case 'nextore-list': {

@@ -63,3 +63,76 @@ export interface NextoreSessionView {
   };
   groups: NextoreSessionGroupSummary[];
 }
+
+/** Which ACL record a permission row points at. */
+export type NextorePermissionRecordType = 'owner' | 'group' | 'member';
+
+/** The eight ACL flags the native permission page exposes. */
+export interface NextoreProjectPermissionRights {
+  manage: boolean;
+  read: boolean;
+  edit: boolean;
+  delete: boolean;
+  download: boolean;
+  checkOut: boolean;
+  createFile: boolean;
+  createFolder: boolean;
+}
+
+/** One row of the project permission matrix. */
+export interface NextoreProjectPermissionItem {
+  recordId: number;
+  recordType: NextorePermissionRecordType;
+  name: string;
+  inherited: boolean;
+  rights: NextoreProjectPermissionRights;
+}
+
+/** GET /api/projects/:id/permissions response. */
+export interface NextoreProjectPermissions {
+  exists: boolean;
+  canManage: boolean;
+  isInherit: boolean;
+  customized: NextoreProjectPermissionItem[];
+  inherited: NextoreProjectPermissionItem[];
+}
+
+/** One row posted to the project permission save endpoint. */
+export interface NextoreProjectPermissionItemInput {
+  recordType: NextorePermissionRecordType;
+  recordId: number;
+  rights: NextoreProjectPermissionRights;
+}
+
+/** POST /api/projects/:id/permissions body. */
+export interface SaveNextoreProjectPermissionsRequest {
+  isInherit: boolean;
+  applyToAllChildren: boolean;
+  items: NextoreProjectPermissionItemInput[];
+}
+
+/** One node of the group picker tree. */
+export interface NextorePermissionGroup {
+  id: number;
+  name: string;
+  parentId: number;
+}
+
+/** GET /api/projects/:id/permission-groups response. */
+export interface NextorePermissionGroupsResponse {
+  groups: NextorePermissionGroup[];
+  truncated?: boolean;
+}
+
+/** One member returned by the permission member search. */
+export interface NextorePermissionMember {
+  id: number;
+  login: string;
+  fullName: string;
+  email: string;
+}
+
+/** GET /api/projects/:id/permission-members response. */
+export interface NextorePermissionMembersResponse {
+  members: NextorePermissionMember[];
+}

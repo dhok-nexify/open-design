@@ -3,6 +3,7 @@ import type {
   NextoreBrandingResponse,
   NextoreModuleHealthResponse,
   NextoreTier,
+  SaveNextoreProjectPermissionsRequest,
 } from '@open-design/contracts';
 import type { NextoreConfig } from './config.js';
 
@@ -83,6 +84,33 @@ export interface NextoreClient {
   deleteProject<T>(accessToken: string, projectId: string, signal?: AbortSignal): Promise<T>;
 }
 
+/**
+ * Permission methods implemented by the production client. Kept as an extension
+ * interface so route tests and older mocks can still implement the base
+ * NextoreClient surface without every new endpoint forcing a mock rewrite.
+ */
+export interface NextorePermissionClient {
+  projectPermissions<T>(accessToken: string, projectId: string, signal?: AbortSignal): Promise<T>;
+  saveProjectPermissions<T>(
+    accessToken: string,
+    projectId: string,
+    body: SaveNextoreProjectPermissionsRequest,
+    signal?: AbortSignal,
+  ): Promise<T>;
+  permissionGroups<T>(
+    accessToken: string,
+    projectId: string,
+    query?: string,
+    signal?: AbortSignal,
+  ): Promise<T>;
+  permissionMembers<T>(
+    accessToken: string,
+    projectId: string,
+    query?: string,
+    signal?: AbortSignal,
+  ): Promise<T>;
+}
+
 function parseJson(text: string): unknown {
   if (!text) return null;
   try {
@@ -121,7 +149,7 @@ function upstreamErrorMessage(payload: unknown): string | undefined {
   return undefined;
 }
 
-export function createNextoreClient(options: NextoreClientOptions): NextoreClient {
+export function createNextoreClient(options: NextoreClientOptions): NextoreClient & NextorePermissionClient {
   const fetchImpl = options.fetch ?? fetch;
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const configuredBase = new URL(options.config.baseUrl);
@@ -194,6 +222,53 @@ export function createNextoreClient(options: NextoreClientOptions): NextoreClien
     projectAccess<T>(accessToken: string, projectId: string, signal?: AbortSignal) {
       return request<T>(
         'api/designer/projects/' + encodeURIComponent(projectId) + '/access',
+        signal ? { accessToken, signal } : { accessToken },
+      );
+    },
+
+    projectPermissions<T>(accessToken: string, projectId: string, signal?: AbortSignal) {
+      return request<T>(
+        'api/designer/projects/' + encodeURIComponent(projectId) + '/permissions',
+        signal ? { accessToken, signal } : { accessToken },
+      );
+    },
+
+    saveProjectPermissions<T>(
+      accessToken: string,
+      projectId: string,
+      body: SaveNextoreProjectPermissionsRequest,
+      signal?: AbortSignal,
+    ) {
+      return request<T>('api/designer/projects/' + encodeURIComponent(projectId) + '/permissions', {
+        accessToken,
+        method: 'POST',
+        body,
+        ...(signal ? { signal } : {}),
+      });
+    },
+
+    permissionGroups<T>(
+      accessToken: string,
+      projectId: string,
+      query?: string,
+      signal?: AbortSignal,
+    ) {
+      const suffix = query ? '?query=' + encodeURIComponent(query) : '';
+      return request<T>(
+        'api/designer/projects/' + encodeURIComponent(projectId) + '/permission-groups' + suffix,
+        signal ? { accessToken, signal } : { accessToken },
+      );
+    },
+
+    permissionMembers<T>(
+      accessToken: string,
+      projectId: string,
+      query?: string,
+      signal?: AbortSignal,
+    ) {
+      const suffix = query ? '?query=' + encodeURIComponent(query) : '';
+      return request<T>(
+        'api/designer/projects/' + encodeURIComponent(projectId) + '/permission-members' + suffix,
         signal ? { accessToken, signal } : { accessToken },
       );
     },
