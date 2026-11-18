@@ -22,6 +22,18 @@ function declarations(selector: string): string {
 }
 
 describe('entry rail — 最近浏览过 rows', () => {
+  it('scrolls the list vertically only', () => {
+    const list = declarations('.entry-nav-rail__recent-list');
+    expect(list).toMatch(/overflow-x:\s*hidden/);
+    expect(list).toMatch(/overflow-y:\s*auto/);
+
+    // The visually-hidden space label is absolutely positioned; the name has to
+    // be its containing block or it escapes the ellipsis box and widens the
+    // list (which is what grew the horizontal scrollbar).
+    const name = declarations('.entry-nav-rail__recent-name');
+    expect(name).toMatch(/position:\s*relative/);
+  });
+
   it('pins team and shared project names to a tinted title, not a marker', () => {
     const team = declarations(".entry-nav-rail__recent-name[data-space='team']");
     expect(team).toMatch(

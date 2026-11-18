@@ -963,6 +963,12 @@
      covered. Under the cap the box is content-sized: no scrollbar, no slack. */
   min-height: 0;
   max-height: calc(11 * 38px + 10 * 2px + 2px);
+  /* The list scrolls VERTICALLY only. `overflow-y: auto` computes `overflow-x`
+     to auto as well, so a single pixel of horizontal overflow (the hidden
+     space label used to sit outside the name's clip box) grew a horizontal
+     scrollbar under every row. Nothing here is meant to scroll sideways:
+     names ellipsize. */
+  overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-width: thin;
@@ -1320,6 +1326,10 @@
   color: inherit;
 }
 .entry-nav-rail__recent-name {
+  /* Positioned so the visually-hidden space label inside it is contained by
+     this box (and clipped by its overflow) instead of escaping to the row and
+     widening the list. */
+  position: relative;
   min-width: 0;
   flex: 1 1 auto;
   white-space: nowrap;
