@@ -44,7 +44,13 @@ function publishQueueTableSql(tableName: string, ifNotExists: boolean): string {
       project_id TEXT NOT NULL,
       artifact_id TEXT NOT NULL,
       representation TEXT NOT NULL CHECK (representation IN (${REPRESENTATION_SQL})),
+      member_id INTEGER NOT NULL DEFAULT 0,
+      run_id TEXT,
+      tier TEXT,
       relative_path TEXT NOT NULL,
+      source_path TEXT NOT NULL DEFAULT '',
+      name TEXT NOT NULL DEFAULT '',
+      mime_type TEXT NOT NULL DEFAULT 'application/octet-stream',
       reason TEXT NOT NULL,
       attempts INTEGER NOT NULL DEFAULT 0,
       next_attempt_at INTEGER NOT NULL,
@@ -79,6 +85,7 @@ const MIGRATION_TABLE_SQL = `
 `;
 
 export const NEXTORE_ARTIFACT_MIGRATION_ID = 'p04a_artifact_representation_v1';
+export const NEXTORE_QUEUE_PAYLOAD_MIGRATION_ID = 'p04c_queue_payload_v1';
 
 /**
  * Canonical DDL for a fresh database. Existing databases go through
@@ -164,6 +171,21 @@ function migratePublishQueueTable(db: SqliteDb): void {
   `);
 }
 
+function migratePublishQueuePayload(db: SqliteDb): void {
+  if (!hasTable(db, 'nextore_publish_queue')) return;
+  const columns = tableColumns(db, 'nextore_publish_queue');
+  const add = (name: string, definition: string): void => {
+    if (columns.includes(name)) return;
+    db.exec(`ALTER TABLE nextore_publish_queue ADD COLUMN ${definition}`);
+  };
+  add('member_id', 'member_id INTEGER NOT NULL DEFAULT 0');
+  add('run_id', 'run_id TEXT');
+  add('tier', 'tier TEXT');
+  add('source_path', "source_path TEXT NOT NULL DEFAULT ''");
+  add('name', "name TEXT NOT NULL DEFAULT ''");
+  add('mime_type', "mime_type TEXT NOT NULL DEFAULT 'application/octet-stream'");
+}
+
 /**
  * Add `representation` to the artifact and queue tables exactly once. Existing
  * rows are preserved as the `source` representation; the old queue id is
@@ -182,6 +204,16 @@ export function migrateNextoreArtifactSchema(db: SqliteDb): void {
       db.prepare(
         `INSERT INTO nextore_schema_migrations (id, applied_at) VALUES (?, ?)`,
       ).run(NEXTORE_ARTIFACT_MIGRATION_ID, Date.now());
+    }
+
+    const payloadApplied = db.prepare(
+      `SELECT 1 AS applied FROM nextore_schema_migrations WHERE id = ?`,
+    ).get(NEXTORE_QUEUE_PAYLOAD_MIGRATION_ID) as { applied: number } | undefined;
+    if (!payloadApplied) {
+      migratePublishQueuePayload(db);
+      db.prepare(
+        `INSERT INTO nextore_schema_migrations (id, applied_at) VALUES (?, ?)`,
+      ).run(NEXTORE_QUEUE_PAYLOAD_MIGRATION_ID, Date.now());
     }
 
     db.exec(INDEX_SQL);
@@ -215,7 +247,13 @@ interface QueueRow {
   project_id: string;
   artifact_id: string;
   representation: string;
+  member_id: number;
+  run_id: string | null;
+  tier: string | null;
   relative_path: string;
+  source_path: string;
+  name: string;
+  mime_type: string;
   reason: string;
   attempts: number;
   next_attempt_at: number;
@@ -258,7 +296,13 @@ function toQueueItem(row: QueueRow): NextorePublishQueueItem {
     projectId: row.project_id,
     artifactId: row.artifact_id,
     representation: row.representation,
+    memberId: row.member_id,
+    runId: row.run_id,
+    tier: row.tier === 'fast' || row.tier === 'expert' ? row.tier : null,
     relativePath: row.relative_path,
+    sourcePath: row.source_path,
+    name: row.name,
+    mimeType: row.mime_type,
     reason: row.reason,
     attempts: row.attempts,
     nextAttemptAt: row.next_attempt_at,
@@ -440,7 +484,13 @@ export interface EnqueueNextorePublishInput {
   projectId: string;
   artifactId: string;
   representation: NextoreArtifactRepresentation;
+  memberId?: number;
+  runId?: string | null;
+  tier?: 'fast' | 'expert' | null;
   relativePath: string;
+  sourcePath?: string;
+  name?: string;
+  mimeType?: string;
   reason: string;
   now?: number;
 }
@@ -457,14 +507,24 @@ export function enqueueNextorePublish(
   ensureNextoreArtifactSchema(db);
   const now = input.now ?? Date.now();
   const id = nextorePublishQueueId(input.projectId, input.artifactId, input.representation);
+  const sourcePath = input.sourcePath ?? input.relativePath;
+  const name = input.name ?? sourcePath.split('/').pop() ?? sourcePath;
+  const mimeType = input.mimeType ?? 'application/octet-stream';
   db.prepare(`
     INSERT INTO nextore_publish_queue (
-      id, project_id, artifact_id, representation, relative_path, reason, attempts,
+      id, project_id, artifact_id, representation, member_id, run_id, tier,
+      relative_path, source_path, name, mime_type, reason, attempts,
       next_attempt_at, created_at, claimed_by, lease_until, dead_letter_at, last_error
-    ) VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, NULL, NULL, NULL, NULL)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, NULL, NULL, NULL, NULL)
     ON CONFLICT(id) DO UPDATE SET
       representation = excluded.representation,
+      member_id = excluded.member_id,
+      run_id = excluded.run_id,
+      tier = excluded.tier,
       relative_path = excluded.relative_path,
+      source_path = excluded.source_path,
+      name = excluded.name,
+      mime_type = excluded.mime_type,
       reason = excluded.reason,
       next_attempt_at = MIN(nextore_publish_queue.next_attempt_at, excluded.next_attempt_at),
       last_error = CASE
@@ -476,7 +536,13 @@ export function enqueueNextorePublish(
     input.projectId,
     input.artifactId,
     input.representation,
+    input.memberId ?? 0,
+    input.runId ?? null,
+    input.tier ?? null,
     input.relativePath,
+    sourcePath,
+    name,
+    mimeType,
     input.reason,
     now,
     now,
@@ -492,7 +558,8 @@ export function getNextorePublishQueueItem(
 ): NextorePublishQueueItem | null {
   ensureNextoreArtifactSchema(db);
   const row = db.prepare(`
-    SELECT id, project_id, artifact_id, representation, relative_path, reason, attempts,
+    SELECT id, project_id, artifact_id, representation, member_id, run_id, tier,
+           relative_path, source_path, name, mime_type, reason, attempts,
            next_attempt_at, created_at, claimed_by, lease_until, dead_letter_at,
            last_error
       FROM nextore_publish_queue
@@ -519,7 +586,8 @@ export function listNextorePublishQueue(
   }
   const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
   const rows = db.prepare(`
-    SELECT id, project_id, artifact_id, representation, relative_path, reason, attempts,
+    SELECT id, project_id, artifact_id, representation, member_id, run_id, tier,
+           relative_path, source_path, name, mime_type, reason, attempts,
            next_attempt_at, created_at, claimed_by, lease_until, dead_letter_at,
            last_error
       FROM nextore_publish_queue
@@ -544,7 +612,8 @@ export function claimNextNextorePublish(
   const leaseMs = input.leaseMs ?? 60_000;
   const claim = db.transaction(() => {
     const row = db.prepare(`
-      SELECT id, project_id, artifact_id, representation, relative_path, reason, attempts,
+      SELECT id, project_id, artifact_id, representation, member_id, run_id, tier,
+             relative_path, source_path, name, mime_type, reason, attempts,
              next_attempt_at, created_at, claimed_by, lease_until, dead_letter_at,
              last_error
         FROM nextore_publish_queue

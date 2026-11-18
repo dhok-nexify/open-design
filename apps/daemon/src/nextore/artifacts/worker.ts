@@ -36,9 +36,27 @@ export interface NextorePublishWorkerTick {
 export interface DrainNextorePublishQueueOptions {
   maxItems?: number;
   shouldStop?: () => boolean;
+  onTick?: (tick: NextorePublishWorkerTick) => void;
 }
 
 const DEFAULT_BACKOFF_MS: readonly number[] = [5_000, 15_000, 60_000, 300_000, 900_000];
+
+/** Build a publish job from the durable queue payload, or null when the row is incomplete. */
+export function jobFromQueueItem(item: NextorePublishQueueItem): PublishArtifactJob | null {
+  if (item.memberId <= 0 || !item.sourcePath || !item.name || !item.mimeType) return null;
+  return {
+    projectId: item.projectId,
+    artifactId: item.artifactId,
+    representation: item.representation,
+    relativePath: item.relativePath,
+    name: item.name,
+    mimeType: item.mimeType,
+    sourcePath: item.sourcePath,
+    runId: item.runId,
+    tier: item.tier,
+    memberId: item.memberId,
+  };
+}
 
 function retryOutcome(errorCode: string, message: string): PublishOutcome {
   return {
@@ -134,6 +152,7 @@ export async function drainNextorePublishQueue(
   let processed = 0;
   while (processed < maxItems && !options.shouldStop?.()) {
     const tick = await runNextorePublishWorkerOnce(deps);
+    options.onTick?.(tick);
     if (!tick.claimed) break;
     processed += 1;
   }

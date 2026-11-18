@@ -110,7 +110,13 @@ export interface NextorePublishQueueItem {
   projectId: string;
   artifactId: string;
   representation: NextoreArtifactRepresentation;
+  memberId: number;
+  runId: string | null;
+  tier: 'fast' | 'expert' | null;
   relativePath: string;
+  sourcePath: string;
+  name: string;
+  mimeType: string;
   reason: string;
   attempts: number;
   nextAttemptAt: number;
