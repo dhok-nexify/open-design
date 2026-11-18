@@ -30,12 +30,11 @@ const SESSION_HEARTBEAT_MS = 5 * 60 * 1000;
  *
  * The five-minute heartbeat above only handles silent re-authentication. A
  * sign-out at the site must not wait for it: while somebody is looking at this
- * tab, a connection the site cut has to end the session within seconds. Twenty
- * seconds is the largest delay a person does not read as "still signed in",
- * and it is above the daemon's own 15-second floor, so N open tabs still
- * produce at most one module call per interval.
+ * tab, a connection the site cut has to end the session within seconds. Ten
+ * seconds reads as immediate, and it is above the daemon's own 9-second floor,
+ * so N open tabs still produce at most one module call per interval.
  */
-const FOREGROUND_PROBE_MS = 20_000;
+const FOREGROUND_PROBE_MS = 10_000;
 const VISIBILITY_CHECK_COOLDOWN_MS = 5_000;
 
 interface SessionErrorBody {

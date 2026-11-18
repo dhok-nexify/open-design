@@ -63,11 +63,12 @@ const MUTATION_REVALIDATE_MS = 60 * 1000;
  *
  * A foreground tab asks for one every time it becomes visible again, and a
  * person alt-tabbing repeatedly must not turn that into a bootstrap stream.
- * Fifteen seconds is short enough that a sign-out at the site is observed
- * before the person can do anything in this tab, and long enough that a burst
- * of focus events collapses into one check.
+ * Nine seconds is short enough that a sign-out at the site is observed before
+ * the person can do anything in this tab, and long enough that a burst of
+ * focus events collapses into one check. It stays just under the shell's
+ * ten-second foreground watchdog, so a probe is never skipped for being early.
  */
-const FORCED_VALIDATE_FLOOR_MS = 15 * 1000;
+const FORCED_VALIDATE_FLOOR_MS = 9 * 1000;
 
 /**
  * How old a session may get before the shell is asked to re-run the OAuth

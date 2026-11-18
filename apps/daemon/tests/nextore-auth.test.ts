@@ -348,8 +348,8 @@ describe('Nextore OAuth routes', () => {
     expect(plain.status).toBe(200);
     expect(bootstrap).not.toHaveBeenCalled();
 
-    // Forced probes are throttled by the same 15-second floor the front end's
-    // 20-second watchdog clears; step past it.
+    // Forced probes are throttled by the same nine-second floor the front
+    // end's ten-second watchdog clears; step past it.
     clock += 16_000;
     const forced = await nativeFetch(baseUrl + '/auth/me?revalidate=1', {
       headers: { cookie: sessionCookie(session.sid) },
