@@ -1,0 +1,98 @@
+{
+  "round": 17,
+  "date": "2026-11-18",
+  "deployment": {
+    "version": "0.27.2",
+    "health": {
+      "ok": true,
+      "edition": "nextore",
+      "sandbox": "bwrap",
+      "oauthClientId": "nx-cba9554087bd90c60b273ec209d486b4"
+    }
+  },
+  "settingsConstraints": {
+    "source": "https://v4.nexify.hk/DesignerSettingsPage",
+    "MaxTokensFast": {
+      "min": "1",
+      "max": "1000000"
+    },
+    "MaxTokensExpert": {
+      "min": "1",
+      "max": "1000000"
+    },
+    "ShareLinkMaxDays": {
+      "max": "3650"
+    },
+    "GcRetentionDays": {
+      "max": "3650"
+    },
+    "AccessCacheSeconds": {
+      "max": "3600"
+    },
+    "LoadingText": {
+      "maxlength": "120"
+    },
+    "oauthClientIdMatchesHealth": true
+  },
+  "projectSpaceAndOwner": {
+    "api": "/api/nextore/projects",
+    "fields": [
+      "workspaceId",
+      "workspaceName",
+      "workspaceType",
+      "ownerMemberId"
+    ],
+    "example": {
+      "d88ccd95": {
+        "workspaceName": "test designer workspace",
+        "workspaceType": "team",
+        "ownerMemberId": 1
+      }
+    },
+    "ui": {
+      "allProjects": [
+        "AdminUser创建",
+        "个人: admin Workspace",
+        "团队: test designer workspace"
+      ],
+      "cardBadges": [
+        "共享",
+        "团队"
+      ],
+      "searchBadges": [
+        "共享",
+        "团队"
+      ],
+      "sharedWinsOverOwnership": true,
+      "teamCollectionOnlyInTeamWorkspace": true
+    }
+  },
+  "homeChipMenu": {
+    "gapBelowChipPx": 4,
+    "staysInViewport": true
+  },
+  "bundle": {
+    "jsChunks": 20,
+    "jsKB": 2392,
+    "cssKB": 337,
+    "largestChunkKB": 1330,
+    "fcpMs": 264,
+    "loadMs": 286,
+    "note": "Workspace chunk is still preloaded by the bundler; commit 1a17fe9b22 deliberately kept the extraction and reverted wrappers."
+  },
+  "securityHeaders": {
+    "content-security-policy": "frame-ancestors 'none'",
+    "x-frame-options": "DENY"
+  },
+  "branding": {
+    "siteTitle": "NexTore Designer(dev)",
+    "primaryColor": "#0e4656",
+    "upstreamEntryStringsInDom": [],
+    "lang": "zh-CN"
+  },
+  "runStatusPolling": {
+    "intervalMs": 4000,
+    "urls": 3,
+    "note": "Backstop poll, by design."
+  }
+}

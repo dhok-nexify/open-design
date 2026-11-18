@@ -1,0 +1,26 @@
+{
+  "case": "TC-AUTH-09",
+  "testedAt": "2026-11-18T04:31:30Z",
+  "logoutRequest": {
+    "started": 1794976270322,
+    "ended": 1794976272896,
+    "status": 0,
+    "type": "opaqueredirect"
+  },
+  "probe": {
+    "connectedAt": 1794976259918,
+    "revokedEventAt": 1794976284458,
+    "latencyMs": 11562,
+    "data": "{\"state\":\"revoked\"}",
+    "readyStateAfter": 2
+  },
+  "tabs": {
+    "tabA": "https://v4.nexify.hk/login?ReturnUrl=%2FOAuthApprove%3Fh%3De174a8f8bc5039d4e8dbf6d70e7aed01",
+    "tabB": "https://v4.nexify.hk/login?ReturnUrl=%2FOAuthApprove%3Fh%3D948cfbc046de0604e8a9c455cde6fc0c"
+  },
+  "notes": [
+    "Both Designer tabs redirected to the NexTore login page; no signed-in shell remained.",
+    "Latency ~11.6s matches the daemon WATCHDOG_INTERVAL_MS = 15s tick, not a hint push.",
+    "No producer calls POST /auth/session-ended (only daemon tests reference it)."
+  ]
+}

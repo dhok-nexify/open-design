@@ -1727,27 +1727,45 @@ export async function listProjectRunsWithScope(
  * project asked about headerlessly is filtered to its non-AMR runs by the
  * daemon, never refused, so a local row can only under-report, not error.
  *
- * Returns `null` when the project is unreadable or the daemon is unreachable,
- * so a caller can tell "no runs" apart from "could not ask".
+ * A refusal is reported, not hidden: `forbidden` (403) and `not_found`
+ * (404) mean asking again cannot change the answer, while `unavailable`
+ * covers a transient failure that a retry may fix. Callers poll this in the
+ * background, so that difference is what stops a read-only member's rail
+ * from asking about the same project every few seconds forever (ND-R17-01).
  */
+export type ProjectRunsRead =
+  | {
+      ok: true;
+      runs: ChatRunStatusResponse[];
+      awaitingInputProjectIds: string[];
+      /** `undefined` when the daemon predates the per-conversation set. */
+      awaitingInputConversationIds?: string[];
+    }
+  | { ok: false; reason: 'forbidden' | 'not_found' | 'unavailable' };
+
+/** A refusal the next poll cannot change, versus a failure worth retrying. */
+function refusalReason(status: number): 'forbidden' | 'not_found' | 'unavailable' {
+  if (status === 403) return 'forbidden';
+  if (status === 404) return 'not_found';
+  return 'unavailable';
+}
+
 export async function listRunsForProject(
   projectId: string,
   workspaceContext?: WorkspaceCollabContext | null,
-): Promise<{
-  runs: ChatRunStatusResponse[];
-  awaitingInputProjectIds: string[];
-  /** `undefined` when the daemon predates the per-conversation set. */
-  awaitingInputConversationIds?: string[];
-} | null> {
+): Promise<ProjectRunsRead> {
   try {
     const resp = await fetch(`/api/runs?projectId=${encodeURIComponent(projectId)}`, {
+      // A backstop poll must never compete with the user's own request.
+      priority: 'low',
       ...(workspaceContext
         ? { headers: workspaceProjectHeaders(workspaceContext) }
         : {}),
     });
-    if (!resp.ok) return null;
+    if (!resp.ok) return { ok: false, reason: refusalReason(resp.status) };
     const body = (await resp.json()) as ChatRunListResponse;
     return {
+      ok: true,
       runs: body.runs ?? [],
       // Absent on daemons older than this field; treat as "no pending
       // question" rather than failing the whole read.
@@ -1757,7 +1775,7 @@ export async function listRunsForProject(
         : {}),
     };
   } catch {
-    return null;
+    return { ok: false, reason: 'unavailable' };
   }
 }
 

@@ -1,0 +1,49 @@
+{
+  "case": "TC-ACL-00 / ND-R16-03 / ND-R16-04",
+  "testedAt": "2026-11-18T04:44:00Z",
+  "manager": {
+    "memberId": 2209,
+    "project3193": {
+      "canRead": true,
+      "canEdit": true,
+      "canManage": true
+    },
+    "permissionButton": true,
+    "drawer": {
+      "title": "项目权限",
+      "inheritCheckboxEnabled": true,
+      "saveEnabled": true,
+      "addGroupMemberEnabled": true
+    }
+  },
+  "editor": {
+    "memberId": 2207,
+    "project3193": {
+      "canRead": true,
+      "canEdit": true,
+      "canDelete": false,
+      "canManage": false
+    },
+    "permissionButton": false,
+    "settings": {
+      "mcpNavEntry": false,
+      "mcpInBody": false,
+      "mcpAccess": {
+        "enabled": true,
+        "allowed": false
+      }
+    }
+  },
+  "ndR16_04_repro": {
+    "project": "d88ccd95-87b9-40a1-8d2d-7d54c343e71a",
+    "nextoreAccess": {
+      "canRead": true,
+      "canEdit": false
+    },
+    "runsApi": {
+      "status": 403,
+      "code": "PROJECT_FORBIDDEN"
+    },
+    "rootCause": "requiredRight() requires canEdit for readKind=conversation; run-status feed asks every recent project and retries 403 every 4s forever."
+  }
+}

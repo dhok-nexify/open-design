@@ -73,6 +73,13 @@ interface Subscription {
  * the project, and blanking the row would flash the default mark and back.
  */
 const summaries = new Map<string, ProjectRunSummary | null>();
+/**
+ * Projects the server refused (403/404). Asking again on the next tick cannot
+ * change the answer, so the poll skips them until a surface subscribes again —
+ * which a reload or a return to the page does, so a later ACL grant still
+ * heals without a restart.
+ */
+const unreadableProjectIds = new Set<string>();
 let acknowledged: AcknowledgedRuns | null = null;
 const subscriptions = new Set<Subscription>();
 const inFlight = new Set<string>();
@@ -116,9 +123,15 @@ async function readProject(projectId: string, context: WorkspaceCollabContext | 
   const startedIn = generation;
   const result = await listRunsForProject(projectId, context);
   if (startedIn !== generation) return;
-  // An unreadable project yields null; keeping whatever was known leaves the
-  // row as it was rather than asserting a status nobody verified.
-  if (!result) return;
+  if (!result.ok) {
+    // A definitive refusal ends the question for this subscription: the same
+    // request four seconds later cannot answer differently, and a read-only
+    // member's rail must not turn that into a 403 every tick (ND-R17-01).
+    // A transient failure stays retryable. Either way the row keeps its last
+    // known mark, or stays unknown — never a status nobody verified.
+    if (result.reason !== 'unavailable') unreadableProjectIds.add(projectId);
+    return;
+  }
   const next = foldRunsToProjectRunSummaries(
     result.runs,
     result.awaitingInputProjectIds,
@@ -153,6 +166,7 @@ export function releaseProjectRunStatusReads(projectId: string): void {
 function refresh(ids: Iterable<string>, contextFor: (projectId: string) => WorkspaceCollabContext | null): void {
   for (const projectId of ids) {
     if (unpersistedProjectIds.has(projectId)) continue;
+    if (unreadableProjectIds.has(projectId)) continue;
     if (inFlight.has(projectId)) continue;
     inFlight.add(projectId);
     void readProject(projectId, contextFor(projectId)).finally(() => {
@@ -199,6 +213,9 @@ function stopFeed(): void {
 
 function addSubscription(subscription: Subscription): void {
   subscriptions.add(subscription);
+  // A new surface is the healing point: a grant that landed since the refusal
+  // is worth one more question.
+  for (const projectId of subscription.ids) unreadableProjectIds.delete(projectId);
   // Always revalidate on subscribe — a surface that comes back shows its last
   // known answer at once and catches up on whatever moved meanwhile — but
   // never blank: the cache is only ever replaced, not cleared.
@@ -239,6 +256,7 @@ export function resetProjectRunStatusStore(): void {
   acknowledged = null;
   inFlight.clear();
   unpersistedProjectIds.clear();
+  unreadableProjectIds.clear();
   subscriptions.clear();
   stopFeed();
   version += 1;

@@ -248,3 +248,52 @@ describe('useProjectRunStatuses — one feed for every surface', () => {
     expect(runRequests()).toHaveLength(0);
   });
 });
+
+describe('useProjectRunStatuses — a project the server refuses (ND-R17-01)', () => {
+  it('asks a refused project once and stops, instead of every four seconds', async () => {
+    // A read-only member may see the project but not its conversation
+    // surfaces (Q34), so the runs read answers 403. That answer cannot change
+    // by asking again on the next tick.
+    RUNS = { ...DEFAULT_RUNS, 'p-locked': { status: 'running', http: 403 } };
+    const { result } = renderHook(() => useProjectRunStatuses(['p1', 'p-locked']));
+    await flush();
+    expect(runRequests('p-locked')).toHaveLength(1);
+    expect(result.current.get('p-locked')).toBeUndefined();
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(12_000); });
+    expect(runRequests('p-locked')).toHaveLength(1);
+    // The readable project keeps its normal poll.
+    expect(runRequests('p1').length).toBeGreaterThanOrEqual(3);
+  });
+
+  it('treats a missing project the same way', async () => {
+    RUNS = { ...DEFAULT_RUNS, 'p-gone': { status: 'running', http: 404 } };
+    renderHook(() => useProjectRunStatuses(['p-gone']));
+    await flush();
+    await act(async () => { await vi.advanceTimersByTimeAsync(8_000); });
+    expect(runRequests('p-gone')).toHaveLength(1);
+  });
+
+  it('keeps retrying a transient failure', async () => {
+    RUNS = { ...DEFAULT_RUNS, 'p-flaky': { status: 'running', http: 503 } };
+    renderHook(() => useProjectRunStatuses(['p-flaky']));
+    await flush();
+    await act(async () => { await vi.advanceTimersByTimeAsync(8_000); });
+    expect(runRequests('p-flaky').length).toBeGreaterThanOrEqual(3);
+  });
+
+  it('asks a refused project again when a surface subscribes later', async () => {
+    RUNS = { ...DEFAULT_RUNS, 'p-locked': { status: 'running', http: 403 } };
+    const first = renderHook(() => useProjectRunStatuses(['p-locked']));
+    await flush();
+    expect(runRequests('p-locked')).toHaveLength(1);
+    first.unmount();
+
+    // A grant landed while the surface was away: the next mount asks once more.
+    RUNS = { ...DEFAULT_RUNS, 'p-locked': { status: 'succeeded' } };
+    const second = renderHook(() => useProjectRunStatuses(['p-locked']));
+    await flush();
+    expect(runRequests('p-locked')).toHaveLength(2);
+    expect(second.result.current.get('p-locked')).toBe('succeeded');
+  });
+});
