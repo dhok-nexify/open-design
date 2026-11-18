@@ -382,7 +382,8 @@ Before changing any prompt text — in any of those locations — read `docs/pro
 
 ## i18n keys
 
-- `apps/web/src/i18n/types.ts` is the typed `Dict`; every key must be defined in all 19 locale files under `apps/web/src/i18n/locales/*.ts` (`ar`, `de`, `en`, `es-ES`, `fa`, `fr`, `hu`, `id`, `it`, `ja`, `ko`, `pl`, `pt-BR`, `ru`, `th`, `tr`, `uk`, `zh-CN`, `zh-TW`). Add the key to `types.ts` first; missing translations produce a typecheck error.
+- Upstream-owned dictionaries: `apps/web/src/i18n/types.ts` (`BaseDict`) and `apps/web/src/i18n/locales/*.ts` stay byte-identical to upstream. Every upstream key must be defined in all 19 upstream locale files (`ar`, `de`, `en`, `es-ES`, `fa`, `fr`, `hu`, `id`, `it`, `ja`, `ko`, `pl`, `pt-BR`, `ru`, `th`, `tr`, `uk`, `zh-CN`, `zh-TW`); add the key to `types.ts` first.
+- Nextore-only keys and overrides belong in `apps/web/src/i18n/nextore/types.ts` (`NextoreDict`) and every overlay under `apps/web/src/i18n/nextore/locales/*.ts`. Never add a Nextore-only key to the upstream `types.ts` or `locales/*.ts`: the registry merges the overlay at load time, and untouched upstream files are what keep future upstream syncs conflict-free. Add the key to `NextoreDict` first; missing overlay values produce a typecheck error.
 
 ## UI animation philosophy
 
