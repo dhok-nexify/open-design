@@ -198,6 +198,22 @@
   font-size: 13px;
 }
 
+/* The dialog root also carries the global `modal` class, and two global rules
+   fight these rows: `.modal label` (mention-home.css) forces every label into a
+   column, and `input` (primitives.css) stretches every checkbox to 100% with
+   text-field padding and border. Both are global, so these resets out-specify
+   them rather than guessing which one wins.
+   The modal label rule also owns `font-size`/`color`, hence the repetition. */
+:global(.modal) label.inlineCheck,
+:global(.modal) label.treeLabel,
+:global(.modal) label.memberRow {
+  display: flex;
+  flex-direction: row;
+  gap: 8px;
+  color: var(--text);
+  font-size: 13px;
+}
+
 .inlineCheck {
   display: inline-flex;
   align-items: center;
@@ -206,7 +222,6 @@
   font-size: 13px;
   cursor: pointer;
 }
-.inlineCheck input[type='checkbox'] { margin: 0; }
 
 .sectionActions {
   display: flex;
@@ -290,11 +305,8 @@
   align-items: center;
   gap: 6px;
   min-width: 0;
-  color: var(--text);
-  font-size: 13px;
   cursor: pointer;
 }
-.treeLabel input[type='checkbox'] { margin: 0; }
 .treeLabel span {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -319,7 +331,23 @@
   cursor: pointer;
 }
 .memberRow:hover { background: var(--bg-subtle); }
-.memberRow input[type='checkbox'] { margin: 3px 0 0; }
+.memberRow input[type='checkbox'] { margin-top: 3px; }
+
+/* Checkboxes only: a checkbox is not a text field, and the shared input rule
+   would otherwise give it full width, 8px padding and a panel background. */
+.dialog input[type='checkbox'],
+.pickerDialog input[type='checkbox'] {
+  width: auto;
+  height: auto;
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  accent-color: var(--nexTore-brand-primary, #4f46e5);
+  cursor: pointer;
+}
 
 .memberText {
   display: flex;
