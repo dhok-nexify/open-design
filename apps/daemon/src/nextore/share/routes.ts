@@ -1,3 +1,4 @@
+import { classifySunsetBucket } from './sunset-notices.js';
 import type Database from 'better-sqlite3';
 import type { Express, Request, Response } from 'express';
 
@@ -183,20 +184,11 @@ export function registerNextoreShareRoutes(
       project_id: string;
       expires_at: number | null;
     }>;
-    const day = 24 * 60 * 60 * 1000;
     const items = rows.map((row) => {
       const expiresAt = row.expires_at;
-      const bucket = expiresAt === null
-        ? 'never'
-        : expiresAt <= now
-          ? 'expired'
-          : expiresAt <= now + day
-            ? 't1'
-            : expiresAt <= now + 7 * day
-              ? 't7'
-              : expiresAt <= now + 30 * day
-                ? 't30'
-                : 'later';
+      // One bucketing rule, shared with the sunset sweep, so the report and the
+      // notifier can never disagree about which window a link is in.
+      const bucket = classifySunsetBucket(expiresAt, now);
       return { linkId: row.token_hash, projectId: row.project_id, expiresAt, bucket };
     });
     const counts = items.reduce<Record<string, number>>((acc, item) => {
