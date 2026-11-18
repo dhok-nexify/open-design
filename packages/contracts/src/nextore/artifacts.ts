@@ -86,9 +86,13 @@ export interface NextoreArtifactRecord {
 export interface NextoreArtifactPublishRequest {
   representation: NextoreArtifactRepresentation;
   relativePath: string;
+  name?: string;
+  mimeType?: string;
   contentHash: string;
   idempotencyKey: string;
   runId?: string | null;
+  tier?: 'fast' | 'expert' | null;
+  savedAt?: string | null;
 }
 
 /** Successful publish result returned by the module and the daemon. */
