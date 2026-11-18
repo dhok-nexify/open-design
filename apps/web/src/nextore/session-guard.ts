@@ -4,10 +4,11 @@
  * This supersedes the original `session.ts` implementation, which is kept in
  * place while the checkout is locked by another process. The contract is the
  * same: a `SESSION_REQUIRED` response navigates to `/auth/start`, and the
- * five-minute heartbeat owns silent re-authentication. The addition here is a
- * foreground revalidation: when a tab becomes visible again, one `/auth/me`
- * check decides whether the session is still valid. It never starts an OAuth
- * round trip by itself.
+ * five-minute heartbeat owns silent re-authentication. The additions here are a
+ * foreground revalidation — when a tab becomes visible or focused again, one
+ * `/auth/me?revalidate=1` check asks the module whether the OAuth connection
+ * still exists, instead of trusting a validation up to five minutes old — and
+ * the cross-tab sign-out marker. It never starts an OAuth round trip by itself.
  */
 
 import { NEXTORE_WEB_EDITION } from './features';
@@ -24,6 +25,17 @@ const SESSION_REQUIRED = 'SESSION_REQUIRED';
 const REDIRECT_FLAG = 'nxd:session-redirect';
 const REDIRECT_COOLDOWN_MS = 10_000;
 const SESSION_HEARTBEAT_MS = 5 * 60 * 1000;
+/**
+ * How often a VISIBLE tab re-asks the module whether its connection is alive.
+ *
+ * The five-minute heartbeat above only handles silent re-authentication. A
+ * sign-out at the site must not wait for it: while somebody is looking at this
+ * tab, a connection the site cut has to end the session within seconds. Twenty
+ * seconds is the largest delay a person does not read as "still signed in",
+ * and it is above the daemon's own 15-second floor, so N open tabs still
+ * produce at most one module call per interval.
+ */
+const FOREGROUND_PROBE_MS = 20_000;
 const VISIBILITY_CHECK_COOLDOWN_MS = 5_000;
 
 interface SessionErrorBody {
@@ -40,6 +52,7 @@ export interface NextoreSessionRedirectOptions {
 }
 
 let heartbeatTimer: number | null = null;
+let foregroundTimer: number | null = null;
 let visibilityHandler: (() => void) | null = null;
 
 const GUARD_WINDOW_KEY = '__nxdSessionGuardCleanup';
@@ -108,10 +121,14 @@ export function installNextoreSessionRedirect(
     navigate('/auth/start?return=' + encodeURIComponent(here || '/'));
   }
 
-  function checkSession(allowSilentReauth: boolean): void {
+  function checkSession(allowSilentReauth: boolean, forceRevalidate = false): void {
     if (checking) return;
     checking = true;
-    void fetchImpl('/auth/me', {
+    // `revalidate=1` is the foreground probe: the daemon re-asks the module
+    // whether this OAuth connection is still alive. Without it a connection
+    // the site cut at sign-out stays "signed in" until the five-minute budget
+    // expires, which is exactly what the walkthrough reported.
+    void fetchImpl(forceRevalidate ? '/auth/me?revalidate=1' : '/auth/me', {
       cache: 'no-store',
       headers: { accept: 'application/json' },
     })
@@ -162,6 +179,14 @@ export function installNextoreSessionRedirect(
   };
 
   heartbeatTimer = window.setInterval(() => checkSession(true), SESSION_HEARTBEAT_MS);
+  // The visible-tab watchdog. A hidden tab probes nothing — nobody can act on
+  // what it would show, and the focus/visibility handlers cover the moment it
+  // comes back.
+  foregroundTimer = window.setInterval(() => {
+    if (document.visibilityState !== 'visible') return;
+    if (isSignedOut()) return;
+    checkSession(false, true);
+  }, FOREGROUND_PROBE_MS);
 
   visibilityHandler = () => {
     if (document.visibilityState !== 'visible') return;
@@ -169,17 +194,26 @@ export function installNextoreSessionRedirect(
     const at = now();
     if (lastVisibilityCheck > 0 && at - lastVisibilityCheck < VISIBILITY_CHECK_COOLDOWN_MS) return;
     lastVisibilityCheck = at;
-    checkSession(false);
+    checkSession(false, true);
   };
   document.addEventListener('visibilitychange', visibilityHandler);
+  // A window focus without a visibility change (the browser kept the tab
+  // "visible" while another window had focus) is the same moment from the
+  // person's point of view, so it runs the same cooldown-gated probe.
+  window.addEventListener('focus', visibilityHandler);
 
   const cleanup = () => {
     if (heartbeatTimer !== null) {
       window.clearInterval(heartbeatTimer);
       heartbeatTimer = null;
     }
+    if (foregroundTimer !== null) {
+      window.clearInterval(foregroundTimer);
+      foregroundTimer = null;
+    }
     if (visibilityHandler) {
       document.removeEventListener('visibilitychange', visibilityHandler);
+      window.removeEventListener('focus', visibilityHandler);
       visibilityHandler = null;
     }
     delete target.__nxdSessionRedirect;
@@ -195,8 +229,13 @@ export function resetNextoreSessionRedirectForTests(): void {
     window.clearInterval(heartbeatTimer);
     heartbeatTimer = null;
   }
+  if (foregroundTimer !== null) {
+    window.clearInterval(foregroundTimer);
+    foregroundTimer = null;
+  }
   if (visibilityHandler) {
     document.removeEventListener('visibilitychange', visibilityHandler);
+    window.removeEventListener('focus', visibilityHandler);
     visibilityHandler = null;
   }
   const target = window as unknown as { __nxdSessionRedirect?: boolean };

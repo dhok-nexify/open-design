@@ -116,8 +116,10 @@ describe('visibility session validation', () => {
     expect(window.sessionStorage.getItem('nxd:session-redirect')).toBeNull();
     document.dispatchEvent(new Event('visibilitychange'));
 
+    // The foreground probe must ASK the module: a cached validation would let a
+    // connection the site cut at sign-out stay "signed in".
     await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
-      '/auth/me',
+      '/auth/me?revalidate=1',
       expect.objectContaining({ cache: 'no-store' }),
     ));
     await vi.waitFor(() => expect(navigate).toHaveBeenCalledWith('/auth/start?return=%2F'));
@@ -143,6 +145,37 @@ describe('visibility session validation', () => {
     document.dispatchEvent(new Event('visibilitychange'));
 
     await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    expect(navigate).not.toHaveBeenCalled();
+  });
+
+  it('revalidates on window focus, sharing the visibility cooldown', async () => {
+    const { guard } = await loadEditionModules();
+    const navigate = vi.fn();
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ signedIn: true }), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    }));
+    let clock = 10_000;
+    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'visible' });
+    guard.installNextoreSessionRedirect({
+      fetchImpl: fetchMock as unknown as typeof fetch,
+      navigate,
+      now: () => clock,
+    });
+
+    window.dispatchEvent(new Event('focus'));
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    // Let the probe settle so the in-flight guard does not mask the cooldown.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    // Inside the five-second window a second signal is one check, not two.
+    clock += 1_000;
+    window.dispatchEvent(new Event('focus'));
+    document.dispatchEvent(new Event('visibilitychange'));
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    // After the cooldown the next focus probes again.
+    clock += 10_000;
+    window.dispatchEvent(new Event('focus'));
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
     expect(navigate).not.toHaveBeenCalled();
   });
 

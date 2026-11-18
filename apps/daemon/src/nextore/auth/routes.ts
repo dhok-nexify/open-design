@@ -59,6 +59,17 @@ const REVALIDATE_MS = 5 * 60 * 1000;
 const MUTATION_REVALIDATE_MS = 60 * 1000;
 
 /**
+ * The shortest gap between two *forced* validations.
+ *
+ * A foreground tab asks for one every time it becomes visible again, and a
+ * person alt-tabbing repeatedly must not turn that into a bootstrap stream.
+ * Fifteen seconds is short enough that a sign-out at the site is observed
+ * before the person can do anything in this tab, and long enough that a burst
+ * of focus events collapses into one check.
+ */
+const FORCED_VALIDATE_FLOOR_MS = 15 * 1000;
+
+/**
  * How old a session may get before the shell is asked to re-run the OAuth
  * handshake silently.
  *
@@ -578,7 +589,10 @@ export function createNextoreAuth(options: NextoreAuthOptions): NextoreAuth {
     return pending;
   }
 
-  async function resolve(req: Request): Promise<ResolveResult> {
+  async function resolve(
+    req: Request,
+    options: { forceValidation?: boolean } = {},
+  ): Promise<ResolveResult> {
     const cookie = readSessionCookie(readCookie(req, SESSION_COOKIE));
     if (!cookie) return { kind: 'signed_out' };
 
@@ -606,8 +620,15 @@ export function createNextoreAuth(options: NextoreAuthOptions): NextoreAuth {
     const validationBudget = isSafeMethod(req.method)
       ? REVALIDATE_MS
       : MUTATION_REVALIDATE_MS;
+    // A foreground tab asks for an immediate answer: the site may have cut this
+    // connection while the tab was hidden, and waiting out the read budget
+    // would show a signed-in shell for minutes. The floor keeps repeated focus
+    // events from becoming a bootstrap stream.
+    const validationFloor = options.forceValidation === true
+      ? FORCED_VALIDATE_FLOOR_MS
+      : validationBudget;
     const validationDue =
-      checkedAt - session.lastValidatedAt >= validationBudget
+      checkedAt - session.lastValidatedAt >= validationFloor
       || !session.member.rights;
     const expiring = session.tokenExpiresAt !== null
       && session.tokenExpiresAt - checkedAt < REFRESH_LEAD_MS;
@@ -893,7 +914,11 @@ export function createNextoreAuth(options: NextoreAuthOptions): NextoreAuth {
 
   async function me(req: Request, res: Response): Promise<void> {
     res.setHeader('Cache-Control', 'no-store');
-    const result = await resolve(req);
+    // revalidate=1 is the foreground-tab probe: it asks the module whether
+    // the OAuth connection still exists instead of trusting the cached
+    // validation. Only a session that is still signed in gets this far, so it
+    // cannot be used to probe for accounts.
+    const result = await resolve(req, { forceValidation: req.query.revalidate === '1' });
     if (result.kind === 'signed_out') {
       clearCookie(res, SESSION_COOKIE, config);
       res.status(401).json({ signedIn: false });

@@ -325,6 +325,71 @@ describe('Nextore OAuth routes', () => {
     expect(store.find(session.sid)?.member.fullName).toBe('New Name');
   });
 
+  it('re-asks the module on ?revalidate=1 even inside the read budget', async () => {
+    // A session whose rights cache is already populated is not revalidated on
+    // every read; the foreground probe must bypass that budget or a sign-out
+    // at the site stays invisible for up to five minutes.
+    const session = store.create({
+      memberId: member.id,
+      member: {
+        ...member,
+        rights: { access: true, createProject: true, admin: false, manageMcp: false },
+      },
+      accessToken: 'access-1',
+      refreshToken: 'refresh-1',
+      tokenExpiresAt: clock + 60 * 60 * 1000,
+    });
+    const bootstrap = vi.fn(async () => ({ member }));
+    await listen(buildApp(client({ bootstrap })));
+
+    const plain = await nativeFetch(baseUrl + '/auth/me', {
+      headers: { cookie: sessionCookie(session.sid) },
+    });
+    expect(plain.status).toBe(200);
+    expect(bootstrap).not.toHaveBeenCalled();
+
+    // Forced probes are throttled by the same 15-second floor the front end's
+    // 20-second watchdog clears; step past it.
+    clock += 16_000;
+    const forced = await nativeFetch(baseUrl + '/auth/me?revalidate=1', {
+      headers: { cookie: sessionCookie(session.sid) },
+    });
+    expect(forced.status).toBe(200);
+    expect(bootstrap).toHaveBeenCalledTimes(1);
+  });
+
+  it('signs out when a forced revalidation finds the connection revoked', async () => {
+    const session = store.create({
+      memberId: member.id,
+      member: {
+        ...member,
+        rights: { access: true, createProject: true, admin: false, manageMcp: false },
+      },
+      accessToken: 'access-1',
+      refreshToken: 'refresh-1',
+      tokenExpiresAt: clock + 60 * 60 * 1000,
+    });
+    // The site revoked the connection at sign-out; the refresh token is dead
+    // too, so the refresh grant answers invalid_grant.
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({
+      error: 'invalid_grant',
+      error_description: 'The connection was revoked.',
+    }), { status: 400, headers: { 'content-type': 'application/json' } })));
+    await listen(buildApp(client({
+      bootstrap: async () => {
+        throw new NextoreClientError('nextore_http_error', 'unauthorized', 401);
+      },
+    })));
+
+    clock += 16_000;
+    const forced = await nativeFetch(baseUrl + '/auth/me?revalidate=1', {
+      headers: { cookie: sessionCookie(session.sid) },
+    });
+    expect(forced.status).toBe(401);
+    await expect(forced.json()).resolves.toEqual({ signedIn: false });
+    expect(store.find(session.sid)).toBeNull();
+  });
+
   it('refreshes once when parallel requests find an expired access token', async () => {
     const session = store.create({
       memberId: member.id,
