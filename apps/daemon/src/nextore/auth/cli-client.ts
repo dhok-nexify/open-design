@@ -3,7 +3,7 @@ import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync }
 import { createServer } from 'node:http';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { execFile } from 'node:child_process';
+import { execFile, spawnSync } from 'node:child_process';
 
 /**
  * NXD-P10 CLI authorization helper.
@@ -33,15 +33,52 @@ export function createPkcePair(): { verifier: string; challenge: string; state: 
   return { verifier, challenge, state };
 }
 
-/** Restrict the token file to the current principal only. */
-export function restrictTokenFile(path: string): void {
-  if (process.platform === 'win32') {
-    const user = process.env.USERNAME;
-    if (!user) return;
-    execFile('icacls', [path, '/inheritance:r', '/grant:r', user + ':F'], () => {});
+export interface TokenFilePermissionDeps {
+  chmod?: (path: string, mode: number) => void;
+  spawnSync?: (
+    file: string,
+    args: string[],
+    options: { timeout?: number; stdio?: 'ignore' | 'pipe' },
+  ) => { status: number | null };
+  user?: string | undefined;
+}
+
+/**
+ * Restrict a token file to the current principal.
+ *
+ * POSIX: 0600. Windows: drop inheritance and grant only the current user - a
+ * chmod there is a no-op, so an ACL is the only real control. Dependencies are
+ * injectable so the branch can be asserted without touching the OS.
+ */
+export function applyTokenFilePermissions(
+  path: string,
+  platform = process.platform,
+  deps: TokenFilePermissionDeps = {},
+): void {
+  if (platform === 'win32') {
+    const user = deps.user ?? process.env.USERNAME;
+    if (!user) throw new Error('token_file_permissions_failed: no USERNAME');
+    const spawn = deps.spawnSync ?? spawnSync;
+    const result = spawn(
+      'icacls',
+      [path, '/inheritance:r', '/grant:r', user + ':F'],
+      { timeout: 5_000, stdio: 'ignore' },
+    );
+    if (result.status !== 0) {
+      throw new Error('token_file_permissions_failed: icacls exited ' + String(result.status));
+    }
     return;
   }
-  chmodSync(path, 0o600);
+  (deps.chmod ?? chmodSync)(path, 0o600);
+}
+
+/** Backwards-compatible wrapper used by the token writer. */
+export function restrictTokenFile(path: string): void {
+  try {
+    applyTokenFilePermissions(path);
+  } catch {
+    // Writing the token must not fail because the ACL could not be tightened.
+  }
 }
 
 export function writeCliToken(token: StoredCliToken): string {
