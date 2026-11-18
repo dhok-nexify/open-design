@@ -1,3 +1,6 @@
+// NXD-PERF: Excalidraw ships a large stylesheet. It belongs to the sketch
+// editor (workspace-only), not to the app-shell layout that Home loads.
+import '@excalidraw/excalidraw/index.css';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { MutableRefObject } from 'react';
 import {
