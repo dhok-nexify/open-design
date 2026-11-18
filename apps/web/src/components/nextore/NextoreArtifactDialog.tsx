@@ -1,0 +1,164 @@
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+
+import type {
+  NextoreArtifactRecord,
+  NextoreArtifactRepresentation,
+} from '@open-design/contracts';
+
+import { useT } from '../../i18n';
+import {
+  artifactDownloadUrl,
+  fetchProjectArtifacts,
+  primaryArtifact,
+} from '../../nextore/artifact-client';
+import { Icon } from '../Icon';
+import { ArtifactShareForm } from './ArtifactShareForm';
+import { ArtifactStatusChip } from './ArtifactStatusChip';
+import styles from './NextoreArtifactDialog.module.css';
+
+/**
+ * Project-level artifact dialog (P04f).
+ *
+ * Shows the publish state, offers the NexTore download for the published
+ * representations, and hosts the ShareObject form. Downloads go through the
+ * daemon proxy, never the local archive route.
+ */
+export function NextoreArtifactDialog({
+  projectId,
+  onClose,
+}: {
+  projectId: string;
+  onClose: () => void;
+}) {
+  const t = useT();
+  const [records, setRecords] = useState<NextoreArtifactRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState(false);
+  const dialogRef = useRef<HTMLDivElement | null>(null);
+  const returnFocusRef = useRef<Element | null>(null);
+
+  const primary = useMemo(() => primaryArtifact(records), [records]);
+  const published = useMemo(
+    () => records.filter((row) => row.status === 'published'
+      && (row.representation === 'source' || row.representation === 'snapshot')),
+    [records],
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const list = await fetchProjectArtifacts(projectId);
+        if (cancelled) return;
+        setRecords(list);
+        setFailed(false);
+      } catch {
+        if (!cancelled) setFailed(true);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId]);
+
+  useEffect(() => {
+    returnFocusRef.current = document.activeElement;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        onClose();
+      }
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+      const previous = returnFocusRef.current;
+      if (previous instanceof HTMLElement) previous.focus();
+    };
+  }, [onClose]);
+
+  const download = (representation: NextoreArtifactRepresentation, version?: number) => {
+    if (!primary) return;
+    window.location.assign(artifactDownloadUrl(projectId, primary.artifactId, {
+      representation,
+      ...(typeof version === 'number' ? { version } : {}),
+    }));
+  };
+
+  return createPortal(
+    <div
+      className={styles.backdrop}
+      role="presentation"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      <div
+        ref={dialogRef}
+        className={styles.dialog}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="nextore-project-artifact-title"
+      >
+        <header className={styles.header}>
+          <h2 id="nextore-project-artifact-title">{t('nextore.artifact.dialog.title')}</h2>
+          <button type="button" className={styles.close} onClick={onClose} aria-label={t('common.close')}>
+            <Icon name="close" size={16} aria-hidden="true" />
+          </button>
+        </header>
+
+        <div className={styles.body}>
+          {loading ? (
+            <p role="status" aria-live="polite">{t('nextore.artifact.status.loading')}</p>
+          ) : failed ? (
+            <p role="alert">{t('nextore.artifact.status.unavailable')}</p>
+          ) : !primary ? (
+            <p role="status" aria-live="polite">{t('nextore.artifact.downloadUnavailable')}</p>
+          ) : (
+            <>
+              <div className={styles.row}>
+                <ArtifactStatusChip projectId={projectId} artifactId={primary.artifactId} />
+              </div>
+
+              <div className={styles.downloads}>
+                <span className={styles.downloadLabel}>{t('nextore.artifact.download')}</span>
+                {published.length === 0 ? (
+                  <p role="status" aria-live="polite">{t('nextore.artifact.downloadUnavailable')}</p>
+                ) : (
+                  published.map((row) => (
+                    <button
+                      key={row.representation}
+                      type="button"
+                      className={styles.download}
+                      onClick={() => download(row.representation, row.currentVersion)}
+                    >
+                      <Icon name="download" size={14} aria-hidden="true" />
+                      <span>
+                        {row.representation === 'snapshot'
+                          ? t('nextore.artifact.share.snapshot')
+                          : t('nextore.artifact.share.source')}
+                      </span>
+                    </button>
+                  ))
+                )}
+              </div>
+
+              <hr className={styles.separator} />
+              <ArtifactShareForm
+                projectId={projectId}
+                artifactId={primary.artifactId}
+                initialRepresentation={published.some((row) => row.representation === 'snapshot')
+                  ? 'snapshot'
+                  : 'source'}
+              />
+            </>
+          )}
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}

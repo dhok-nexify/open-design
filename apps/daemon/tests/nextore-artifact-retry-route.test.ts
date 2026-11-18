@@ -14,6 +14,7 @@ function runtimeStub(
     status: vi.fn(() => ({ projectId: 'project-1', artifactId: 'artifact-1', representations: [] })),
     retry: vi.fn(() => retried),
     reconcileProject: vi.fn(async () => reconciled),
+    artifacts: vi.fn(() => []),
   } as unknown as NextoreArtifactRuntime;
 }
 
@@ -113,6 +114,22 @@ describe('nextore artifact retry route', () => {
 
     expect(response.status).toBe(403);
     expect(runtime.retry).not.toHaveBeenCalled();
+  });
+
+  it('lists the project artifact mappings', async () => {
+    const runtime = runtimeStub(true);
+    (runtime.artifacts as unknown as ReturnType<typeof vi.fn>).mockReturnValue([
+      { artifactId: 'artifact-1', representation: 'source', status: 'published' },
+    ]);
+    const base = await startApp({ retried: true, runtime });
+
+    const response = await fetch(base + '/api/nextore/projects/project-1/artifacts');
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      projectId: 'project-1',
+      artifacts: [{ artifactId: 'artifact-1', representation: 'source', status: 'published' }],
+    });
   });
 
   it('returns the reconciliation summary', async () => {

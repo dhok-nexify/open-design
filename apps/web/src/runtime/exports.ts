@@ -28,6 +28,7 @@ import {
   subscribeHostDownloads,
 } from '@open-design/host';
 import type { WorkspaceCollabContext } from '@open-design/contracts';
+import { NEXTORE_WEB_EDITION } from '../nextore/features';
 import {
   workspaceProjectHeaders,
   workspaceResourceUrl,
@@ -927,9 +928,13 @@ export async function exportProjectAsZip(opts: {
     }
   }
   const root = archiveRootFromFilePath(opts.filePath);
-  const url = `/api/projects/${encodeURIComponent(opts.projectId)}/archive${
-    root ? `?root=${encodeURIComponent(root)}` : ''
-  }`;
+  // P04d/P04f: the NexTore edition serves the project archive through the
+  // module, so the local archive route must not be used there.
+  const url = NEXTORE_WEB_EDITION === 'nextore'
+    ? `/api/nextore/projects/${encodeURIComponent(opts.projectId)}/download`
+    : `/api/projects/${encodeURIComponent(opts.projectId)}/archive${
+      root ? `?root=${encodeURIComponent(root)}` : ''
+    }`;
   try {
     const resp = opts.workspaceContext
       ? await fetch(url, {
@@ -1285,9 +1290,17 @@ export async function downloadProjectArchive(opts: {
   workspaceContext?: WorkspaceCollabContext | null;
 }): Promise<boolean> {
   const root = opts.root?.replace(/^\/+|\/+$/g, '') ?? '';
-  const url = `/api/projects/${encodeURIComponent(opts.projectId)}/archive${
-    root ? `?root=${encodeURIComponent(root)}` : ''
-  }`;
+  if (NEXTORE_WEB_EDITION === 'nextore' && root) {
+    // A sub-tree archive has no NexTore equivalent yet; refuse instead of
+    // silently handing the user a different (whole-project) zip.
+    console.warn('[downloadProjectArchive] sub-tree archives are unavailable in the NexTore edition');
+    return false;
+  }
+  const url = NEXTORE_WEB_EDITION === 'nextore'
+    ? `/api/nextore/projects/${encodeURIComponent(opts.projectId)}/download`
+    : `/api/projects/${encodeURIComponent(opts.projectId)}/archive${
+      root ? `?root=${encodeURIComponent(root)}` : ''
+    }`;
   try {
     const resp = opts.workspaceContext
       ? await fetch(url, {

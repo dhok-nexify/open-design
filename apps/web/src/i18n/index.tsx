@@ -41,7 +41,7 @@ import { LOCALES, type Dict, type Locale } from './types';
 export { LOCALES, LOCALE_LABEL } from './types';
 export type { Locale } from './types';
 
-type DictKey = keyof Dict;
+export type DictKey = keyof Dict;
 
 type DictLoader = () => Promise<Dict>;
 

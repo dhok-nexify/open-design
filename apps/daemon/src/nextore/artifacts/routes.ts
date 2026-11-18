@@ -29,6 +29,21 @@ export function registerNextoreArtifactRoutes(
     res.json(deps.runtime.status(projectId, artifactId));
   });
 
+  /** GET .../artifacts - the mapping rows the web UI picks its artifact from. */
+  app.get('/api/nextore/projects/:id/artifacts', async (req, res) => {
+    if (!deps.runtime) {
+      res.status(404).json({ error: 'feature_disabled' });
+      return;
+    }
+    const projectId = String(req.params.id ?? '');
+    if (!projectId) {
+      res.status(400).json({ error: 'BAD_REQUEST', message: 'project id is required' });
+      return;
+    }
+    if (!await deps.authorizeProject(req, res, projectId, { mode: 'read' })) return;
+    res.json({ projectId, artifacts: deps.runtime.artifacts(projectId) });
+  });
+
   /**
    * POST .../artifacts/reconcile — compare the local mapping with the module.
    * Reconciliation never tombstones on an outage; it only adopts, repairs a

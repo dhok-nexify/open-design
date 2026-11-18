@@ -352,6 +352,11 @@ export class NextoreArtifactRuntime {
     return reset;
   }
 
+  /** Every representation mapping the daemon holds for one project. */
+  artifacts(projectId: string): NextoreArtifactRecord[] {
+    return listNextoreArtifacts(this.deps.db, projectId);
+  }
+
   /** Published-record lookup used by the download proxy. */
   artifactRecord(
     projectId: string,
