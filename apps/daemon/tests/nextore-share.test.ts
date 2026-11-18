@@ -283,6 +283,62 @@ describe('share-link routes', () => {
     }
   });
 
+  it('reports the caller own legacy links bucketed by sunset window', async () => {
+    const app = express();
+    app.use(express.json());
+    app.use((_req, res, next) => {
+      res.locals.nextoreSession = { memberId: 7, member: { features: { shareLinks: true } } };
+      next();
+    });
+    registerNextoreShareRoutes(app, {
+      db,
+      config: {
+        baseUrl: 'https://nextore.test',
+        oauthClientId: 'client',
+        designerBaseUrl: 'https://designer.test',
+        secretFile: '/unused',
+        trustProxy: null,
+      },
+      authorizeProject: async () => true,
+      readProjectMapping: () => 'nxt-1',
+      legacySunsetAt: '2027-02-16T00:00:00.000Z',
+    });
+    db.prepare("INSERT INTO projects (id) VALUES ('proj-3')").run();
+    const now = Date.now();
+    createShareLink(db, {
+      projectId: 'proj-1', createdByMemberId: 7, expiresAt: now + 2 * 24 * 60 * 60 * 1000,
+      baseUrl: 'https://designer.test', now,
+    });
+    createShareLink(db, {
+      projectId: 'proj-2', createdByMemberId: 7, expiresAt: null,
+      baseUrl: 'https://designer.test', now,
+    });
+    // Another member's link must never appear in this report.
+    createShareLink(db, {
+      projectId: 'proj-3', createdByMemberId: 9, expiresAt: now + 2 * 24 * 60 * 60 * 1000,
+      baseUrl: 'https://designer.test', now,
+    });
+    const server = http.createServer(app);
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const address = server.address();
+    if (!address || typeof address === 'string') throw new Error('no address');
+    const base = `http://127.0.0.1:${address.port}`;
+    try {
+      const response = await fetch(base + '/api/nextore/share-links/sunset-report');
+      expect(response.status).toBe(200);
+      const body = await response.json() as {
+        sunsetAt: string | null;
+        counts: Record<string, number>;
+        items: Array<{ projectId: string; bucket: string }>;
+      };
+      expect(body.sunsetAt).toBe('2027-02-16T00:00:00.000Z');
+      expect(body.counts).toMatchObject({ t7: 1, never: 1 });
+      expect(body.items.map((item) => item.projectId).sort()).toEqual(['proj-1', 'proj-2']);
+    } finally {
+      await new Promise<void>((resolve, reject) => server.close((err) => err ? reject(err) : resolve()));
+    }
+  });
+
   it('retires new custom links once NexTore ShareObject owns sharing', async () => {
     const app = express();
     app.use(express.json());

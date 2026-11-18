@@ -163,6 +163,54 @@ export function registerNextoreShareRoutes(
 
   // Opening a link does not require DesignerAccess: any authenticated NexTore
   // member may redeem it. It does require the module's global share switch.
+  /**
+   * P04h sunset report: the caller's own active legacy links, bucketed by how
+   * soon they expire. Creator-scoped on purpose — a global view would leak
+   * other members' link metadata. A notification job consumes this; nothing is
+   * sent from here.
+   */
+  app.get('/api/nextore/share-links/sunset-report', (req, res) => {
+    const session = requireSession(res);
+    if (!session) return;
+    const now = Date.now();
+    const rows = deps.db.prepare(`
+      SELECT token_hash, project_id, expires_at
+        FROM nextore_share_links
+       WHERE created_by_member_id = ? AND revoked_at IS NULL
+       ORDER BY expires_at IS NULL DESC, expires_at ASC
+    `).all(session.memberId) as Array<{
+      token_hash: string;
+      project_id: string;
+      expires_at: number | null;
+    }>;
+    const day = 24 * 60 * 60 * 1000;
+    const items = rows.map((row) => {
+      const expiresAt = row.expires_at;
+      const bucket = expiresAt === null
+        ? 'never'
+        : expiresAt <= now
+          ? 'expired'
+          : expiresAt <= now + day
+            ? 't1'
+            : expiresAt <= now + 7 * day
+              ? 't7'
+              : expiresAt <= now + 30 * day
+                ? 't30'
+                : 'later';
+      return { linkId: row.token_hash, projectId: row.project_id, expiresAt, bucket };
+    });
+    const counts = items.reduce<Record<string, number>>((acc, item) => {
+      acc[item.bucket] = (acc[item.bucket] ?? 0) + 1;
+      return acc;
+    }, {});
+    res.json({
+      generatedAt: now,
+      sunsetAt: deps.legacySunsetAt ?? null,
+      counts,
+      items,
+    });
+  });
+
   app.post('/api/nextore/share-links/resolve', (req, res) => {
     if (deps.legacySunsetAt) {
       res.setHeader('X-NexTore-Legacy-Share', `sunset-at=${deps.legacySunsetAt}`);

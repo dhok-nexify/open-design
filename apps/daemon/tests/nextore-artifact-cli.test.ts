@@ -53,6 +53,13 @@ async function startStub(): Promise<void> {
         res.end(JSON.stringify({ url: 'https://share.test/s/xyz' }));
         return;
       }
+      if (url === '/api/nextore/artifacts/backfill') {
+        res.setHeader('content-type', 'application/json');
+        res.end(JSON.stringify(req.method === 'GET'
+          ? { paused: false, total: 3, done: 1, pending: 2 }
+          : { action: 'start', ran: 2, done: 2, progress: { total: 3, done: 3, pending: 0 } }));
+        return;
+      }
       if (req.method === 'DELETE' && url === '/api/nextore/projects/p1/artifacts/a1/share') {
         res.setHeader('content-type', 'application/json');
         res.end(JSON.stringify({ revoked: true }));
@@ -153,6 +160,27 @@ describe('od nextore artifact CLI', () => {
       previewOnly: true,
       expiresAt: '2026-12-01T00:00:00Z',
     });
+  });
+
+  it('reports and starts the backfill from the CLI', async () => {
+    await startStub();
+
+    const status = await runCli([
+      'nextore', 'backfill', 'status',
+      '--daemon-url', baseUrl, '--json',
+    ]);
+    expect(status.code).toBe(0);
+    expect(JSON.parse(status.stdout)).toMatchObject({ paused: false, total: 3, pending: 2 });
+
+    const started = await runCli([
+      'nextore', 'backfill', 'start',
+      '--batch-size', '2',
+      '--daemon-url', baseUrl, '--json',
+    ]);
+    expect(started.code).toBe(0);
+    expect(JSON.parse(started.stdout)).toMatchObject({ ran: 2, done: 2 });
+    const request = requests.find((item) => item.method === 'POST' && item.url.endsWith('/backfill'));
+    expect(JSON.parse(request!.body)).toEqual({ action: 'start', batchSize: 2 });
   });
 
   it('re-queues a representation for retry', async () => {

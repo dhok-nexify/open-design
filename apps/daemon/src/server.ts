@@ -437,6 +437,7 @@ import { resolveNextoreArtifactAuthorityMode } from './nextore/artifacts/feature
 import { registerNextoreArtifactRoutes } from './nextore/artifacts/routes.js';
 import { registerNextoreArtifactDownloadRoutes } from './nextore/artifacts/download-routes.js';
 import { registerNextoreArtifactShareRoutes } from './nextore/artifacts/share-routes.js';
+import { registerNextoreBackfillRoutes } from './nextore/artifacts/backfill-routes.js';
 import { nextoreHealthMetadata } from './nextore/routes.js';
 import {
   authorizeCreatedProjectWorkspace,
@@ -9474,6 +9475,11 @@ export async function startServer({
       runtime: nextoreArtifactRuntime,
       client: nextoreClient,
       authorizeProject: authorizeProjectRequest,
+    });
+    registerNextoreBackfillRoutes(app, {
+      runtime: nextoreArtifactRuntime,
+      db,
+      listProjectIds: () => listProjects(db).map((project: { id: string }) => project.id),
     });
   }
 

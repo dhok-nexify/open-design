@@ -7562,7 +7562,7 @@ async function runNextore(args) {
   // evaluation, before top-level consts below the map are initialized.
   const NEXTORE_STRING_FLAGS = new Set([
     'daemon-url', 'name', 'group',
-    'representation', 'out', 'expires-at', 'password', 'version',
+    'representation', 'out', 'expires-at', 'password', 'version', 'batch-size',
   ]);
   const NEXTORE_BOOLEAN_FLAGS = new Set(['help', 'h', 'json', 'no-preview']);
 
@@ -7601,6 +7601,11 @@ async function runNextore(args) {
 
   if (sub === 'artifact') {
     await runNextoreArtifact(rest, flags, base, NEXTORE_STRING_FLAGS);
+    return;
+  }
+
+  if (sub === 'backfill') {
+    await runNextoreBackfill(rest, flags, base, NEXTORE_STRING_FLAGS);
     return;
   }
 
@@ -7657,6 +7662,54 @@ async function runNextore(args) {
   }
   if (flags.json) return process.stdout.write(JSON.stringify(data, null, 2) + '\n');
   console.log(`[nextore] created team workspace ${data.name ?? name} (${data.id ?? '-'})`);
+}
+
+/**
+ * od nextore backfill status|start|pause|resume - the P04h rollout control
+ * plane. Progress and the pause flag are durable, so a restart resumes where
+ * the operator left off.
+ */
+async function runNextoreBackfill(args, flags, base, stringFlags) {
+  const positionals = positionalArgs(args, stringFlags);
+  const action = positionals[0] ?? 'status';
+  const allowed = new Set(['status', 'start', 'pause', 'resume']);
+  if (!allowed.has(action)) {
+    console.error('Usage: od nextore backfill <status|start|pause|resume> [--batch-size 20] [--json]');
+    process.exit(2);
+  }
+  const url = base + '/api/nextore/artifacts/backfill';
+
+  let response;
+  if (action === 'status') {
+    response = await fetch(url);
+  } else {
+    const raw = typeof flags['batch-size'] === 'string' ? Number(flags['batch-size']) : NaN;
+    response = await fetch(url, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        action,
+        ...(Number.isInteger(raw) && raw > 0 ? { batchSize: raw } : {}),
+      }),
+    });
+  }
+  const text = await response.text();
+  let data = {};
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch {
+    data = { raw: text };
+  }
+  if (!response.ok) {
+    const code = data && data.error && data.error.code ? data.error.code : data && data.error;
+    if (code === 'SESSION_REQUIRED') {
+      console.error('This daemon runs the NexTore edition: /api needs a signed-in NexTore session (NXD-P10).');
+    }
+    console.error('backfill ' + action + ' failed: ' + response.status + ' ' + JSON.stringify(data));
+    process.exit(1);
+  }
+  if (flags.json) return process.stdout.write(JSON.stringify(data, null, 2) + '\n');
+  console.log('[nextore] backfill ' + action + ': ' + JSON.stringify(data));
 }
 
 /**

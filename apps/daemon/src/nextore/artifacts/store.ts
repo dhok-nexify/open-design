@@ -63,6 +63,22 @@ function publishQueueTableSql(tableName: string, ifNotExists: boolean): string {
   `;
 }
 
+const BACKFILL_SQL = `
+  CREATE TABLE IF NOT EXISTS nextore_backfill_state (
+    project_id TEXT PRIMARY KEY,
+    status TEXT NOT NULL CHECK (status IN ('pending', 'running', 'done', 'failed')),
+    processed INTEGER NOT NULL DEFAULT 0,
+    last_error TEXT,
+    updated_at INTEGER NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS nextore_backfill_settings (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    paused INTEGER NOT NULL DEFAULT 0,
+    updated_at INTEGER NOT NULL
+  );
+`;
+
 const INDEX_SQL = `
   CREATE INDEX IF NOT EXISTS idx_nextore_artifacts_project
     ON nextore_artifacts(project_id, status);
@@ -95,6 +111,7 @@ export const NEXTORE_ARTIFACT_SCHEMA_SQL = [
   artifactTableSql('nextore_artifacts', true),
   publishQueueTableSql('nextore_publish_queue', true),
   INDEX_SQL,
+  BACKFILL_SQL,
 ].join('\n');
 
 const ensuredSchemas = new WeakSet<object>();
@@ -217,6 +234,8 @@ export function migrateNextoreArtifactSchema(db: SqliteDb): void {
     }
 
     db.exec(INDEX_SQL);
+    // Additive P04h tables; IF NOT EXISTS keeps this safe on every boot.
+    db.exec(BACKFILL_SQL);
   });
   migrate();
 }
