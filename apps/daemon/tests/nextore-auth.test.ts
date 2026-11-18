@@ -63,6 +63,8 @@ async function closeServer(): Promise<void> {
   if (!server) return;
   const current = server;
   server = undefined;
+  // An event stream stays open by design; a failed test must not wait for it.
+  current.closeAllConnections?.();
   if (!current.listening) return;
   await new Promise<void>((resolve, reject) => {
     current.close((error) => (error ? reject(error) : resolve()));
@@ -99,6 +101,9 @@ function client(overrides: {
 
 function buildApp(nextoreClient: NextoreClient = client()): express.Express {
   const app = express();
+  // Mirrors server.ts: the global parser is mounted before the auth routes, so
+  // the sign-out hint can read its body.
+  app.use(express.json({ limit: '16kb' }));
   const auth = createNextoreAuth({
     config,
     client: nextoreClient,
@@ -388,6 +393,62 @@ describe('Nextore OAuth routes', () => {
     expect(forced.status).toBe(401);
     await expect(forced.json()).resolves.toEqual({ signedIn: false });
     expect(store.find(session.sid)).toBeNull();
+  });
+
+  it('pushes session_revoked to an open stream when a sign-out hint finds the connection revoked', async () => {
+    const session = store.create({
+      memberId: member.id,
+      member: {
+        ...member,
+        rights: { access: true, createProject: true, admin: false, manageMcp: false },
+      },
+      accessToken: 'access-1',
+      refreshToken: 'refresh-1',
+      tokenExpiresAt: clock + 60 * 60 * 1000,
+    });
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({
+      error: 'invalid_grant',
+      error_description: 'The connection was revoked.',
+    }), { status: 400, headers: { 'content-type': 'application/json' } })));
+    await listen(buildApp(client({
+      bootstrap: async () => {
+        throw new NextoreClientError('nextore_http_error', 'unauthorized', 401);
+      },
+    })));
+
+    const stream = await nativeFetch(baseUrl + '/auth/session/events', {
+      headers: { cookie: sessionCookie(session.sid) },
+    });
+    expect(stream.status).toBe(200);
+    const reader = stream.body!.getReader();
+    const decoder = new TextDecoder();
+    const ready = await reader.read();
+    expect(decoder.decode(ready.value)).toContain('event: ready');
+
+    const hint = await nativeFetch(baseUrl + '/auth/session-ended', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ memberId: member.id }),
+    });
+    expect(hint.status).toBe(202);
+    await expect(hint.json()).resolves.toEqual({ accepted: 1 });
+
+    // The push is the whole point: the tab learns without asking.
+    const pushed = await reader.read();
+    expect(decoder.decode(pushed.value)).toContain('"state":"revoked"');
+    expect(store.find(session.sid)).toBeNull();
+    await reader.cancel();
+  });
+
+  it('rejects a sign-out hint without a member id', async () => {
+    await listen(buildApp());
+    const response = await nativeFetch(baseUrl + '/auth/session-ended', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ memberId: 'nobody' }),
+    });
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({ error: { code: 'BAD_REQUEST' } });
   });
 
   it('refreshes once when parallel requests find an expired access token', async () => {

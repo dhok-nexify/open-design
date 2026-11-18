@@ -26,6 +26,11 @@ import type {
   NextoreSessionStore,
   NextoreSessionGroup,
 } from './session-store.js';
+import {
+  publishSessionRevoked,
+  subscribeSessionEvents,
+  subscribedSessionIds,
+} from './session-events.js';
 
 export const PENDING_COOKIE = 'nxd_oauth';
 export const SESSION_COOKIE = 'nxd_session';
@@ -69,6 +74,23 @@ const MUTATION_REVALIDATE_MS = 60 * 1000;
  * ten-second foreground watchdog, so a probe is never skipped for being early.
  */
 const FORCED_VALIDATE_FLOOR_MS = 9 * 1000;
+
+/**
+ * How often a session with an open event stream is validated.
+ *
+ * Only subscribed sessions are watched, so the cost is one module call per
+ * session per interval — never one per tab, and none for a member with no
+ * Designer tab open. The site's sign-out hint normally answers first; this is
+ * the fallback for when it cannot reach the daemon.
+ */
+const WATCHDOG_INTERVAL_MS = 15 * 1000;
+
+/** Sign-out hints accepted per source address per minute. */
+const HINT_LIMIT = 60;
+const HINT_WINDOW_MS = 60 * 1000;
+
+/** Keep-alive comment cadence for an idle event stream. */
+const STREAM_KEEPALIVE_MS = 25 * 1000;
 
 /**
  * How old a session may get before the shell is asked to re-run the OAuth
@@ -681,6 +703,62 @@ export function createNextoreAuth(options: NextoreAuthOptions): NextoreAuth {
     return { kind: 'ok', session, issuedAt: cookie.issuedAt };
   }
 
+  /**
+   * Validates one stored session now, without a request.
+   *
+   * The event-stream watchdog and the site's sign-out hint both go through
+   * here, so a pushed revocation follows exactly the same rules as an ordinary
+   * request: the same deadlines, the same refresh retry, and the same second
+   * check after a refresh (a refresh proves the connection exists, not that
+   * the member may still use it). A revocation ends every subscribed stream.
+   */
+  async function revalidateSession(sid: string): Promise<'ok' | 'revoked' | 'unavailable'> {
+    let session = store.find(sid);
+    if (!session) return 'revoked';
+    const at = now();
+    if (
+      at - session.lastSeenAt > SESSION_TTL_MS
+      || at - session.createdAt > SESSION_MAX_AGE_MS
+    ) {
+      store.remove(sid);
+      publishSessionRevoked(sid);
+      return 'revoked';
+    }
+
+    if (session.tokenExpiresAt !== null && session.tokenExpiresAt - at < REFRESH_LEAD_MS) {
+      const renewed = await renew(session);
+      if (renewed.kind === 'permanent') {
+        store.remove(sid);
+        publishSessionRevoked(sid);
+        return 'revoked';
+      }
+      if (renewed.kind === 'unavailable') return 'unavailable';
+      session = renewed.session;
+    }
+
+    let member = await validate(session);
+    if (member.kind === 'unauthorized') {
+      const renewed = await renew(session);
+      if (renewed.kind === 'permanent') {
+        store.remove(sid);
+        publishSessionRevoked(sid);
+        return 'revoked';
+      }
+      if (renewed.kind === 'unavailable') return 'unavailable';
+      session = renewed.session;
+      member = await validate(session);
+    }
+    if (member.kind === 'unavailable') return 'unavailable';
+    if (member.kind === 'unauthorized') {
+      store.remove(sid);
+      publishSessionRevoked(sid);
+      return 'revoked';
+    }
+
+    store.recordValidation(sid, now(), member.member);
+    return 'ok';
+  }
+
   const gate: RequestHandler = (req: Request, res: Response, next: NextFunction) => {
     // A CORS preflight carries no credentials by design. Let it complete so
     // the browser can then send the real request, which is still checked.
@@ -907,7 +985,13 @@ export function createNextoreAuth(options: NextoreAuthOptions): NextoreAuth {
     }
 
     const cookie = readSessionCookie(readCookie(req, SESSION_COOKIE));
-    if (cookie) store.remove(cookie.sid);
+    if (cookie) {
+      store.remove(cookie.sid);
+      // An explicit sign-out is the one revocation the daemon performs
+      // without asking the module; every other tab on this session must close
+      // its stream and show the signed-out page too.
+      publishSessionRevoked(cookie.sid);
+    }
     clearCookie(res, SESSION_COOKIE, config);
     clearCookie(res, PENDING_COOKIE, config);
     res.status(204).end();
@@ -947,6 +1031,133 @@ export function createNextoreAuth(options: NextoreAuthOptions): NextoreAuth {
     });
   }
 
+  /**
+   * The push channel: one open stream per Designer tab.
+   *
+   * It carries no identity beyond the cookie that opened it, and it is the
+   * only thing the shell listens to. When the daemon ends the session for any
+   * reason — the watchdog, a sign-out hint, an expired deadline — the stream
+   * receives `session` with `state: revoked` and closes.
+   */
+  function sessionEvents(req: Request, res: Response): void {
+    void resolve(req)
+      .then((result) => {
+        if (result.kind === 'unavailable') {
+          res.status(503).json({
+            error: {
+              code: 'NEXTORE_UNAVAILABLE',
+              message: 'NexTore could not be reached right now.',
+            },
+          });
+          return;
+        }
+        if (result.kind === 'signed_out') {
+          clearCookie(res, SESSION_COOKIE, config);
+          res.status(401).json({ signedIn: false });
+          return;
+        }
+
+        res.setHeader('Content-Type', 'text/event-stream');
+        res.setHeader('Cache-Control', 'no-cache, no-transform');
+        res.setHeader('Connection', 'keep-alive');
+        res.setHeader('X-Accel-Buffering', 'no');
+        res.flushHeaders?.();
+
+        const unsubscribe = subscribeSessionEvents(result.session.sid, res);
+        // Says the stream is live; it carries no identity.
+        res.write('event: ready\ndata: {"state":"active"}\n\n');
+        const keepAlive = setInterval(() => {
+          if (res.writableEnded || res.destroyed) return;
+          res.write(': keepalive\n\n');
+        }, STREAM_KEEPALIVE_MS);
+        keepAlive.unref?.();
+
+        let closed = false;
+        const cleanup = () => {
+          if (closed) return;
+          closed = true;
+          clearInterval(keepAlive);
+          unsubscribe();
+        };
+        req.on('close', cleanup);
+        res.on('close', cleanup);
+      })
+      .catch(() => {
+        if (!res.headersSent) res.status(503).end();
+      });
+  }
+
+  const hintWindows = new Map<string, { windowStart: number; count: number }>();
+
+  /**
+   * Bounds a hostile caller to one member sweep every so often per address.
+   *
+   * The hint never ends a session by itself — it only starts an authoritative
+   * validation — so the limit protects the module from being used as an
+   * amplifier rather than protecting any authority.
+   */
+  function hintAllowed(req: Request): boolean {
+    const key = req.ip || req.socket.remoteAddress || 'unknown';
+    const at = now();
+    const entry = hintWindows.get(key);
+    if (!entry || at - entry.windowStart >= HINT_WINDOW_MS) {
+      if (hintWindows.size > 512) hintWindows.clear();
+      hintWindows.set(key, { windowStart: at, count: 1 });
+      return true;
+    }
+    if (entry.count >= HINT_LIMIT) return false;
+    entry.count += 1;
+    return true;
+  }
+
+  /**
+   * Sign-out hint from NexToreDesignerModule.
+   *
+   * The module knows the Designer URL, so it can tell this daemon that a member
+   * just signed out. The hint is not trusted as an instruction: it only starts
+   * a validation of that member's sessions, so a forged one costs one bootstrap
+   * call and can never end a session the module still accepts. That is why no
+   * shared secret is needed here — the Designer is a public OAuth client and
+   * has no secret to sign with.
+   */
+  function sessionEnded(req: Request, res: Response): void {
+    const body = req.body as { memberId?: unknown } | undefined;
+    const memberId = Number(body?.memberId);
+    if (!Number.isInteger(memberId) || memberId <= 0) {
+      res.status(400).json({
+        error: { code: 'BAD_REQUEST', message: 'memberId must be a positive integer.' },
+      });
+      return;
+    }
+    if (!hintAllowed(req)) {
+      res.status(429).json({
+        error: { code: 'RATE_LIMITED', message: 'Too many sign-out hints.' },
+      });
+      return;
+    }
+
+    const sessions = store.listByMember(memberId);
+    // Answer first: the caller is the site's sign-out path, which must not
+    // wait on this daemon.
+    res.status(202).json({ accepted: sessions.length });
+    for (const session of sessions) {
+      void revalidateSession(session.sid).catch(() => {
+        // A transient failure leaves the session alone; the watchdog retries.
+      });
+    }
+  }
+
+  // One loop for every subscribed session: the browser never schedules this.
+  const watchdog = setInterval(() => {
+    for (const sid of subscribedSessionIds()) {
+      void revalidateSession(sid).catch(() => {
+        // A transient module failure must not end a session; the next tick
+        // retries.
+      });
+    }
+  }, WATCHDOG_INTERVAL_MS);
+  watchdog.unref?.();
+
   return {
     registerRoutes(app) {
       app.get('/auth/start', start);
@@ -957,6 +1168,8 @@ export function createNextoreAuth(options: NextoreAuthOptions): NextoreAuth {
       app.get('/auth/me', (req: Request, res: Response, next: NextFunction) => {
         void me(req, res).catch(next);
       });
+      app.get('/auth/session/events', sessionEvents);
+      app.post('/auth/session-ended', sessionEnded);
     },
     gate,
   };

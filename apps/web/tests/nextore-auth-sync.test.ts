@@ -38,6 +38,46 @@ class FakeBroadcastChannel {
   close(): void {}
 }
 
+class FakeEventSource {
+  static all: FakeEventSource[] = [];
+  static reset(): void {
+    FakeEventSource.all = [];
+  }
+
+  readonly listeners = new Map<string, Set<(event: Event) => void>>();
+  readyState = 0;
+  closed = false;
+
+  constructor(readonly url: string, readonly init?: EventSourceInit) {
+    FakeEventSource.all.push(this);
+  }
+
+  addEventListener(type: string, listener: (event: Event) => void): void {
+    let set = this.listeners.get(type);
+    if (!set) {
+      set = new Set();
+      this.listeners.set(type, set);
+    }
+    set.add(listener);
+  }
+
+  removeEventListener(type: string, listener: (event: Event) => void): void {
+    this.listeners.get(type)?.delete(listener);
+  }
+
+  close(): void {
+    this.closed = true;
+    this.readyState = 2;
+  }
+
+  emit(type: string, data?: unknown): void {
+    const event = data === undefined
+      ? new Event(type)
+      : new MessageEvent(type, { data: JSON.stringify(data) });
+    for (const listener of this.listeners.get(type) ?? []) listener(event);
+  }
+}
+
 let current: {
   signOut: typeof import('../src/nextore/sign-out');
   guard: typeof import('../src/nextore/session-guard');
@@ -92,6 +132,76 @@ describe('cross-tab sign-out', () => {
     expect(signOut.isSignedOut()).toBe(true);
     expect(navigate).toHaveBeenCalledWith('/');
     cleanup();
+  });
+});
+
+describe('pushed session revocation', () => {
+  beforeEach(() => {
+    FakeEventSource.reset();
+    vi.stubGlobal('EventSource', FakeEventSource);
+  });
+
+  afterEach(() => {
+    FakeEventSource.reset();
+    vi.unstubAllGlobals();
+  });
+
+  it('signs out when the daemon pushes a revoked session, without polling', async () => {
+    const { guard } = await loadEditionModules();
+    const navigate = vi.fn();
+    const fetchMock = vi.fn(async () => new Response(null, { status: 200 }));
+    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'visible' });
+    guard.installNextoreSessionRedirect({
+      fetchImpl: fetchMock as unknown as typeof fetch,
+      navigate,
+      now: () => 6_000,
+    });
+
+    expect(FakeEventSource.all).toHaveLength(1);
+    const stream = FakeEventSource.all[0]!;
+    expect(stream.url).toBe('/auth/session/events');
+    expect(stream.init?.withCredentials).toBe(true);
+
+    stream.emit('session', { state: 'revoked' });
+
+    await vi.waitFor(() => expect(navigate).toHaveBeenCalledWith('/auth/start?return=%2F'));
+    expect(stream.closed).toBe(true);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('ignores a state other than revoked', async () => {
+    const { guard } = await loadEditionModules();
+    const navigate = vi.fn();
+    guard.installNextoreSessionRedirect({
+      fetchImpl: vi.fn(async () => new Response(null, { status: 200 })) as unknown as typeof fetch,
+      navigate,
+      now: () => 7_000,
+    });
+
+    FakeEventSource.all[0]!.emit('session', { state: 'active' });
+    await Promise.resolve();
+    expect(navigate).not.toHaveBeenCalled();
+    expect(FakeEventSource.all[0]!.closed).toBe(false);
+  });
+
+  it('asks once when the stream errors, so a 401 ends the session', async () => {
+    const { guard } = await loadEditionModules();
+    const navigate = vi.fn();
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ signedIn: false }), {
+      status: 401,
+      headers: { 'content-type': 'application/json' },
+    }));
+    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'visible' });
+    guard.installNextoreSessionRedirect({
+      fetchImpl: fetchMock as unknown as typeof fetch,
+      navigate,
+      now: () => 8_000,
+    });
+
+    const stream = FakeEventSource.all[0]!;
+    stream.emit('error');
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    await vi.waitFor(() => expect(navigate).toHaveBeenCalledWith('/auth/start?return=%2F'));
   });
 });
 

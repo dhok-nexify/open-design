@@ -4,11 +4,13 @@
  * This supersedes the original `session.ts` implementation, which is kept in
  * place while the checkout is locked by another process. The contract is the
  * same: a `SESSION_REQUIRED` response navigates to `/auth/start`, and the
- * five-minute heartbeat owns silent re-authentication. The additions here are a
- * foreground revalidation — when a tab becomes visible or focused again, one
- * `/auth/me?revalidate=1` check asks the module whether the OAuth connection
- * still exists, instead of trusting a validation up to five minutes old — and
- * the cross-tab sign-out marker. It never starts an OAuth round trip by itself.
+ * five-minute heartbeat owns silent re-authentication. Revocation itself is
+ * pushed: every tab keeps one `/auth/session/events` stream open, the daemon
+ * validates that session on its own timer, and a revoked connection closes the
+ * stream with `state: revoked`. The browser does not poll. A return to the tab
+ * still runs one `/auth/me?revalidate=1` as a cheap safety net for a stream
+ * that dropped, and the cross-tab sign-out marker covers explicit sign-outs.
+ * None of it starts an OAuth round trip by itself.
  */
 
 import { NEXTORE_WEB_EDITION } from './features';
@@ -26,15 +28,22 @@ const REDIRECT_FLAG = 'nxd:session-redirect';
 const REDIRECT_COOLDOWN_MS = 10_000;
 const SESSION_HEARTBEAT_MS = 5 * 60 * 1000;
 /**
- * How often a VISIBLE tab re-asks the module whether its connection is alive.
+ * The daemon's push channel for this session.
  *
- * The five-minute heartbeat above only handles silent re-authentication. A
- * sign-out at the site must not wait for it: while somebody is looking at this
- * tab, a connection the site cut has to end the session within seconds. Ten
- * seconds reads as immediate, and it is above the daemon's own 9-second floor,
- * so N open tabs still produce at most one module call per interval.
+ * The daemon validates a subscribed session on one timer of its own and writes
+ * `session` with `state: revoked` to every open tab, so the browser never
+ * schedules a re-check. One stream per tab, not one request per tab per
+ * interval: five tabs cost five idle connections and zero polls.
  */
-const FOREGROUND_PROBE_MS = 10_000;
+const SESSION_STREAM_PATH = '/auth/session/events';
+/**
+ * Only for a browser without EventSource: a slow visible-tab probe. Kept far
+ * above the old ten seconds on purpose — a missing push channel is a reason to
+ * degrade, not to reintroduce the polling load.
+ */
+const STREAM_FALLBACK_POLL_MS = 60_000;
+/** How often a broken stream may trigger one plain probe, at most. */
+const STREAM_ERROR_PROBE_COOLDOWN_MS = 10_000;
 const VISIBILITY_CHECK_COOLDOWN_MS = 5_000;
 
 interface SessionErrorBody {
@@ -51,7 +60,8 @@ export interface NextoreSessionRedirectOptions {
 }
 
 let heartbeatTimer: number | null = null;
-let foregroundTimer: number | null = null;
+let fallbackTimer: number | null = null;
+let sessionStream: EventSource | null = null;
 let visibilityHandler: (() => void) | null = null;
 
 const GUARD_WINDOW_KEY = '__nxdSessionGuardCleanup';
@@ -178,14 +188,51 @@ export function installNextoreSessionRedirect(
   };
 
   heartbeatTimer = window.setInterval(() => checkSession(true), SESSION_HEARTBEAT_MS);
-  // The visible-tab watchdog. A hidden tab probes nothing — nobody can act on
-  // what it would show, and the focus/visibility handlers cover the moment it
-  // comes back.
-  foregroundTimer = window.setInterval(() => {
-    if (document.visibilityState !== 'visible') return;
-    if (isSignedOut()) return;
-    checkSession(false, true);
-  }, FOREGROUND_PROBE_MS);
+
+  // null, not 0: the injected clock in tests may start at a small value, and
+  // "0" would then read as a probe that just happened.
+  let lastStreamErrorProbe: number | null = null;
+  function openSessionStream(): void {
+    if (typeof EventSource === 'undefined') {
+      fallbackTimer = window.setInterval(() => {
+        if (document.visibilityState !== 'visible') return;
+        if (isSignedOut()) return;
+        checkSession(false, true);
+      }, STREAM_FALLBACK_POLL_MS);
+      return;
+    }
+
+    const source = new EventSource(SESSION_STREAM_PATH, { withCredentials: true });
+    sessionStream = source;
+    source.addEventListener('session', (event) => {
+      let state: unknown = null;
+      try {
+        state = (JSON.parse((event as MessageEvent).data as string) as { state?: unknown }).state;
+      } catch {
+        return;
+      }
+      if (state !== 'revoked') return;
+      source.close();
+      if (sessionStream === source) sessionStream = null;
+      // The daemon already ended the row; this only puts the shell on the
+      // sign-in page, with the same "explicit sign-out wins" guard.
+      goToSignIn();
+    });
+    source.addEventListener('error', () => {
+      // EventSource retries by itself, so a server restart heals without help.
+      // A revoked session answers 401, which the browser would retry forever,
+      // so one plain probe decides whether to keep waiting or sign out.
+      if (source.readyState === EventSource.CLOSED) return;
+      const at = now();
+      if (
+        lastStreamErrorProbe !== null
+        && at - lastStreamErrorProbe < STREAM_ERROR_PROBE_COOLDOWN_MS
+      ) return;
+      lastStreamErrorProbe = at;
+      checkSession(false, false);
+    });
+  }
+  openSessionStream();
 
   visibilityHandler = () => {
     if (document.visibilityState !== 'visible') return;
@@ -206,10 +253,12 @@ export function installNextoreSessionRedirect(
       window.clearInterval(heartbeatTimer);
       heartbeatTimer = null;
     }
-    if (foregroundTimer !== null) {
-      window.clearInterval(foregroundTimer);
-      foregroundTimer = null;
+    if (fallbackTimer !== null) {
+      window.clearInterval(fallbackTimer);
+      fallbackTimer = null;
     }
+    sessionStream?.close();
+    sessionStream = null;
     if (visibilityHandler) {
       document.removeEventListener('visibilitychange', visibilityHandler);
       window.removeEventListener('focus', visibilityHandler);
@@ -228,10 +277,12 @@ export function resetNextoreSessionRedirectForTests(): void {
     window.clearInterval(heartbeatTimer);
     heartbeatTimer = null;
   }
-  if (foregroundTimer !== null) {
-    window.clearInterval(foregroundTimer);
-    foregroundTimer = null;
+  if (fallbackTimer !== null) {
+    window.clearInterval(fallbackTimer);
+    fallbackTimer = null;
   }
+  sessionStream?.close();
+  sessionStream = null;
   if (visibilityHandler) {
     document.removeEventListener('visibilitychange', visibilityHandler);
     window.removeEventListener('focus', visibilityHandler);

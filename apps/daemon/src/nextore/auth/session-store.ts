@@ -108,6 +108,15 @@ export interface NextoreSessionStore {
   remove(sid: string): void;
   /** Delete rows whose last activity is older than the caller's session TTL. */
   pruneExpired(before: number): number;
+
+  /**
+   * Every live row for one member.
+   *
+   * The site's sign-out hint names a member, and each of that member's
+   * sessions is then re-checked before it is cut. Undecryptable rows are
+   * dropped by the same rule as `find`.
+   */
+  listByMember(memberId: number): NextoreSession[];
 }
 
 function toFeatures(value: unknown): NextoreSessionFeatures {
@@ -295,6 +304,22 @@ export function createNextoreSessionStore(
 
     remove(sid) {
       db().prepare('DELETE FROM nextore_sessions WHERE sid = ?').run(sid);
+    },
+
+    listByMember(memberId) {
+      const rows = db()
+        .prepare('SELECT * FROM nextore_sessions WHERE member_id = ?')
+        .all(memberId) as SessionRow[];
+      const sessions: NextoreSession[] = [];
+      for (const row of rows) {
+        const session = decode(row);
+        if (session) {
+          sessions.push(session);
+        } else {
+          db().prepare('DELETE FROM nextore_sessions WHERE sid = ?').run(row.sid);
+        }
+      }
+      return sessions;
     },
 
     pruneExpired(before) {
