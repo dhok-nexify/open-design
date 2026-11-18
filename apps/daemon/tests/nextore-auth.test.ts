@@ -99,7 +99,10 @@ function client(overrides: {
   };
 }
 
-function buildApp(nextoreClient: NextoreClient = client()): express.Express {
+function buildApp(
+  nextoreClient: NextoreClient = client(),
+  options: { hintRetryMs?: number } = {},
+): express.Express {
   const app = express();
   // Mirrors server.ts: the global parser is mounted before the auth routes, so
   // the sign-out hint can read its body.
@@ -110,6 +113,7 @@ function buildApp(nextoreClient: NextoreClient = client()): express.Express {
     store,
     secrets: () => secrets,
     now: () => clock,
+    ...options,
   });
   auth.registerRoutes(app);
   app.use('/api', auth.gate);
@@ -435,6 +439,61 @@ describe('Nextore OAuth routes', () => {
 
     // The push is the whole point: the tab learns without asking.
     const pushed = await reader.read();
+    expect(decoder.decode(pushed.value)).toContain('"state":"revoked"');
+    expect(store.find(session.sid)).toBeNull();
+    await reader.cancel();
+  });
+
+  it('re-checks once when the revocation sweep has not landed by the hint', async () => {
+    const session = store.create({
+      memberId: member.id,
+      member,
+      accessToken: 'access-1',
+      refreshToken: 'refresh-1',
+      tokenExpiresAt: clock + 60 * 60 * 1000,
+    });
+    let revoked = false;
+    let bootstraps = 0;
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({
+      error: 'invalid_grant',
+      error_description: 'The connection was revoked.',
+    }), { status: 400, headers: { 'content-type': 'application/json' } })));
+    await listen(buildApp(client({
+      bootstrap: async () => {
+        bootstraps += 1;
+        if (revoked) throw new NextoreClientError('nextore_http_error', 'unauthorized', 401);
+        return { member };
+      },
+    }), { hintRetryMs: 25 }));
+
+    const stream = await nativeFetch(baseUrl + '/auth/session/events', {
+      headers: { cookie: sessionCookie(session.sid) },
+    });
+    expect(stream.status).toBe(200);
+    const reader = stream.body!.getReader();
+    const decoder = new TextDecoder();
+    await reader.read(); // the ready frame
+
+    const hint = await nativeFetch(baseUrl + '/auth/session-ended', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ memberId: member.id }),
+    });
+    expect(hint.status).toBe(202);
+
+    // The immediate check answers "still valid" because the sweep has not
+    // finished yet. Flip the connection now; only the delayed re-check can
+    // observe it.
+    await vi.waitFor(() => expect(bootstraps).toBeGreaterThanOrEqual(1), { timeout: 500 });
+    expect(store.find(session.sid)).not.toBeNull();
+    revoked = true;
+
+    const pushed = await Promise.race([
+      reader.read(),
+      new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error('no revocation push')), 1_000);
+      }),
+    ]);
     expect(decoder.decode(pushed.value)).toContain('"state":"revoked"');
     expect(store.find(session.sid)).toBeNull();
     await reader.cancel();

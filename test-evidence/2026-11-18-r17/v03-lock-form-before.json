@@ -1,0 +1,29 @@
+{
+  "memberId": 2210,
+  "url": "https://v4.nexify.hk/Admin/MemberEdit?mid=2210",
+  "isLocked": false,
+  "isDisabled": false,
+  "state": {
+    "isDisabledCb:isDisabledCb": false,
+    "isLockedCb:isLockedCb": false,
+    "selectedMemberFullName": "ND No Access",
+    "propertyField_116": "",
+    "propertyField_140": "",
+    "propertyField_218": "2023-04-22",
+    "propertyField_219": "PKJ4R321US90",
+    "propertyField_220": "A1000",
+    "propertyField_222": "",
+    "propertyField_372": "male",
+    "propertyField_718": "0",
+    "propertyField_8557": "",
+    "propertyField_8558": "",
+    "selectedMemberEmail": "nd.noaccess@nexify.com.hk",
+    "editClassificationLevelDd": "10",
+    "maxSizeRb:maxSizeRb_unlimited": true,
+    "maxSizeRb:maxSizeRb_limited": false,
+    "limitSizeInput": "",
+    "parentGroupIDsIp": "1199"
+  },
+  "moduleRightsAllMinusOne": true,
+  "connectionsBefore": 4
+}

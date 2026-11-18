@@ -1,0 +1,51 @@
+{
+  "case": "NXD-V03 account lock / unlock",
+  "member": {
+    "id": 2210,
+    "login": "nd.noaccess"
+  },
+  "entry": {
+    "page": "https://v4.nexify.hk/Admin/MemberEdit?mid=2210",
+    "control": "#isLockedCb + #addMemberBtn (onclick=addMemberBtn_Click)",
+    "evidenceItIsUpdate": "post navigated to /Admin/MemberManagement?msg=updated; no duplicate member"
+  },
+  "lock": {
+    "before": {
+      "locked": false,
+      "disabled": false,
+      "connections": 4
+    },
+    "after": {
+      "locked": true,
+      "disabled": false,
+      "connections": 0
+    },
+    "connectionIdsRevoked": [
+      "08553fedcfa441e8f2f0ba632faa8b23",
+      "2fd7fcf8505289ce7b642249c5747cc1",
+      "97de7a8a5e0b5f9939af8f831387f054",
+      "7e7aefab8e238ebe71e18d430802f41b"
+    ],
+    "totalConnections": {
+      "before": 76,
+      "after": 72
+    }
+  },
+  "unlock": {
+    "after": {
+      "locked": false,
+      "disabled": false,
+      "connections": 0
+    },
+    "fieldsUnchanged": true,
+    "moduleRightsUnchanged": true
+  },
+  "reLogin": {
+    "isolatedContext": true,
+    "session": {
+      "code": "DESIGNER_ACCESS_REQUIRED"
+    },
+    "newConnectionCreated": "51d2cb1b61a173c029e5319022452989",
+    "note": "Normal status lets the account obtain a new connection again; Designer still denies the member because the group lacks DesignerAccess, which is the intended layered gate."
+  }
+}

@@ -250,6 +250,12 @@ export interface NextoreAuthOptions {
   secrets: () => NextoreSecrets;
   now?: () => number;
   /**
+   * One delayed re-check after a sign-out hint whose immediate answer was
+   * still valid. The module's revocation sweep rides the same platform event
+   * as the hint, so the sweep may not have finished when the hint arrives.
+   */
+  hintRetryMs?: number;
+  /**
    * Run-scoped tool requests authenticate with a signed tool token instead of
    * a browser session. Returning true lets that one request through.
    */
@@ -458,6 +464,7 @@ function escapeHtml(value: string): string {
 
 export function createNextoreAuth(options: NextoreAuthOptions): NextoreAuth {
   const { config, client, store, secrets, allowRequest } = options;
+  const hintRetryMs = options.hintRetryMs ?? 2_000;
   const now = options.now ?? (() => Date.now());
 
   type MemberResult =
@@ -1148,9 +1155,23 @@ export function createNextoreAuth(options: NextoreAuthOptions): NextoreAuth {
     // wait on this daemon.
     res.status(202).json({ accepted: sessions.length });
     for (const session of sessions) {
-      void revalidateSession(session.sid).catch(() => {
-        // A transient failure leaves the session alone; the watchdog retries.
-      });
+      void revalidateSession(session.sid)
+        .then((result) => {
+          if (result !== 'ok') return;
+          // The revocation sweep and this hint ride the same platform event,
+          // so the connection may still look alive right now. One delayed
+          // re-check settles it without making the module wait; the 15 s
+          // watchdog remains the outer bound for a missed hint.
+          const timer = setTimeout(() => {
+            void revalidateSession(session.sid).catch(() => {
+              // The watchdog retries a transient failure.
+            });
+          }, hintRetryMs);
+          timer.unref?.();
+        })
+        .catch(() => {
+          // A transient failure leaves the session alone; the watchdog retries.
+        });
     }
   }
 
