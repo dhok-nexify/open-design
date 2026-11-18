@@ -37,8 +37,8 @@ export function nextoreTierBaseUrl(baseUrl: string, tier: NextoreTier): string {
 }
 
 export function resolveNextoreRunProvider(input: NextoreRunProviderInput): NextoreRunProvider {
-  const tier = input.tier == null || input.tier === '' ? 'expert' : input.tier;
-  if (!isNextoreTier(tier)) {
+  const tier = normalizeNextoreTier(input.tier as string | null | undefined);
+  if (!tier) {
     return {
       ok: false,
       status: 400,
@@ -69,4 +69,18 @@ export function resolveNextoreRunProvider(input: NextoreRunProviderInput): Nexto
       baseUrl: nextoreTierBaseUrl(input.config.baseUrl, tier),
     },
   };
+}
+
+/**
+ * D40: model aliases collapse onto the existing tier axis instead of a second
+ * mapping table. `small_model` is the cost-sensitive alias and therefore
+ * resolves to the cheap `fast` tier; everything else must be a real tier.
+ */
+const TIER_ALIASES: Readonly<Record<string, NextoreTier>> = { small_model: 'fast' };
+
+export function normalizeNextoreTier(value: string | null | undefined): NextoreTier | null {
+  if (value === null || value === undefined || value === '') return 'expert';
+  const alias = TIER_ALIASES[value.trim().toLowerCase()];
+  if (alias) return alias;
+  return isNextoreTier(value) ? value : null;
 }

@@ -62,4 +62,35 @@ describe('resolveNextoreRunProvider', () => {
     expect(resolveNextoreRunProvider({ config, session, tier: 'turbo' }))
       .toMatchObject({ ok: false, status: 400, code: 'TIER_INVALID' });
   });
+
+describe('D40 small_model alias', () => {
+  it('resolves small_model to the fast tier base URL', () => {
+    const result = resolveNextoreRunProvider({
+      config: { baseUrl: 'https://nextore.test/' },
+      session: { accessToken: 'token' },
+      tier: 'small_model',
+    } as never);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.tier).toBe('fast');
+    expect(result.byokProvider.baseUrl).toBe('https://nextore.test/api/designer/llm/fast/v1');
+  });
+
+  it('keeps a real tier unchanged and rejects an unknown alias', () => {
+    const expert = resolveNextoreRunProvider({
+      config: { baseUrl: 'https://nextore.test' },
+      session: { accessToken: 'token' },
+      tier: 'expert',
+    } as never);
+    expect(expert.ok && expert.tier).toBe('expert');
+
+    const bogus = resolveNextoreRunProvider({
+      config: { baseUrl: 'https://nextore.test' },
+      session: { accessToken: 'token' },
+      tier: 'turbo',
+    } as never);
+    expect(bogus.ok).toBe(false);
+  });
+});
 });
