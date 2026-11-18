@@ -1,6 +1,7 @@
 import { openExternalUrl } from "../providers/registry";
 import { homeAutoSendIdentity, stableIdentityDigest, type HomeRequestConcurrencyRejection } from '../runtime/home-auto-send-identity';
 import { withLiveArtifactDeliveries } from '../runtime/live-artifact-delivery';
+import { amrBillingWorkspaceAuthorityForContext } from '../runtime/amr-billing-authority';
 import { readAmrRequestConcurrency } from '../runtime/amr-request-concurrency';
 import { newerTaskDisplay } from '../runtime/chat/task-presentation';
 import { useStartupReady } from '../observability/startup-ready';
@@ -3242,7 +3243,7 @@ export function ProjectView({
    * 自己重跑一次把数字换过来,不需要额外的等待态。
    */
   const amrBalanceCardScope = useMemo(
-    () => amrBalanceGateScopeForWorkspaceContext(projectRunPreflightContext),
+    () => amrBalanceGateScopeForWorkspaceContext(amrBillingWorkspaceAuthorityForContext(projectRunPreflightContext)),
     [projectRunPreflightContext],
   );
   const amrBalanceCardScopeKey = amrBalanceCardScope
@@ -9343,7 +9344,7 @@ export function ProjectView({
         ? checkAmrFundingEvidence(amrBalanceCardScope, fundingModelId, fundingIdentityIsCurrent)
         : Promise.resolve({ kind: 'unknown' as const, preflight: null });
       const refreshConcurrencyPlanProof = (isCurrent: () => boolean) => {
-        const scope = amrBalanceGateScopeForWorkspaceContext(projectRunPreflightContext);
+        const scope = amrBalanceGateScopeForWorkspaceContext(amrBillingWorkspaceAuthorityForContext(projectRunPreflightContext));
         if (!scope) return;
         // A recent positive funding cache may predate a plan change. Once Link
         // refuses this send, only a fresh exact-member/model preflight may
@@ -9363,7 +9364,7 @@ export function ProjectView({
         amrConcurrencyReadsRef.current.add(runConversationId);
         let hint;
         try {
-          const hintRequest = readAmrRequestConcurrency(amrBalanceGateScopeForWorkspaceContext(projectRunPreflightContext));
+          const hintRequest = readAmrRequestConcurrency(amrBalanceGateScopeForWorkspaceContext(amrBillingWorkspaceAuthorityForContext(projectRunPreflightContext)));
           const firstDecision = await Promise.race([
             hintRequest.then((result) => ({ source: 'hint' as const, result })),
             fundingFeedback.then((funding) => ({ source: 'funding' as const, funding })),
@@ -14693,7 +14694,7 @@ export function ProjectView({
       autoSendAmrGateWitnessRef.current !== undefined &&
       amrBalanceGateScopesMatch(
         autoSendAmrGateWitnessRef.current,
-        amrBalanceGateScopeForWorkspaceContext(projectRunPreflightContext),
+        amrBalanceGateScopeForWorkspaceContext(amrBillingWorkspaceAuthorityForContext(projectRunPreflightContext)),
       );
     autoSendInFlightRef.current = true;
     void handleSend(seed, attachments, [], {

@@ -21,3 +21,20 @@ export function amrBillingWorkspaceAuthority(
   if (workspaceDirectoryUnsupported()) return null;
   return workspaceResourceReadContext(state);
 }
+
+/**
+ * The same billing authority for a caller that already holds a resolved
+ * workspace context (ProjectView) instead of the Home page's context state.
+ *
+ * P11: the two entry points must answer identically, so this applies the same
+ * two demotions — an unsupported directory and a blank identity both fall back
+ * to the account wallet.
+ */
+export function amrBillingWorkspaceAuthorityForContext(
+  context: WorkspaceCollabContext | null | undefined,
+): WorkspaceCollabContext | null {
+  if (workspaceDirectoryUnsupported()) return null;
+  if (!context) return null;
+  if (!context.workspaceId?.trim() || !context.workspaceMemberId?.trim()) return null;
+  return context;
+}
