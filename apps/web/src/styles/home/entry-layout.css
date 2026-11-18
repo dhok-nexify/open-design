@@ -1326,41 +1326,19 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
-/* NexTore space marker on a recent row (NXD-D40). Shape AND colour carry the
-   kind, because the rows are too narrow for the cards' text capsule and colour
-   alone would not satisfy WCAG 1.4.1. Sized 6px so it reads as an accent next
-   to the name rather than a second glyph column. */
-.entry-nav-rail__recent-space {
-  flex: 0 0 auto;
-  width: 6px;
-  height: 6px;
-  margin-left: 6px;
-  /* text-muted, not text-faint: a 6px marker is a non-text indicator and
-     needs the 3:1 contrast text-faint does not reach on the rail. */
-  background: var(--text-muted);
+/* NexTore project space on a recent row (NXD-D40, product decision
+   2026-11-18): the project name itself carries the space, because a 6px shape
+   marker was not readable enough at this size. Personal keeps the row's ink;
+   team and shared take a tinted, semi-bold name. The tint is mixed with the
+   theme's own strong ink so it keeps contrast in both light and dark mode. */
+.entry-nav-rail__recent-name[data-space='team'] {
+  color: color-mix(in srgb, var(--nexTore-brand-primary, #4f46e5) 78%, var(--text-strong));
+  font-weight: 600;
 }
 
-.entry-nav-rail__recent-space[data-space='personal'] {
-  border-radius: 50%;
-}
-
-.entry-nav-rail__recent-space[data-space='team'] {
-  border-radius: 2px;
-  background: var(--nexTore-brand-primary, #4f46e5);
-}
-
-.entry-nav-rail__recent-space[data-space='shared'] {
-  border-radius: 1px;
-  transform: rotate(45deg);
-  background: color-mix(in srgb, var(--nexTore-brand-primary, #4f46e5) 45%, var(--text-muted));
-}
-
-/* Forced-colours mode replaces author backgrounds, so the marker falls back to
-   system ink and keeps its shape — the aria-label still names the space. */
-@media (forced-colors: active) {
-  .entry-nav-rail__recent-space {
-    background: CanvasText;
-  }
+.entry-nav-rail__recent-name[data-space='shared'] {
+  color: color-mix(in srgb, #0f766e 72%, var(--text-strong));
+  font-weight: 600;
 }
 /* A completed, unread project keeps its folder and adds this notice at the
    row's end (OPEND-3133): a 6px disc in the design's blue, pushed to the right

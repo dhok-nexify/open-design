@@ -525,7 +525,7 @@ describe('EntryNavRail 最近浏览过 section', () => {
     expect(within(menu).getByRole('alert').textContent).toBe('Could not move to team space. Try again.');
   });
 
-  it('marks each recent row with its NexTore space and names it for assistive tech', () => {
+  it('colours the project name by its NexTore space and names it for assistive tech', () => {
     renderRail({
       context: null,
       recentProjectSpaceBadges: new Map([
@@ -537,16 +537,19 @@ describe('EntryNavRail 最近浏览过 section', () => {
     });
 
     const rows = screen.getAllByTestId('entry-nav-recent-item');
-    expect(within(rows[0]!).getByTestId('entry-nav-recent-space')).toHaveAttribute('data-space', 'personal');
-    expect(within(rows[1]!).getByTestId('entry-nav-recent-space')).toHaveAttribute('data-space', 'team');
-    expect(within(rows[2]!).getByTestId('entry-nav-recent-space')).toHaveAttribute('data-space', 'shared');
-    // Colour is not the only signal: the marker is an image with a name, and
-    // its title carries the workspace the project lives in.
-    expect(within(rows[1]!).getByRole('img', { name: 'Team: Content team' })).toBeTruthy();
-    expect(within(rows[2]!).getByRole('img', { name: 'Shared: Content team' })).toBeTruthy();
-    // A row with no listing entry (a local orphan) stays unmarked rather than
-    // claiming a space.
-    expect(screen.getAllByTestId('entry-nav-recent-space')).toHaveLength(3);
+    const nameOf = (row: HTMLElement) => row.querySelector('.entry-nav-rail__recent-name');
+    expect(nameOf(rows[0]!)).toHaveAttribute('data-space', 'personal');
+    expect(nameOf(rows[1]!)).toHaveAttribute('data-space', 'team');
+    expect(nameOf(rows[2]!)).toHaveAttribute('data-space', 'shared');
+    // A row with no listing entry (a local orphan) keeps the default ink.
+    expect(nameOf(rows[3]!)).not.toHaveAttribute('data-space');
+    // Colour is not the only signal: the row's accessible text names the space
+    // and the workspace it belongs to.
+    expect(rows[1]!).toHaveTextContent('Team: Content team');
+    expect(rows[2]!).toHaveTextContent('Shared: Content team');
+    // The old shape marker is gone — the product asked for the title instead.
+    expect(screen.queryByTestId('entry-nav-recent-space')).toBeNull();
+    expect(rows[1]!.querySelector('.entry-nav-rail__recent-space')).toBeNull();
   });
 
   it('uses the explicit member id to keep the owner\'s own rows mutable', () => {

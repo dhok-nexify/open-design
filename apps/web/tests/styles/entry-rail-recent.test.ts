@@ -22,6 +22,21 @@ function declarations(selector: string): string {
 }
 
 describe('entry rail — 最近浏览过 rows', () => {
+  it('pins team and shared project names to a tinted title, not a marker', () => {
+    const team = declarations(".entry-nav-rail__recent-name[data-space='team']");
+    expect(team).toMatch(
+      /color:\s*color-mix\(in srgb, var\(--nexTore-brand-primary, #4f46e5\) 78%, var\(--text-strong\)\)/,
+    );
+    expect(team).toMatch(/font-weight:\s*600/);
+
+    const shared = declarations(".entry-nav-rail__recent-name[data-space='shared']");
+    expect(shared).toMatch(/color:\s*color-mix\(in srgb, #0f766e 72%, var\(--text-strong\)\)/);
+    expect(shared).toMatch(/font-weight:\s*600/);
+
+    // The 6px shape marker was replaced by the title colour on 2026-11-18.
+    expect(entryLayoutCss).not.toContain('.entry-nav-rail__recent-space');
+  });
+
   it('pins the shared quiet ink the heading and rows carry', () => {
     expect(declarations('.entry-nav-rail')).toMatch(/--rail-ink-quiet:\s*#5c5c5c/);
     expect(declarations('[data-theme="dark"] .entry-nav-rail')).toMatch(

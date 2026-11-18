@@ -149,29 +149,21 @@ const SPACE_LABEL_KEY: Record<NextoreProjectSpaceBadge['kind'], SpaceLabelKey> =
 };
 
 /**
- * Space marker for one recent row.
+ * The accessible name for a row's space.
  *
- * A 6px marker, not the cards' text capsule: the rail's rows are 38px tall and
- * the name already ellipsizes. The kind differs in SHAPE as well as colour
- * (circle / rounded square / diamond) so the distinction survives colour
- * blindness and forced-colours mode, and the accessible name carries the
- * workspace so the marker is never the only signal.
+ * The row itself distinguishes team and shared projects by the colour of the
+ * project name (product decision, 2026-11-18). Colour alone carries no meaning
+ * for a screen reader, so the row also reads the space and its workspace after
+ * the project name.
  */
-function RailSpaceMarker({ badge }: { badge: NextoreProjectSpaceBadge }) {
-  const t = useT();
+function spaceLabelFor(
+  badge: NextoreProjectSpaceBadge | null | undefined,
+  t: ReturnType<typeof useT>,
+): string | null {
+  if (!badge) return null;
   const label = t(SPACE_LABEL_KEY[badge.kind]);
   const workspace = badge.workspaceName.trim();
-  const title = workspace ? label + ': ' + workspace : label;
-  return (
-    <span
-      className="entry-nav-rail__recent-space"
-      data-space={badge.kind}
-      role="img"
-      aria-label={title}
-      title={title}
-      data-testid="entry-nav-recent-space"
-    />
-  );
+  return workspace ? label + ': ' + workspace : label;
 }
 
 export function RailRecentRow({
@@ -203,9 +195,10 @@ export function RailRecentRow({
    *  so a row someone else shared keeps its mutations disabled with the same
    *  explanation the project cards give (`recentProjects.ownOnlyMutation`). */
   ownedBySelf?: boolean;
-  /** NexTore edition: the space this project lives in. The rail rows are too
-   *  narrow for the cards' text capsule, so this renders as a 6px marker
-   *  whose SHAPE also differs per kind — colour alone would fail WCAG 1.4.1. */
+  /** NexTore edition: the space this project lives in. The row shows it as the
+   *  colour of the project name (product decision, 2026-11-18); the space and
+   *  workspace are also appended to the accessible name, so colour is not the
+   *  only cue for a screen reader. */
   spaceBadge?: NextoreProjectSpaceBadge | null;
   /** Already in the team space: 转入团队空间 reads 已在团队空间 and is inert. */
   shared?: boolean;
@@ -315,6 +308,7 @@ export function RailRecentRow({
     onRename?.(project.id, next);
   }
 
+  const spaceTitle = spaceLabelFor(spaceBadge, t);
   const hasMenu = Boolean(onRename || onDuplicate || onDelete || (moveToTeamAvailable && onMoveToTeam));
   const foreignTitle = ownedBySelf ? undefined : t('recentProjects.ownOnlyMutation');
 
@@ -393,8 +387,13 @@ export function RailRecentRow({
               <ProjectFolderGlyph size={16} />
             )}
           </span>
-          <span className="entry-nav-rail__recent-name">{project.name}</span>
-          {spaceBadge ? <RailSpaceMarker badge={spaceBadge} /> : null}
+          <span
+            className="entry-nav-rail__recent-name"
+            data-space={spaceBadge?.kind ?? undefined}
+          >
+            {project.name}
+            {spaceTitle ? <span className="sr-only">{' (' + spaceTitle + ')'}</span> : null}
+          </span>
           {/* P0-24 推测项 A-09:等用户回答时,项目名后面写出「需要你回复」(OPEND-4216) */}
           {runStatus && hasAwaitingReplyTag(runStatus) ? (
             <ProjectAwaitingReplyTag
