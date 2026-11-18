@@ -33,6 +33,11 @@ export interface NextorePublishWorkerTick {
   outcome: PublishOutcome | null;
 }
 
+export interface DrainNextorePublishQueueOptions {
+  maxItems?: number;
+  shouldStop?: () => boolean;
+}
+
 const DEFAULT_BACKOFF_MS: readonly number[] = [5_000, 15_000, 60_000, 300_000, 900_000];
 
 function retryOutcome(errorCode: string, message: string): PublishOutcome {
@@ -114,4 +119,23 @@ export async function runNextorePublishWorkerOnce(
     retryAt: now() + delay,
   });
   return { claimed: item, outcome };
+}
+
+/**
+ * Drain due items one at a time. Sequential processing is the simplest correct per-project
+ * serialization: a project cannot have two publishes in flight, and a retry that was just
+ * scheduled as not-due naturally stops the drain.
+ */
+export async function drainNextorePublishQueue(
+  deps: NextorePublishWorkerDeps,
+  options: DrainNextorePublishQueueOptions = {},
+): Promise<{ processed: number }> {
+  const maxItems = Math.max(1, options.maxItems ?? 100);
+  let processed = 0;
+  while (processed < maxItems && !options.shouldStop?.()) {
+    const tick = await runNextorePublishWorkerOnce(deps);
+    if (!tick.claimed) break;
+    processed += 1;
+  }
+  return { processed };
 }
