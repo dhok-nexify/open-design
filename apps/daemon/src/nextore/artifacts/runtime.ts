@@ -14,8 +14,10 @@ import { isNextoreArtifactPublishEnabled, type NextoreArtifactAuthorityMode } fr
 import {
   enqueueNextorePublish,
   getNextoreArtifact,
+  findPublishMember,
   listNextoreArtifacts,
   listProjectMembers,
+  listPublishProjectMembers,
   rememberProjectMember,
   retryNextorePublish,
 } from './store.js';
@@ -112,6 +114,11 @@ export class NextoreArtifactRuntime {
     // used to be filled only by a run in this process, so a restart left every
     // project unreconcilable — exactly when a rollout runs.
     try {
+      for (const row of listPublishProjectMembers(this.deps.db)) {
+        this.projectMembers.set(row.projectId, row.memberId);
+      }
+      // A row written by the newer code wins: it is the member a run actually
+      // published as, while the queue may only remember an older attempt.
       for (const row of listProjectMembers(this.deps.db)) {
         this.projectMembers.set(row.projectId, row.memberId);
       }
@@ -345,7 +352,16 @@ export class NextoreArtifactRuntime {
    */
   async reconcileProject(projectId: string): Promise<ReconcileProjectResult | null> {
     if (!isNextoreArtifactPublishEnabled(this.deps.mode)) return null;
-    const memberId = this.projectMembers.get(projectId);
+    let memberId = this.projectMembers.get(projectId);
+    if (!memberId) {
+      // Existing deployments predate nextore_project_members: the publish queue
+      // already recorded who published, so a rollout can still start.
+      const fromQueue = findPublishMember(this.deps.db, projectId);
+      if (fromQueue) {
+        memberId = fromQueue;
+        this.projectMembers.set(projectId, fromQueue);
+      }
+    }
     const nextoreProjectId = this.deps.readProjectMapping?.(projectId) ?? null;
     const projectRoot = this.deps.resolveProjectRoot?.(projectId) ?? null;
     if (!memberId || !nextoreProjectId || !projectRoot) return null;

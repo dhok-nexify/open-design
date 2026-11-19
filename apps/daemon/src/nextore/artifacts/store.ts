@@ -270,6 +270,47 @@ export function rememberProjectMember(
   `).run(projectId, memberId, now);
 }
 
+/**
+ * The member a project last published as, read from the durable queue.
+ *
+ * Existing deployments have no `nextore_project_members` row until a run
+ * enqueues under the new code, so a rollout would still find every project
+ * unreconcilable. The queue already recorded who published, which is the same
+ * identity reconcile needs.
+ */
+export function findPublishMember(
+  db: SqliteDb,
+  projectId: string,
+): number | null {
+  if (!projectId) return null;
+  ensureNextoreArtifactSchema(db);
+  const row = db.prepare(`
+    SELECT member_id FROM nextore_publish_queue
+     WHERE project_id = ? AND member_id > 0
+     ORDER BY created_at DESC LIMIT 1
+  `).get(projectId) as { member_id?: number } | undefined;
+  return typeof row?.member_id === 'number' && row.member_id > 0 ? row.member_id : null;
+}
+
+/** The latest publishing member for every project the queue knows about. */
+export function listPublishProjectMembers(
+  db: SqliteDb,
+): Array<{ projectId: string; memberId: number }> {
+  ensureNextoreArtifactSchema(db);
+  const rows = db.prepare(`
+    SELECT q.project_id AS project_id, q.member_id AS member_id
+      FROM nextore_publish_queue q
+     WHERE q.member_id > 0
+       AND q.created_at = (
+         SELECT MAX(latest.created_at) FROM nextore_publish_queue latest
+          WHERE latest.project_id = q.project_id
+       )
+     GROUP BY q.project_id
+     ORDER BY q.project_id ASC
+  `).all() as Array<{ project_id: string; member_id: number }>;
+  return rows.map((row) => ({ projectId: row.project_id, memberId: row.member_id }));
+}
+
 /** Every persisted project → member pair, in a stable order. */
 export function listProjectMembers(db: SqliteDb): Array<{ projectId: string; memberId: number }> {
   ensureNextoreArtifactSchema(db);
