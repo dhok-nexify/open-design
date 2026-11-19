@@ -7,6 +7,7 @@ import type {
 
 import { useT } from '../../i18n';
 import { revokeArtifactShare, shareArtifact } from '../../nextore/artifact-client';
+import { Icon } from '../Icon';
 import styles from './ArtifactShareForm.module.css';
 
 const EXPIRY_DAYS = [1, 7, 30, 0] as const;
@@ -92,38 +93,40 @@ export function ArtifactShareForm({
 
   return (
     <div className={styles.form}>
-      <label className={styles.field}>
-        <span>{t('nextore.artifact.share.representation')}</span>
-        <select
-          ref={(node) => {
-            firstFieldRef.current = node;
-            if (autoFocus) node?.focus();
-          }}
-          value={normalized}
-          onChange={(event) => setRepresentation(event.target.value as NextoreArtifactRepresentation)}
-          disabled={busy}
-        >
-          <option value="snapshot">{t('nextore.artifact.share.snapshot')}</option>
-          <option value="source">{t('nextore.artifact.share.source')}</option>
-        </select>
-      </label>
+      <div className={styles.grid}>
+        <label className={styles.field}>
+          <span>{t('nextore.artifact.share.representation')}</span>
+          <select
+            ref={(node) => {
+              firstFieldRef.current = node;
+              if (autoFocus) node?.focus();
+            }}
+            value={normalized}
+            onChange={(event) => setRepresentation(event.target.value as NextoreArtifactRepresentation)}
+            disabled={busy}
+          >
+            <option value="snapshot">{t('nextore.artifact.share.snapshot')}</option>
+            <option value="source">{t('nextore.artifact.share.source')}</option>
+          </select>
+        </label>
 
-      <label className={styles.field}>
-        <span>{t('nextore.artifact.share.expiry')}</span>
-        <select
-          value={String(expiryDays)}
-          onChange={(event) => setExpiryDays(Number(event.target.value))}
-          disabled={busy}
-        >
-          {EXPIRY_DAYS.map((days) => (
-            <option key={days} value={String(days)}>
-              {days === 0
-                ? t('nextore.artifact.share.never')
-                : t('nextore.artifact.share.days', { count: String(days) })}
-            </option>
-          ))}
-        </select>
-      </label>
+        <label className={styles.field}>
+          <span>{t('nextore.artifact.share.expiry')}</span>
+          <select
+            value={String(expiryDays)}
+            onChange={(event) => setExpiryDays(Number(event.target.value))}
+            disabled={busy}
+          >
+            {EXPIRY_DAYS.map((days) => (
+              <option key={days} value={String(days)}>
+                {days === 0
+                  ? t('nextore.artifact.share.never')
+                  : t('nextore.artifact.share.days', { count: String(days) })}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
 
       <label className={styles.checkbox}>
         <input
@@ -150,7 +153,11 @@ export function ArtifactShareForm({
 
       {error && (
         <p className={styles.error} role="alert">
-          {t('nextore.artifact.share.failed')} ({error})
+          <Icon name="alert-triangle" size={14} aria-hidden="true" />
+          <span>
+            {t('nextore.artifact.share.failed')}
+            <span className={styles.errorCode}> ({error})</span>
+          </span>
         </p>
       )}
 
@@ -161,10 +168,22 @@ export function ArtifactShareForm({
             <input readOnly value={share.url} onFocus={(event) => event.currentTarget.select()} />
           </label>
           <div className={styles.actions}>
-            <button type="button" onClick={() => void copy()} disabled={busy}>
+            <button
+              type="button"
+              className={styles.primary}
+              onClick={() => void copy()}
+              disabled={busy}
+              aria-busy={busy}
+            >
               {copied === 'ok' ? t('nextore.artifact.share.copied') : t('nextore.artifact.share.copy')}
             </button>
-            <button type="button" onClick={() => void revoke()} disabled={busy}>
+            <button
+              type="button"
+              className={styles.danger}
+              onClick={() => void revoke()}
+              disabled={busy}
+              aria-busy={busy}
+            >
               {t('nextore.artifact.share.revoke')}
             </button>
           </div>
@@ -179,7 +198,13 @@ export function ArtifactShareForm({
         </div>
       ) : (
         <div className={styles.actions}>
-          <button type="button" onClick={() => void create()} disabled={busy}>
+          <button
+            type="button"
+            className={styles.primary}
+            onClick={() => void create()}
+            disabled={busy}
+            aria-busy={busy}
+          >
             {busy ? t('nextore.artifact.share.creating') : t('nextore.artifact.share.create')}
           </button>
         </div>

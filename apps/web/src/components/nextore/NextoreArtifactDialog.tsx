@@ -67,10 +67,32 @@ export function NextoreArtifactDialog({
 
   useEffect(() => {
     returnFocusRef.current = document.activeElement;
+    const dialog = dialogRef.current;
+    // Land focus inside the modal immediately; the close button is present
+    // before the async list lands, so the first interaction is never outside
+    // the dialog.
+    dialog
+      ?.querySelector<HTMLElement>('button, select, input, textarea, [href], [tabindex]:not([tabindex="-1"])')
+      ?.focus();
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.preventDefault();
         onClose();
+        return;
+      }
+      if (event.key !== 'Tab') return;
+      const focusable = dialog?.querySelectorAll<HTMLElement>(
+        'button, select, input, textarea, [href], [tabindex]:not([tabindex="-1"])',
+      );
+      if (!focusable || focusable.length === 0) return;
+      const first = focusable[0]!;
+      const last = focusable[focusable.length - 1]!;
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
       }
     };
     document.addEventListener('keydown', onKeyDown);
@@ -117,7 +139,7 @@ export function NextoreArtifactDialog({
           </button>
         </header>
 
-        <div className={styles.body}>
+        <div className={styles.body} aria-busy={loading}>
           {loading ? (
             <p role="status" aria-live="polite">{t('nextore.artifact.status.loading')}</p>
           ) : failed ? (
@@ -155,6 +177,7 @@ export function NextoreArtifactDialog({
               </div>
 
               <hr className={styles.separator} />
+              <h3 className={styles.shareTitle}>{t('nextore.artifact.share.title')}</h3>
               <ArtifactShareForm
                 projectId={projectId}
                 artifactId={primary.artifactId}
