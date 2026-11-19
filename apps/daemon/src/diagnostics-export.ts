@@ -178,7 +178,7 @@ export function resolveDaemonPreviousLogPath(
       contract: OPEN_DESIGN_SIDECAR_CONTRACT,
       runtimeRoot: namespaceRoot,
     });
-    return `${dirname(latest)}/previous.log`;
+    return join(dirname(latest), 'previous.log');
   } catch {
     return null;
   }

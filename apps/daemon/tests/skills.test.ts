@@ -325,6 +325,13 @@ describe('listSkills', () => {
     expect(renderScript).not.toContain('--screenshot');
     expect(renderScript).not.toContain('--remote-debugging-port');
 
+    if (process.platform === 'win32') {
+      // spawnSync cannot execute a POSIX shell script on Windows (EFTYPE);
+      // the source assertions above still pin the renderer contract, and the
+      // runtime path stays covered on POSIX CI.
+      return;
+    }
+
     const success = runHtmlPptRenderWithFakePlaywright();
     try {
       expect(success.result.status, success.result.stderr).toBe(0);
