@@ -47,8 +47,10 @@ function runtimeStub(state: {
   record?: NextoreArtifactRecord | null;
   nextoreProjectId?: string | null;
   token?: string | null;
+  mode?: 'off' | 'publish' | 'publish+share';
 }): NextoreArtifactRuntime {
   return {
+    mode: state.mode ?? 'publish',
     artifactRecord: vi.fn(() => state.record ?? null),
     nextoreProjectId: vi.fn(() => state.nextoreProjectId ?? 'nc-77'),
     accessTokenFor: vi.fn(async () => state.token ?? 'token-1'),
@@ -104,6 +106,19 @@ async function startApp(deps: {
 }
 
 describe('nextore artifact download routes', () => {
+  it('answers feature_disabled while the artifact authority is off', async () => {
+    const client = clientStub({});
+    const baseUrl = await startApp({
+      runtime: runtimeStub({ mode: 'off' }),
+      client,
+    });
+
+    const response = await fetch(baseUrl + '/api/nextore/projects/project-1/download');
+    expect(response.status).toBe(404);
+    await expect(response.json()).resolves.toMatchObject({ error: 'feature_disabled' });
+    expect(client.downloadProject).not.toHaveBeenCalled();
+  });
+
   it('streams a published representation with an RFC 5987 filename', async () => {
     const client = clientStub({
       artifact: async () => new Response('<html></html>', {

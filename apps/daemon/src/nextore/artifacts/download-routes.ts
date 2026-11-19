@@ -127,8 +127,12 @@ export function registerNextoreArtifactDownloadRoutes(
   deps: RegisterNextoreArtifactDownloadRoutesDeps,
 ): void {
   const unavailable = (res: Response): boolean => {
-    if (deps.runtime && deps.client) return false;
-    fail(res, 404, 'feature_disabled', 'Artifact downloads require the NexTore edition.');
+    // P04 is dormant while the artifact authority is off. Serving the module's
+    // view then returns an empty ZIP, which a person would save as an empty
+    // archive; answering "feature disabled" lets the client fall back to the
+    // single-file export instead.
+    if (deps.runtime && deps.client && deps.runtime.mode !== 'off') return false;
+    fail(res, 404, 'feature_disabled', 'Artifact downloads require the NexTore artifact authority.');
     return true;
   };
 
