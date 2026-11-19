@@ -86,6 +86,11 @@ export async function notifyComment(
 ): Promise<CommentNoticeOutcome> {
   const payload = buildCommentNoticePayload(input);
   if (!deps.moduleBaseUrl) return 'skipped';
+  const authorMemberId = Number.isInteger(input.authorMemberId) ? input.authorMemberId : 0;
+  if (authorMemberId <= 0) {
+    deps.log?.('[comment-notify] no author member; skipping');
+    return 'skipped';
+  }
   if (payload.recipientIds.length === 0) {
     // The module is the permission authority and resolves CanManage itself when
     // the payload lists nobody, so an empty list must still reach it.
@@ -99,11 +104,6 @@ export async function notifyComment(
   if (!/^\d+$/.test(nextoreProjectId)) return 'skipped';
 
   try {
-    const authorMemberId = Number.isInteger(input.authorMemberId) ? input.authorMemberId : 0;
-    if (authorMemberId <= 0) {
-      deps.log?.('[comment-notify] no author member; skipping');
-      return 'skipped';
-    }
     const token = await deps.resolveMemberToken(authorMemberId);
     if (!token) {
       deps.log?.('[comment-notify] no stored member session member=' + authorMemberId + '; skipping');

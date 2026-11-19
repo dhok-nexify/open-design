@@ -887,7 +887,10 @@ export function registerProjectCommentRoutes(app: Express, ctx: RegisterProjectC
                   ? String(nextoreProjectId)
                   : null,
               commentId: String(comment.id),
-              authorMemberId: Number(authorMemberId ?? 0) || 0,
+              // The session-stamped NexTore author is the identity the module can
+              // authorise and address. A personal project has no workspace member
+              // id, so the workspace caller id is empty there.
+              authorMemberId: nextoreMemberId ?? (Number(authorMemberId ?? 0) || 0),
               isReply: Boolean((comment as { parentId?: unknown }).parentId),
               projectName: project?.name ?? null,
               recipientIds,
