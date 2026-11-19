@@ -367,7 +367,7 @@ import { localizePluginTitle } from './plugins-home/localization';
 import { DesignSystemPicker } from './DesignSystemPicker';
 import { PresenceBar } from '../collab/PresenceBar';
 import { useProjectCollab } from '../collab/useProjectCollab';
-import { NextoreProjectActions } from '../nextore/project-actions';
+import { NextoreProjectActions, artifactShareEntryMode } from '../nextore/project-actions';
 import { OwnedContentUpdate } from './OwnedContentUpdate';
 import {
   currentUserDirectoryEntry,
@@ -2588,6 +2588,12 @@ export function ProjectView({
     });
     return () => controller.abort();
   }, [project?.id]);
+  // The card's share entry follows the same visibility rule as the header one:
+  // a member who cannot manage the project, or an installation with share links
+  // switched off, must not see a button that can only fail.
+  const artifactShareMode = artifactShareEntryMode(NEXTORE_WEB_EDITION, nextoreProjectAccess);
+  const nextoreShareAvailable = artifactShareMode !== 'hidden';
+
   const nextoreProjectReadOnly =
     NEXTORE_WEB_EDITION === 'nextore'
     && nextoreProjectAccess?.mapped === true
@@ -13540,6 +13546,11 @@ export function ProjectView({
   const handleArtifactShare = useCallback(
     (fileName: string, anchorId?: string) => {
       requestOpenFile(fileName);
+      if (NEXTORE_WEB_EDITION === 'nextore') {
+        // One share surface in this edition: the same dialog the header opens.
+        setShareDialogOpen(true);
+        return;
+      }
       setShareRequest((previous) => ({
         name: fileName,
         nonce: nextShareRequestNonce(previous?.nonce, Date.now()),
@@ -15168,7 +15179,7 @@ export function ProjectView({
               }}
               onContinueRemainingTasks={handleContinueRemainingTasks}
               onAssistantFeedback={handleAssistantFeedback}
-              onArtifactShare={handleArtifactShare}
+              onArtifactShare={nextoreShareAvailable ? handleArtifactShare : undefined}
               onArtifactDownload={handleArtifactDownload}
               onForkFromMessage={
                 projectMutationReadOnly ? undefined : handleForkFromMessage

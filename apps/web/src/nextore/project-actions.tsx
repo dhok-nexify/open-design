@@ -14,6 +14,28 @@ import { useT } from '../i18n';
 import type { NextoreProjectAccessView } from './access';
 import { Icon } from '../components/Icon';
 
+/**
+ * Which share surface an artifact entry must open.
+ *
+ * `dialog` — NexTore edition, member can manage, share links enabled: the same
+ * artifact dialog the project header opens.
+ * `menu`   — every other edition keeps the legacy anchored share menu.
+ * `hidden` — NexTore edition without the right or with share links switched
+ * off: the entry must not exist, because it could only fail.
+ *
+ * The header entry and the artifact-card entry both read this, so one action
+ * never looks like two different features depending on where it was clicked.
+ */
+export function artifactShareEntryMode(
+  edition: string | undefined,
+  access: { canManage?: boolean; shareLinksEnabled?: boolean } | null,
+): 'dialog' | 'menu' | 'hidden' {
+  if (edition !== 'nextore') return 'menu';
+  if (access?.canManage !== true) return 'hidden';
+  if (access?.shareLinksEnabled === false) return 'hidden';
+  return 'dialog';
+}
+
 export function NextoreProjectActions({
   access,
   onOpenShareLinks,
@@ -24,14 +46,15 @@ export function NextoreProjectActions({
   onOpenPermissions: () => void;
 }): ReactElement {
   const t = useT();
-  // A project whose NexTore record is not known yet keeps the local writable
-  // default, so only an explicit false hides the share entry.
+  // One rule for every share entry: header, artifact card and next-step row all
+  // read artifactShareEntryMode so the same action never looks like two
+  // different features depending on where it was clicked.
+  const shareMode = artifactShareEntryMode('nextore', access);
   const canManage = access?.canManage === true;
-  const shareLinksEnabled = access?.shareLinksEnabled !== false;
 
   return (
     <>
-      {canManage && shareLinksEnabled ? (
+      {shareMode === 'dialog' ? (
         <button
           type="button"
           className="chrome-action chrome-action-secondary chrome-action-with-label chrome-action-text-only"

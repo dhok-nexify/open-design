@@ -24,7 +24,7 @@ import { SharePanelHeader } from './share/SharePanelHeader';
 import { ShareMoreMenu } from './share/ShareMoreMenu';
 import shareEntryStyles from './share/ShareEntry.module.css';
 import { AnchoredMenuShell } from './chat/AnchoredMenuShell';
-import { isFeatureEnabled } from '../nextore/features';
+import { isFeatureEnabled, NEXTORE_WEB_EDITION } from '../nextore/features';
 import {
   ARTIFACT_NETWORK_NONE,
   type ArtifactNetworkRules,
@@ -15877,9 +15877,11 @@ function HtmlViewer({
   // plan and POST validate the original file, never the routing-only preview.
   const rawCanShare = isShareableArtifact;
   // Artifact-level sharing publishes to the OpenDesign cloud (`/api/collab`).
-  // The NexTore edition shares whole projects through revocable NexTore links,
-  // so this surface is hidden there instead of failing on every click.
-  const artifactCloudShareAvailable = isFeatureEnabled('collab-cloud');
+  // The NexTore edition has its own share surface (the artifact dialog), so this
+  // one is hidden by edition — not only by a feature flag that a NexTore build
+  // might leave on, which would put two different share menus on one screen.
+  const artifactCloudShareAvailable =
+    NEXTORE_WEB_EDITION !== 'nextore' && isFeatureEnabled('collab-cloud');
   const shareGuideAppUserId = useShareGuideAppUserId();
   const projectShareHistoryState = useProjectShareHistoryState(projectId, workspaceContext, JSON.stringify([file.name, publishedFileSlug, publishedFileUrl]));
   const projectShareHistory = projectShareHistoryState.history;

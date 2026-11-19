@@ -117,7 +117,9 @@ describe('NexTore project entries', () => {
   });
 
   it('hides the cloud artifact Share tab in the NexTore edition', () => {
-    expect(fileViewerSource).toContain("const artifactCloudShareAvailable = isFeatureEnabled('collab-cloud');");
+    // Hidden by edition, not only by a feature flag: a NexTore build that left
+    // 'collab-cloud' on would otherwise show two different share menus.
+    expect(fileViewerSource).toContain("NEXTORE_WEB_EDITION !== 'nextore' && isFeatureEnabled('collab-cloud')");
     expect(fileViewerSource).toContain('{artifactCloudShareAvailable ? <button');
     expect(fileViewerSource).toContain(
       'unifiedActionTab === \'share\' && rawCanShare && artifactCloudShareAvailable ? (',
