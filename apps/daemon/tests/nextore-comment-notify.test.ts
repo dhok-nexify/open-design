@@ -70,14 +70,20 @@ describe('P05 notifyComment', () => {
     });
   });
 
-  it('does not call the module when the author is the only recipient', async () => {
-    const fetchImpl = vi.fn();
-    const outcome = await notifyComment(deps(fetchImpl as unknown as typeof fetch), {
+  it('still asks the module when the author is the only recipient', async () => {
+    // The module is the permission authority and resolves CanManage itself, so an
+    // empty list must reach it instead of stopping in the daemon.
+    const calls: string[] = [];
+    const fetchImpl = (async (url: string) => {
+      calls.push(String(url));
+      return new Response('{}', { status: 200 });
+    }) as unknown as typeof fetch;
+    const outcome = await notifyComment(deps(fetchImpl), {
       ...base,
       recipientIds: [7],
     });
-    expect(outcome).toBe('skipped');
-    expect(fetchImpl).not.toHaveBeenCalled();
+    expect(outcome).toBe('sent');
+    expect(calls).toHaveLength(1);
   });
 
   it('skips when the project has no NexTore mapping', async () => {

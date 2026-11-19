@@ -87,8 +87,9 @@ export async function notifyComment(
   const payload = buildCommentNoticePayload(input);
   if (!deps.moduleBaseUrl) return 'skipped';
   if (payload.recipientIds.length === 0) {
-    deps.log?.('[comment-notify] no recipients after the author was excluded');
-    return 'skipped';
+    // The module is the permission authority and resolves CanManage itself when
+    // the payload lists nobody, so an empty list must still reach it.
+    deps.log?.('[comment-notify] empty recipients; asking the module to resolve');
   }
   // The module route is keyed by the NexTore project id; the local Designer id
   // travels in the body so the notice links back to the project the person uses.
