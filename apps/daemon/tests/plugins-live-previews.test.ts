@@ -28,6 +28,6 @@ it('ships and serves the HTML previews for bundled live artifacts', async () => 
   } finally {
     await new Promise<void>((resolve, reject) => {
       started.server.close((error) => error ? reject(error) : resolve());
-    }, 90_000);
+    });
   }
-});
+}, 90_000);
