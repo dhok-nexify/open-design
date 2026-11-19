@@ -77,6 +77,20 @@
   margin-top: var(--spacing-2);
 }
 
+/* NexTore workspace chip + create hint. A one-dimensional row; the column
+   gap keeps the hint from crowding the switcher, and wrapping keeps the pair
+   usable when a long localized hint meets a narrow viewport. */
+.home-workspace-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-6) var(--spacing-12);
+  min-inline-size: 0;
+}
+.home-workspace-bar__hint {
+  min-inline-size: 0;
+}
+
 /* Hero — large centered prompt input */
 .home-hero {
   --home-hero-composer-width: 728px;
