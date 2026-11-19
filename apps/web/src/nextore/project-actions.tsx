@@ -61,6 +61,7 @@ export function NextoreProjectActions({
           data-testid="nextore-share-link"
           onClick={onOpenShareLinks}
         >
+          <Icon name="link" size={14} />
           {t('fileViewer.publishSingleFileTitle')}
         </button>
       ) : null}
@@ -76,6 +77,7 @@ export function NextoreProjectActions({
           data-testid="nextore-manage-permissions"
           onClick={onOpenPermissions}
         >
+          <Icon name="lock" size={14} />
           {t('plugins.availableDetails.permissions')}
         </button>
       ) : null}

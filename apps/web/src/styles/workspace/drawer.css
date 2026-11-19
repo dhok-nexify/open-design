@@ -1567,6 +1567,36 @@
   color: var(--brand, #87ea5c);
 }
 
+/* Project-level NexTore entries (生成分享链接 / 权限) share this row with 导出 and
+   the icon cluster, so they take the same quiet secondary surface instead of
+   the global outlined .chrome-action pill: one fill, no ring, same 12px label
+   cadence and the 7px radius the Share/Export pair uses. Hierarchy is kept on
+   purpose — the file-level 分享 button stays the row's dark primary, and these
+   two are management affordances rather than a second call to action. */
+.app .ws-tabs-actions .ws-tabs-project-actions .chrome-action {
+  height: auto;
+  min-height: 30px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 7px;
+  background: var(--bg-subtle);
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 500;
+  box-shadow: none;
+}
+.app .ws-tabs-actions .ws-tabs-project-actions .chrome-action:hover:not(:disabled) {
+  background: var(--bg-muted);
+  color: var(--text);
+}
+/* Touch screens need the 44px target from WCAG 2.5.5; the tab row is already
+   44px tall, so the cluster grows into space it has instead of pushing it. */
+@media (pointer: coarse) {
+  .app .ws-tabs-actions .ws-tabs-project-actions .chrome-action {
+    min-height: 44px;
+  }
+}
+
 .project-collab-demo-stage {
   position: relative;
   min-width: 0;
