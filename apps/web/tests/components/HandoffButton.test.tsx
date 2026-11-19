@@ -99,3 +99,26 @@ describe('HandoffButton i18n', () => {
       .toBe('Cursor - 未在 $PATH 中检测到');
   });
 });
+
+describe('HandoffButton NexTore edition', () => {
+  it('renders nothing, including the file-manager fallback', async () => {
+    vi.stubEnv('NEXT_PUBLIC_OD_EDITION', 'nextore');
+    vi.resetModules();
+    try {
+      const [{ HandoffButton: NextoreHandoffButton }, i18n] = await Promise.all([
+        import('../../src/components/HandoffButton'),
+        import('../../src/i18n'),
+      ]);
+      render(
+        <i18n.I18nProvider initial="en">
+          <NextoreHandoffButton projectId="project-1" projectKind="prototype" />
+        </i18n.I18nProvider>,
+      );
+      expect(screen.queryByTestId('handoff-wrap')).toBeNull();
+      expect(screen.queryByRole('button')).toBeNull();
+    } finally {
+      vi.unstubAllEnvs();
+      vi.resetModules();
+    }
+  });
+});

@@ -18,6 +18,7 @@ import { fetchHostEditors, openProjectInEditor } from '../providers/registry';
 import { useAnalytics } from '../analytics/provider';
 import { trackHandoffClick } from '../analytics/events';
 import { useT } from '../i18n';
+import { NEXTORE_WEB_EDITION } from '../nextore/features';
 import { copyToClipboard } from '../lib/copy-to-clipboard';
 import { Icon } from './Icon';
 import { EditorIcon } from './EditorIcon';
@@ -343,6 +344,12 @@ export function HandoffButton({
   embedded = false,
   onRequestRevealInFinder,
 }: Props) {
+  // NXD: the NexTore edition is web-only. "Open in file manager" is a local
+  // desktop capability (and would otherwise reveal a host path), so the whole
+  // handoff control — including the zero-editor Finder/Explorer fallback — stays
+  // hidden here.
+  if (NEXTORE_WEB_EDITION === 'nextore') return null;
+
   const t = useT();
   const analytics = useAnalytics();
   const { workspaceContext } = useProjectCollabContext();
