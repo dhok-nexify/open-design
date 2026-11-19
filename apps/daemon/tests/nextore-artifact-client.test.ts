@@ -62,7 +62,9 @@ describe('NextoreClient.publishArtifact', () => {
 
       expect(init?.body).toBeInstanceOf(FormData);
       const form = init?.body as FormData;
-      expect(form.get('metadata')).toBe(JSON.stringify(request));
+      expect(form.get('metadata')).toBe(
+        JSON.stringify({ artifactId: 'artifact-1', ...request }),
+      );
       const filePart = form.get('file');
       expect(filePart).toBeInstanceOf(Blob);
       expect((filePart as Blob).size).toBe(Buffer.byteLength('<html></html>'));

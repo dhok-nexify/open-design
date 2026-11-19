@@ -523,7 +523,8 @@ export function createNextoreClient(
       signal?: AbortSignal,
     ) {
       const form = new FormData();
-      form.append('metadata', JSON.stringify(metadata));
+      // The collection route takes the artifact id from the metadata body.
+      form.append('metadata', JSON.stringify({ artifactId, ...metadata }));
       const blob = await openAsBlob(file.path, { type: file.mimeType });
       form.append('file', blob, file.name);
       // The module publishes to the artifacts collection; the artifact id travels
