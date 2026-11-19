@@ -9676,24 +9676,18 @@ export async function startServer({
       : {}),
     http: httpDeps,
     nextore: nextoreClient ? { client: nextoreClient } : undefined,
-    // P05: comment notifications reuse the module channel. The per-request
-    // caller token wins (see the route); this fallback intentionally returns
-    // null so an unauthenticated request simply skips the notification.
+    // P05: comment notifications reuse the module channel. The author's
+    // credential always comes from the daemon's member session store; no
+    // request-scoped bearer token is ever forwarded to the module.
     commentNotify: {
       moduleBaseUrl: nextoreConfig?.baseUrl ?? null,
       log: (message: string) => console.warn(message),
-      // No ambient token: the route passes the caller's session token, and this
-      // fallback resolves the author's module token from the session store for
-      // background/API-token callers. Null means "skip", never "send bare".
-      accessToken: async () => null,
-      ...(nextoreConfig && nextoreSecrets
-        ? {
-            resolveMemberToken: (memberId: number) => resolveMemberAccessToken(memberId, {
-              store: createNextoreSessionStore(() => db, nextoreSecrets),
-              config: nextoreConfig,
-            }),
-          }
-        : {}),
+      resolveMemberToken: nextoreConfig && nextoreSecrets
+        ? (memberId: number) => resolveMemberAccessToken(memberId, {
+            store: createNextoreSessionStore(() => db, nextoreSecrets),
+            config: nextoreConfig,
+          })
+        : async () => null,
     },
     // P05: CanManage recipients come from the module's permission matrix via a
     // shared 60s cache. Any missing prerequisite returns [] so the caller falls

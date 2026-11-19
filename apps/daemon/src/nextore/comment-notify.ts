@@ -64,13 +64,13 @@ export function buildCommentNoticePayload(input: CommentNoticeInput): CommentNot
 export interface CommentNotifyDeps {
   /** Absolute module base URL incl. any path prefix, or null when unconfigured. */
   moduleBaseUrl: string | null;
-  accessToken: () => Promise<string | null>;
   /**
-   * Fallback used when the request itself carried no session token (e.g. a
-   * background or API-token call): resolve the author's module token from the
-   * session store. Returning null means "skip", never "send anonymously".
+   * Resolve the author's module credential from the daemon's own member session
+   * store. There is deliberately no request-token variant: a notification is a
+   * system action, so it must not adopt the bearer credential that arrived on
+   * the HTTP request. Returning null means "skip", never "send anonymously".
    */
-  resolveMemberToken?: (memberId: number) => Promise<string | null>;
+  resolveMemberToken: (memberId: number) => Promise<string | null>;
   fetchImpl?: typeof fetch;
   log?: (message: string) => void;
 }
@@ -99,12 +99,14 @@ export async function notifyComment(
   if (!/^\d+$/.test(nextoreProjectId)) return 'skipped';
 
   try {
-    let token = await deps.accessToken();
-    if (!token && deps.resolveMemberToken && Number.isInteger(input.authorMemberId) && input.authorMemberId > 0) {
-      token = await deps.resolveMemberToken(input.authorMemberId);
+    const authorMemberId = Number.isInteger(input.authorMemberId) ? input.authorMemberId : 0;
+    if (authorMemberId <= 0) {
+      deps.log?.('[comment-notify] no author member; skipping');
+      return 'skipped';
     }
+    const token = await deps.resolveMemberToken(authorMemberId);
     if (!token) {
-      deps.log?.('[comment-notify] no access token; skipping');
+      deps.log?.('[comment-notify] no stored member session member=' + authorMemberId + '; skipping');
       return 'skipped';
     }
     const fetchImpl = deps.fetchImpl ?? fetch;
@@ -120,6 +122,10 @@ export async function notifyComment(
           APIkey: token,
         },
         body: JSON.stringify(payload),
+        // The APIkey must never be forwarded to another origin by a redirect,
+        // and a hung module must not keep the request (and its token) alive.
+        redirect: 'error',
+        signal: AbortSignal.timeout(5_000),
       },
     );
     if (response.status === 204) {
@@ -127,7 +133,21 @@ export async function notifyComment(
       return 'skipped';
     }
     if (!response.ok) {
-      deps.log?.('[comment-notify] module rejected: ' + response.status);
+      // The module's own code is what makes the next log readable; the body is
+      // bounded and never contains a credential.
+      let detail = '';
+      try {
+        const text = (await response.text()).slice(0, 512);
+        const payload = text ? JSON.parse(text) as { error?: unknown; message?: unknown } : null;
+        const code = typeof payload?.error === 'string' ? payload.error : '';
+        const message = typeof payload?.message === 'string' ? payload.message : '';
+        detail = [code, message].filter(Boolean).join(' ');
+        if (!detail && text) detail = text;
+      } catch {
+        detail = '';
+      }
+      deps.log?.('[comment-notify] module rejected: ' + response.status
+        + (detail ? ' ' + detail : ''));
       return 'failed';
     }
     return 'sent';

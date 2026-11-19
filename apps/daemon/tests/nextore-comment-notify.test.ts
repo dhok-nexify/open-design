@@ -43,7 +43,7 @@ describe('P05 notifyComment', () => {
   function deps(fetchImpl: typeof fetch, token: string | null = 'tok') {
     return {
       moduleBaseUrl: 'https://module.test',
-      accessToken: async () => token,
+      resolveMemberToken: async () => token,
       fetchImpl,
     };
   }
@@ -111,7 +111,7 @@ describe('P05 notifyComment', () => {
     await expect(notifyComment(deps(fetchImpl), base)).resolves.toBe('failed');
   });
 
-  it('skips when no access token is available', async () => {
+  it('skips when the member session store has no token', async () => {
     const fetchImpl = vi.fn();
     const outcome = await notifyComment(
       deps(fetchImpl as unknown as typeof fetch, null),
@@ -121,7 +121,7 @@ describe('P05 notifyComment', () => {
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 
-  it('falls back to the session store when the request carried no token', async () => {
+  it('always resolves the author token from the member session store', async () => {
     const calls: string[] = [];
     const fetchImpl = (async (_url: string, init: RequestInit) => {
       calls.push((init.headers as Record<string, string>).APIkey ?? '');
@@ -130,12 +130,7 @@ describe('P05 notifyComment', () => {
     const resolveMemberToken = vi.fn(async () => 'store-token');
 
     const outcome = await notifyComment(
-      {
-        moduleBaseUrl: 'https://module.test',
-        accessToken: async () => null,
-        resolveMemberToken,
-        fetchImpl,
-      },
+      { moduleBaseUrl: 'https://module.test', resolveMemberToken, fetchImpl },
       base,
     );
 
@@ -144,12 +139,11 @@ describe('P05 notifyComment', () => {
     expect(calls).toEqual(['store-token']);
   });
 
-  it('skips when neither the request nor the store has a token', async () => {
+  it('skips when the member session store has no token', async () => {
     const fetchImpl = vi.fn();
     const outcome = await notifyComment(
       {
         moduleBaseUrl: 'https://module.test',
-        accessToken: async () => null,
         resolveMemberToken: async () => null,
         fetchImpl: fetchImpl as unknown as typeof fetch,
       },
@@ -160,10 +154,27 @@ describe('P05 notifyComment', () => {
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 
+  it('logs the module error code without leaking the credential', async () => {
+    const logs: string[] = [];
+    const fetchImpl = (async () => new Response(
+      JSON.stringify({ error: 'invalid_request', message: 'commentId is required.' }),
+      { status: 400, headers: { 'content-type': 'application/json' } },
+    )) as unknown as typeof fetch;
+
+    const outcome = await notifyComment(
+      { moduleBaseUrl: 'https://module.test', resolveMemberToken: async () => 'secret-token', fetchImpl, log: (m) => logs.push(m) },
+      base,
+    );
+
+    expect(outcome).toBe('failed');
+    expect(logs.join('\n')).toContain('module rejected: 400 invalid_request');
+    expect(logs.join('\n')).not.toContain('secret-token');
+  });
+
   it('skips when the module URL is unconfigured', async () => {
     const fetchImpl = vi.fn();
     const outcome = await notifyComment(
-      { moduleBaseUrl: null, accessToken: async () => 'tok', fetchImpl: fetchImpl as unknown as typeof fetch },
+      { moduleBaseUrl: null, resolveMemberToken: async () => 'tok', fetchImpl: fetchImpl as unknown as typeof fetch },
       base,
     );
     expect(outcome).toBe('skipped');
@@ -175,7 +186,7 @@ describe('notifyCommentSafely (route seam)', () => {
   it('returns failed instead of throwing when fetch throws', async () => {
     const fetchImpl = (async () => { throw new Error('boom'); }) as unknown as typeof fetch;
     const outcome = await notifyCommentSafely(
-      { moduleBaseUrl: 'https://module.test', accessToken: async () => 'tok', fetchImpl },
+      { moduleBaseUrl: 'https://module.test', resolveMemberToken: async () => 'tok', fetchImpl },
       base,
     );
     expect(outcome).toBe('failed');
@@ -186,7 +197,7 @@ describe('notifyCommentSafely (route seam)', () => {
     const outcome = await notifyCommentSafely(
       {
         moduleBaseUrl: 'https://module.test',
-        accessToken: async () => { throw new Error('no token'); },
+        resolveMemberToken: async () => { throw new Error('no token'); },
         fetchImpl: fetchImpl as unknown as typeof fetch,
       },
       base,
@@ -198,7 +209,7 @@ describe('notifyCommentSafely (route seam)', () => {
   it('returns sent on the normal path', async () => {
     const fetchImpl = (async () => new Response('{}', { status: 200 })) as unknown as typeof fetch;
     const outcome = await notifyCommentSafely(
-      { moduleBaseUrl: 'https://module.test', accessToken: async () => 'tok', fetchImpl },
+      { moduleBaseUrl: 'https://module.test', resolveMemberToken: async () => 'tok', fetchImpl },
       base,
     );
     expect(outcome).toBe('sent');

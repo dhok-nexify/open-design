@@ -856,18 +856,13 @@ export function registerProjectCommentRoutes(app: Express, ctx: RegisterProjectC
         } catch {
           // Measurement cannot change the successful save or response.
         }
-        // P05: never let notification failure affect a saved comment.
+        // P05: never let notification failure affect a saved comment. The call
+        // runs after the response so the notice cannot delay the reply.
         if (ctx.commentNotify) {
-          const baseNotifier = ctx.commentNotify;
-          // The module call must run as the member who wrote the comment. The
-          // session store fallback can miss a session that lives only in this
-          // request, so carry the caller's token explicitly.
-          const sessionAccessToken = (res.locals as {
-            nextoreSession?: { accessToken?: unknown };
-          }).nextoreSession?.accessToken;
-          const notifier = typeof sessionAccessToken === 'string' && sessionAccessToken
-            ? { ...baseNotifier, accessToken: async () => sessionAccessToken }
-            : baseNotifier;
+          // A notification is a system action, not the member's own API call: it
+          // runs as the author through the daemon's member session store and never
+          // copies the caller's request credential into a second service call.
+          const notifier = ctx.commentNotify;
           const ownerOnly = ownerMemberId ? [Number(ownerMemberId)] : [];
           const resolveRecipients = ctx.resolveCommentRecipients;
           void (async () => {

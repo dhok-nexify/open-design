@@ -103,6 +103,33 @@ describe('P04h share sunset sweep', () => {
     expect(rows.n).toBe(0);
   });
 
+  it('escapes a member-supplied project name in the notice body', async () => {
+    let body = '';
+    const fetchImpl = (async (_url: string, init: RequestInit) => {
+      body = String(init.body);
+      return new Response(null, { status: 204 });
+    }) as unknown as typeof fetch;
+    const { createSunsetSender } = await import('../src/nextore/share/sunset-notices.js');
+    const sender = createSunsetSender({
+      moduleBaseUrl: 'https://module.test',
+      resolveToken: async () => 'token',
+      fetchImpl,
+      projectName: () => '<img src=x onerror=alert(1)>',
+    });
+
+    await sender({
+      linkId: 'link-9',
+      projectId: 'p1',
+      ownerMemberId: 7,
+      expiresAt: null,
+      bucket: 't7',
+    });
+
+    // The module renders this body as HTML; a project name must not become markup.
+    expect(body).not.toContain('<img');
+    expect(body).toContain('&lt;img src=x onerror=alert(1)&gt;');
+  });
+
   it('records a 204 decision so the same window is never retried', async () => {
     const fetchImpl = (async () => new Response(null, { status: 204 })) as unknown as typeof fetch;
     const { createSunsetSender } = await import('../src/nextore/share/sunset-notices.js');

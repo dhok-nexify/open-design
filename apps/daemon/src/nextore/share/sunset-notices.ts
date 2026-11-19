@@ -148,6 +148,16 @@ export function listSunsetCandidates(db: SqliteDb, now: number): SunsetSweepCand
   return result;
 }
 
+/** Minimal HTML escape for text interpolated into an email body. */
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 export interface SunsetSenderDeps {
   moduleBaseUrl: string | null;
   resolveToken: (ownerMemberId: number) => Promise<string | null>;
@@ -172,7 +182,9 @@ export function createSunsetSender(deps: SunsetSenderDeps) {
     }
     if (!token) return 'failed';
 
-    const name = deps.projectName?.(candidate.projectId) ?? candidate.projectId;
+    // The project name is member-supplied text that becomes HTML in the email, so
+    // it is escaped here rather than trusted by the module.
+    const name = escapeHtml(deps.projectName?.(candidate.projectId) ?? candidate.projectId);
     const expires = candidate.expiresAt ? new Date(candidate.expiresAt).toISOString() : 'never';
     const subject = 'Legacy share link expires soon';
     const body = '<p>The legacy share link for ' + name + ' expires ' + expires
