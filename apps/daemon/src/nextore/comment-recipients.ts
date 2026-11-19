@@ -54,7 +54,7 @@ function readBoolean(row: Record<string, unknown>, keys: string[]): boolean {
 }
 
 function readId(row: Record<string, unknown>): number | null {
-  for (const key of ['memberId', 'MemberId', 'id', 'Id', 'memberID']) {
+  for (const key of ['RecordId', 'recordId', 'memberId', 'MemberId', 'id', 'Id', 'memberID']) {
     const raw = row[key];
     if (typeof raw === 'number' && Number.isInteger(raw) && raw > 0) return raw;
     if (typeof raw === 'string' && /^\d+$/.test(raw)) return Number(raw);
@@ -62,20 +62,33 @@ function readId(row: Record<string, unknown>): number | null {
   return null;
 }
 
+/** Read a manage flag that may sit on the row or under a Rights object. */
+function readManage(row: Record<string, unknown>): boolean {
+  if (readBoolean(row, ['manage', 'Manage', 'canManage', 'CanManage', 'canManageProject', 'CanManageProject'])) return true;
+  const rights = asRecord(row.Rights) ?? asRecord(row.rights);
+  return rights ? readBoolean(rights, ['manage', 'Manage']) : false;
+}
+
 /** Pull every member row out of the permission payload (array or wrapped). */
 export function extractManageMemberIds(payload: unknown): number[] {
   const root = asRecord(payload);
+  const arrays = [
+    'members', 'permissions', 'memberPermissions', 'Customized', 'customized', 'Inherited', 'inherited',
+  ];
   const candidates = Array.isArray(payload)
     ? payload
-    : (Array.isArray(root?.members) ? root!.members as unknown[]
-      : Array.isArray(root?.permissions) ? root!.permissions as unknown[]
-        : Array.isArray(root?.memberPermissions) ? root!.memberPermissions as unknown[]
-          : []);
+    : arrays.flatMap((key) => {
+      const value = root?.[key];
+      return Array.isArray(value) ? value as unknown[] : [];
+    });
   const result = new Set<number>();
   for (const entry of candidates) {
     const row = asRecord(entry);
     if (!row) continue;
-    if (!readBoolean(row, ['manage', 'Manage', 'canManage', 'CanManage', 'canManageProject', 'CanManageProject'])) continue;
+    // Group rows carry a group id; recipients must be member ids.
+    const type = row.RecordType ?? row.recordType;
+    if (typeof type === 'string' && type.toLowerCase() !== 'member') continue;
+    if (!readManage(row)) continue;
     const id = readId(row);
     if (id !== null) result.add(id);
   }

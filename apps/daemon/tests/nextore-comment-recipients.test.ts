@@ -32,6 +32,25 @@ describe('P05 CanManage recipients', () => {
     expect(result.memberIds.sort()).toEqual([7, 8, 9]);
   });
 
+  it('reads the module permission payload (Customized + nested Rights.Manage)', async () => {
+    const result = await resolveProjectManageRecipients({
+      ...base,
+      client: client({
+        Exists: true,
+        CanManage: true,
+        IsInherit: true,
+        Customized: [
+          { RecordId: 2209, RecordType: 'member', Name: 'ND Manager', Inherited: false, Rights: { Manage: true, Read: true } },
+          { RecordId: 2207, RecordType: 'member', Name: 'ND Editor', Inherited: false, Rights: { Manage: false, Read: true, Edit: true } },
+          { RecordId: 55, RecordType: 'group', Name: 'Editors', Inherited: false, Rights: { Manage: true, Read: true } },
+        ],
+      }),
+    });
+
+    expect(result.degraded).toBe(false);
+    expect(result.memberIds.sort((a, b) => a - b)).toEqual([7, 2209]);
+  });
+
   it('excludes members without manage even when they can read and edit', async () => {
     const result = await resolveProjectManageRecipients({
       ...base,
