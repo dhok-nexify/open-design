@@ -9720,6 +9720,12 @@ export async function startServer({
         ownerMemberId,
         cache: commentRecipientCache,
       });
+      console.warn(
+        '[comment-notify] resolved owner=' + ownerMemberId
+        + ' token=' + Boolean(token)
+        + ' ids=' + resolved.memberIds.length
+        + ' degraded=' + resolved.degraded,
+      );
       return resolved.memberIds;
     },
     paths: pathDeps,
