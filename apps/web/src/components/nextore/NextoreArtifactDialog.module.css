@@ -8,10 +8,12 @@
 }
 
 .dialog {
+  display: flex;
+  flex-direction: column;
   width: min(520px, calc(100vw - 32px));
   max-height: calc(100vh - 64px);
   max-block-size: calc(100dvh - 64px);
-  overflow: auto;
+  overflow: hidden;
   border-radius: var(--radius-xl, 16px);
   background: var(--bg-elevated, var(--surface, #fff));
   color: var(--text-primary, inherit);
@@ -20,6 +22,7 @@
 
 .header {
   display: flex;
+  flex: 0 0 auto;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
@@ -60,7 +63,46 @@
 .body {
   display: grid;
   gap: 20px;
+  min-block-size: 0;
   padding: 20px 24px 24px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+/* Keep the scrollbar inside the dialog's rounded edge and make it read as a
+   quiet affordance rather than the OS chrome. The transparent border +
+   content-box clip leaves a 4px thumb with breathing room from the edge. */
+.body::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.body::-webkit-scrollbar-track,
+.body::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+.body::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text-soft) 58%, transparent);
+  background-clip: content-box;
+}
+
+.body::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--text-soft) 82%, transparent);
+  background-clip: content-box;
+}
+
+/* Firefox (and any engine without the WebKit scrollbar pseudo-elements) gets
+   the standard thin scrollbar. Scoping it this way keeps Chrome's custom
+   inset thumb instead of letting the standard properties take precedence. */
+@supports not selector(::-webkit-scrollbar) {
+  .body {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--text-soft) 58%, transparent) transparent;
+  }
 }
 
 .row {
