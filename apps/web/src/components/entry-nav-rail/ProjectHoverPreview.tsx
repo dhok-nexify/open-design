@@ -37,7 +37,9 @@ import {
 } from '../../lib/project-cover-pipeline';
 import { mutedMotionCoverUrl } from '../../lib/muted-motion-cover-url';
 import { projectCoverUrl, type ProjectCoverOverride } from '../project-cover';
+import type { NextoreProjectSpaceBadge } from '../../nextore/workspace-labels';
 import type { Project } from '../../types';
+import { ProjectSpaceBadge } from '../ProjectSpaceBadge';
 
 /** `undefined` = not resolved yet; `null` = resolved, this project has none. */
 type CoverState = ProjectCoverOverride | null | undefined;
@@ -242,11 +244,16 @@ export function ProjectHoverPreviewCard({
   cover,
   style,
   testId,
+  spaceBadge = null,
 }: {
   project: Project;
   cover: Pick<ProjectHoverCover, 'coverSrc' | 'showsImage' | 'showsVideo' | 'showsHtml' | 'isDeck'>;
   style: CSSProperties;
   testId?: string;
+  /** NexTore edition: the same personal/team/shared capsule the card surfaces
+   *  use. Kept optional so the chat switcher's preview can share this card
+   *  without inventing a badge source it does not have. */
+  spaceBadge?: NextoreProjectSpaceBadge | null;
 }) {
   const { coverSrc, showsImage, showsVideo, showsHtml, isDeck } = cover;
   const glyph = (
@@ -272,6 +279,14 @@ export function ProjectHoverPreviewCard({
           glyph
         )}
       </div>
+      {/* The same space capsule the rail row and the project cards use. The
+          row's name is coloured by space, but the hover card must not rely on
+          colour alone; the capsule names the relationship explicitly. */}
+      {spaceBadge ? (
+        <div className="entry-nav-rail__recent-preview-badge">
+          <ProjectSpaceBadge badge={spaceBadge} />
+        </div>
+      ) : null}
       {/* The name the row had to ellipsize, given room to wrap — that is the
           whole job of this card. No timestamp line (per product: 时间去掉，最多
           两行名称): a hover preview answers "which project is this". */}

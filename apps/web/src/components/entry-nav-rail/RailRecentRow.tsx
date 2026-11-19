@@ -551,6 +551,7 @@ export function RailRecentRow({
         <ProjectHoverPreviewCard
           project={project}
           cover={hoverCover}
+          spaceBadge={spaceBadge}
           style={{ top: anchor.top, left: anchor.left }}
         />,
         document.body,

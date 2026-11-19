@@ -1245,6 +1245,15 @@
   font-weight: 600;
   line-height: 1;
 }
+/* Space capsule above the preview name: the rail row already colours the
+   project name by space, but the hover card must not rely on colour alone.
+   The capsule names the relationship explicitly, using the same component as
+   the Home cards and the Projects grid. */
+.entry-nav-rail__recent-preview-badge {
+  display: flex;
+  align-items: center;
+  padding: 0 4px;
+}
 /* Up to TWO lines of the full name, then an ellipsis (per product: 最多两行
    名称). Long names are the reason this card exists at all — the row can only
    ever show a prefix — but a card that grew without bound would cover the
