@@ -19,23 +19,25 @@ Every file a downstream change touches is either:
 the config. **Budgets only go down.** Raising one is a product decision that needs
 an explicit review, not a convenience for getting a branch merged.
 
-History: the budget moved 488 -> 496 -> 505 -> 522 on 2026-11-17. The 496
+History: the budget moved 488 -> 496 -> 505 -> 522 -> 557 -> 561. The 496
 entry was measured against the pre-commit tree, so it understated committed
 divergence. 505 was the committed count at `05d75ad6be`; six later NexTore UI
-fixes (project switcher, tab scope, comment overlay, analytics wiring, invite
-surface) touched 17 additional upstream-owned files, so 522 is the committed
-count at `5d5c925c88`. The added files are test and wiring adaptations, not
-product logic: per-imported-file stylesheet injection in the jsdom suites, a
-path-separator normalisation in font-weight-normalization.test.ts (upstream
-bug on Windows), a best-effort screenshot assertion in FileViewer.test.tsx,
-the composer-portal-seam source-shape assertion after the ChatPane seam
-refactor, the fork's focus-directory refresh contract in
-useWorkspaceContext.invalidation.test.tsx, the NexTore project-switcher and
-comment-overlay styles, and brand-copy expectations that the white-label fork
-necessarily rewrites (those files are declared fork-owned).
-Payback: upstream the path-separator and stylesheet-segment fixes, then drop
-the entries and lower the budget again. Every later commit must re-run
-`pnpm sync:check`; do not carry a stale budget into the next sync.
+fixes touched 17 additional upstream-owned files, so 522 was the count at
+`5d5c925c88`. Four further NexTore commits (CLI authorization consent,
+credential hydration, comment notices, file-manager handoff) touched 35 more
+upstream-owned files, so the 2026-11-19 checkpoint `42f6745cc9` measured 557.
+The upstream merge to `07258801b9` moved the base without adding fork
+divergence; the Windows adaptations for the new upstream tests added 4 files,
+so 561 is the committed count after the merge. The added files are test and
+wiring adaptations, not product logic: per-imported-file stylesheet injection,
+path-separator normalisation, the focus-directory refresh contract, NexTore
+switcher and comment styles, brand-copy expectations declared fork-owned, the
+packaged `previous.log` path join, the live-preview server timeout, the POSIX
+shell guard, and the live-artifact whitespace fix.
+Payback: upstream the path-separator, stylesheet-segment, `previous.log` and
+POSIX-shell-guard fixes, then drop the entries and lower the budget again.
+Every later commit must re-run `pnpm sync:check`; do not carry a stale budget
+into the next sync.
 
 ### 2026-11-17 snapshot
 
@@ -50,6 +52,21 @@ the entries and lower the budget again. Every later commit must re-run
 
 Later upstream tips do not change this snapshot; re-run `pnpm sync:report` for
 the next sync.
+
+### 2026-11-19 snapshot
+
+| Item | Value |
+| --- | --- |
+| Checkpoint tag | `pre-upstream-sync-20261119` (`42f6745cc9`) |
+| Merge commit | `c920e729c8` |
+| Upstream tip merged | `07258801b9` |
+| Divergence budget | 561 upstream-owned files |
+| Merge conflicts | 1 (content 1) |
+| Modify/delete conflicts | 0 |
+
+The only conflict was `README.md`: upstream added an OpenDesign product tour,
+while the fork keeps the NexTore edition README. Root marketing copy stays
+downstream.
 
 ## Commands
 
@@ -179,6 +196,16 @@ Copy this into the sync PR and tick every line:
 | Stale planning ledger | `IMPLEMENTATION_STATUS.md` outside this repository still named old branches and pending tasks. | The ledger was not updated with the sync state. | Link the ledger update from the sync PR. |
 | Read-only `.git` | `sync:report` or `sync:check --conflicts` failed with "insufficient permission for adding an object to repository database". | `git merge-tree --write-tree` writes temporary tree objects. | Run the command with repository write access; this is not a merge conflict. |
 | Merge abort after resolution | A restart discarded resolved paths and rerere training. | `git merge --abort` is not a checkpoint. | Never abort a partially resolved merge; reset to the checkpoint tag instead. |
+
+### Added on 2026-11-19
+
+| Pitfall | Symptom | Root cause and durable fix | Guard |
+| --- | --- | --- | --- |
+| Windows `.sh` spawn | `skills.test.ts` failed with ENOENT on `playwright.log`. | `spawnSync` cannot execute a POSIX shell script on Windows (`EFTYPE`). The source assertions still run; the runtime assertions return early on win32 and stay covered on POSIX CI. | Guard bash-dependent tests with `process.platform`. |
+| Server startup timeout | `plugins-live-previews.test.ts` timed out at 20 seconds. | Starting the full daemon takes about 43 seconds on Windows. | Give full-server tests a 90-second per-test timeout. |
+| Packaged log path | The diagnostics test expected native separators but received a mixed path. | The resolver appended `/previous.log` with a literal slash. | Use `path.join(dirname(latest), "previous.log")`. |
+| Stale budget at checkpoint | `sync:check` measured 557 while the document still said 522. | Four NexTore commits after the last measurement touched 35 upstream-owned files. | Re-measure at the checkpoint before merging, not only after. |
+| README product tour | Upstream added a large OpenDesign tour and the merge conflicted. | Root marketing copy belongs to the downstream edition. | Keep the fork README and record the decision in the sync PR. |
 
 ## Windows and line endings
 
