@@ -15,6 +15,8 @@ import {
   enqueueNextorePublish,
   getNextoreArtifact,
   listNextoreArtifacts,
+  listProjectMembers,
+  rememberProjectMember,
   retryNextorePublish,
 } from './store.js';
 import { publishArtifactJob, type PublishOutcomeStatus } from './publisher.js';
@@ -105,7 +107,18 @@ export class NextoreArtifactRuntime {
   private reconcileTimer: NodeJS.Timeout | null = null;
   private reconcileCursor = 0;
 
-  constructor(private readonly deps: NextoreArtifactRuntimeDeps) {}
+  constructor(private readonly deps: NextoreArtifactRuntimeDeps) {
+    // Reconcile and backfill need the member a project publishes as. That map
+    // used to be filled only by a run in this process, so a restart left every
+    // project unreconcilable — exactly when a rollout runs.
+    try {
+      for (const row of listProjectMembers(this.deps.db)) {
+        this.projectMembers.set(row.projectId, row.memberId);
+      }
+    } catch {
+      // The store is created lazily; a failure here must not stop the runtime.
+    }
+  }
 
   get mode(): NextoreArtifactAuthorityMode {
     return this.deps.mode;
@@ -140,6 +153,7 @@ export class NextoreArtifactRuntime {
     }
     if (artifacts.length > 0) {
       this.projectMembers.set(input.projectId, input.memberId);
+      rememberProjectMember(this.deps.db, input.projectId, input.memberId, now());
       this.watchProject(input.projectId);
     }
     if (artifacts.length > 0 && this.deps.autoDrain !== false) void this.wake();

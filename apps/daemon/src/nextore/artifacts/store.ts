@@ -79,6 +79,14 @@ const BACKFILL_SQL = `
   );
 `;
 
+const PROJECT_MEMBER_SQL = `
+  CREATE TABLE IF NOT EXISTS nextore_project_members (
+    project_id TEXT PRIMARY KEY,
+    member_id INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+`;
+
 const INDEX_SQL = `
   CREATE INDEX IF NOT EXISTS idx_nextore_artifacts_project
     ON nextore_artifacts(project_id, status);
@@ -112,6 +120,7 @@ export const NEXTORE_ARTIFACT_SCHEMA_SQL = [
   publishQueueTableSql('nextore_publish_queue', true),
   INDEX_SQL,
   BACKFILL_SQL,
+  PROJECT_MEMBER_SQL,
 ].join('\n');
 
 const ensuredSchemas = new WeakSet<object>();
@@ -236,8 +245,38 @@ export function migrateNextoreArtifactSchema(db: SqliteDb): void {
     db.exec(INDEX_SQL);
     // Additive P04h tables; IF NOT EXISTS keeps this safe on every boot.
     db.exec(BACKFILL_SQL);
+    // The run initiator per project, so reconcile and backfill survive a
+    // restart instead of depending on an in-memory map a run happened to fill.
+    db.exec(PROJECT_MEMBER_SQL);
   });
   migrate();
+}
+
+/** Persist the member a project publishes as, so a restart keeps reconciling. */
+export function rememberProjectMember(
+  db: SqliteDb,
+  projectId: string,
+  memberId: number,
+  now = Date.now(),
+): void {
+  if (!projectId || !Number.isInteger(memberId) || memberId <= 0) return;
+  ensureNextoreArtifactSchema(db);
+  db.prepare(`
+    INSERT INTO nextore_project_members (project_id, member_id, updated_at)
+    VALUES (?, ?, ?)
+    ON CONFLICT(project_id) DO UPDATE SET
+      member_id = excluded.member_id,
+      updated_at = excluded.updated_at
+  `).run(projectId, memberId, now);
+}
+
+/** Every persisted project → member pair, in a stable order. */
+export function listProjectMembers(db: SqliteDb): Array<{ projectId: string; memberId: number }> {
+  ensureNextoreArtifactSchema(db);
+  const rows = db.prepare(
+    'SELECT project_id, member_id FROM nextore_project_members ORDER BY project_id ASC',
+  ).all() as Array<{ project_id: string; member_id: number }>;
+  return rows.map((row) => ({ projectId: row.project_id, memberId: row.member_id }));
 }
 
 export function ensureNextoreArtifactSchema(db: SqliteDb): void {

@@ -134,6 +134,53 @@ const deliverable = {
 };
 
 describe('NextoreArtifactRuntime', () => {
+  it('remembers the run initiator across a restart so reconcile still runs', async () => {
+    const first = runtime('publish');
+    first.runtime.enqueueRun({
+      projectId: 'project-1',
+      artifactId: 'artifact-1',
+      projectRoot,
+      runId: 'run-1',
+      tier: null,
+      memberId: 7,
+      deliverable,
+    });
+    first.runtime.stop();
+
+    // Same database, new process: the in-memory map starts empty, so only the
+    // persisted row can make this reconcile possible.
+    const store = new FakeSessionStore();
+    store.rows.set('sid-1', {
+      sid: 'sid-1',
+      memberId: 7,
+      member,
+      accessToken: 'token-1',
+      refreshToken: null,
+      tokenExpiresAt: 2_000_000,
+      createdAt: 1_000,
+      lastSeenAt: 1_000,
+      lastValidatedAt: 1_000,
+    });
+    const listArtifacts = vi.fn(async () => []);
+    const restarted = new NextoreArtifactRuntime({
+      db,
+      client: { listArtifacts } as unknown as NextoreArtifactClient,
+      sessionStore: store,
+      config,
+      mode: 'publish',
+      now: () => 1_000,
+      autoDrain: false,
+      readProjectMapping: () => '286756',
+      resolveProjectRoot: () => projectRoot,
+    });
+
+    const result = await restarted.reconcileProject('project-1');
+
+    expect(result).not.toBeNull();
+    expect(listArtifacts).toHaveBeenCalledTimes(1);
+  });
+
+
   it('enqueues a finalized run with the full durable payload', () => {
     const { runtime: worker } = runtime('publish');
     const count = worker.enqueueRun({
