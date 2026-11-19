@@ -14,6 +14,8 @@ const base = {
   authorMemberId: 7,
   isReply: false,
   projectName: 'Landing',
+  commentText: 'Tighten the hero spacing.',
+  createdAt: '2026-11-19T06:02:00.000Z',
   recipientIds: [7, 8, 8, 9],
 };
 
@@ -33,6 +35,8 @@ describe('P05 comment notice payload', () => {
       authorMemberId: 7,
       isReply: false,
       projectName: 'Landing',
+      commentText: 'Tighten the hero spacing.',
+      createdAt: '2026-11-19T06:02:00.000Z',
       recipientIds: [8, 9],
       idempotencyKey: 'p1:c1',
     });
@@ -65,6 +69,8 @@ describe('P05 notifyComment', () => {
       commentId: 'c1',
       authorMemberId: 7,
       isReply: false,
+      commentText: 'Tighten the hero spacing.',
+      createdAt: '2026-11-19T06:02:00.000Z',
       recipientIds: [8, 9],
       idempotencyKey: 'p1:c1',
     });

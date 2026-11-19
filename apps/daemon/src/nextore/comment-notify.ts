@@ -15,6 +15,10 @@ export interface CommentNoticeInput {
   authorMemberId: number;
   isReply: boolean;
   projectName?: string | null;
+  /** Comment body, quoted in the email excerpt. Truncated before sending. */
+  commentText?: string | null;
+  /** ISO-8601 creation time for the email's timestamp line. */
+  createdAt?: string | null;
   /** Owner + CanManage candidates, already resolved by the caller. */
   recipientIds: readonly number[];
 }
@@ -25,9 +29,16 @@ export interface CommentNoticePayload {
   authorMemberId: number;
   isReply: boolean;
   projectName: string | null;
+  /** Empty string when the daemon has no body to quote. */
+  commentText: string;
+  /** ISO-8601, or null when unknown. */
+  createdAt: string | null;
   recipientIds: number[];
   idempotencyKey: string;
 }
+
+/** The email quotes at most this many characters; the module renders what it gets. */
+const MAX_NOTICE_TEXT = 1000;
 
 export type CommentNoticeOutcome = 'sent' | 'skipped' | 'failed';
 
@@ -54,6 +65,8 @@ export function buildCommentNoticePayload(input: CommentNoticeInput): CommentNot
     authorMemberId: input.authorMemberId,
     isReply: input.isReply === true,
     projectName: input.projectName?.trim() || null,
+    commentText: (input.commentText ?? '').trim().slice(0, MAX_NOTICE_TEXT),
+    createdAt: input.createdAt?.trim() || null,
     recipientIds: resolveCommentRecipients(input.recipientIds, input.authorMemberId),
     // One comment can only ever produce one notification, however many times a
     // retry runs; the module treats this key as the dedupe identity.

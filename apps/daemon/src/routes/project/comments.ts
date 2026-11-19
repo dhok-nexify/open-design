@@ -893,6 +893,13 @@ export function registerProjectCommentRoutes(app: Express, ctx: RegisterProjectC
               authorMemberId: nextoreMemberId ?? (Number(authorMemberId ?? 0) || 0),
               isReply: Boolean((comment as { parentId?: unknown }).parentId),
               projectName: project?.name ?? null,
+              // The email quotes the comment, so the reader can decide whether to open.
+              commentText: typeof (comment as { note?: unknown }).note === 'string'
+                ? (comment as { note: string }).note
+                : null,
+              createdAt: typeof (comment as { createdAt?: unknown }).createdAt === 'number'
+                ? new Date((comment as { createdAt: number }).createdAt).toISOString()
+                : null,
               recipientIds,
             });
           })().catch(() => {});
