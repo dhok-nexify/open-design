@@ -858,7 +858,16 @@ export function registerProjectCommentRoutes(app: Express, ctx: RegisterProjectC
         }
         // P05: never let notification failure affect a saved comment.
         if (ctx.commentNotify) {
-          const notifier = ctx.commentNotify;
+          const baseNotifier = ctx.commentNotify;
+          // The module call must run as the member who wrote the comment. The
+          // session store fallback can miss a session that lives only in this
+          // request, so carry the caller's token explicitly.
+          const sessionAccessToken = (res.locals as {
+            nextoreSession?: { accessToken?: unknown };
+          }).nextoreSession?.accessToken;
+          const notifier = typeof sessionAccessToken === 'string' && sessionAccessToken
+            ? { ...baseNotifier, accessToken: async () => sessionAccessToken }
+            : baseNotifier;
           const ownerOnly = ownerMemberId ? [Number(ownerMemberId)] : [];
           const resolveRecipients = ctx.resolveCommentRecipients;
           void (async () => {
