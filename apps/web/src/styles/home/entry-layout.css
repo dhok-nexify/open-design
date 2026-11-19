@@ -7054,6 +7054,23 @@ body[data-web-modal-scroll-lock] .entry-main--scroll {
   width: fit-content;
   max-width: 100%;
 }
+
+/* The chip trigger is only as wide as its workspace name. The menu is a
+   different surface and must not inherit that width: a short chip name used
+   to squeeze section labels and actions into a clipped column. Size the
+   popover to its content with a readable floor, capped by the viewport. */
+.nextore-switcher.is-chip .nextore-switcher__menu {
+  inset-inline-start: 0;
+  inset-inline-end: auto;
+  inline-size: max-content;
+  min-inline-size: min(15rem, calc(100vw - var(--spacing-24)));
+  max-inline-size: min(20rem, calc(100vw - var(--spacing-24)));
+}
+.nextore-switcher.is-chip .entry-nav-rail__menu-section {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .entry-nav-rail__account-menu {
   padding: 6px;
   border-radius: var(--radius-lg);
