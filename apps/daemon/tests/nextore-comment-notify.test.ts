@@ -9,6 +9,7 @@ import {
 
 const base = {
   projectId: 'p1',
+  nextoreProjectId: '4242',
   commentId: 'c1',
   authorMemberId: 7,
   isReply: false,
@@ -27,6 +28,7 @@ describe('P05 comment notice payload', () => {
     expect(first.idempotencyKey).toBe('p1:c1');
     expect(retry.idempotencyKey).toBe(first.idempotencyKey);
     expect(first).toEqual({
+      projectId: 'p1',
       commentId: 'c1',
       authorMemberId: 7,
       isReply: false,
@@ -56,9 +58,10 @@ describe('P05 notifyComment', () => {
     const outcome = await notifyComment(deps(fetchImpl), base);
 
     expect(outcome).toBe('sent');
-    expect(calls[0]!.url).toBe('https://module.test/api/designer/projects/p1/comment-notifications');
+    expect(calls[0]!.url).toBe('https://module.test/api/designer/projects/4242/comment-notifications');
     expect((calls[0]!.init.headers as Record<string, string>).APIkey).toBe('tok');
     expect(JSON.parse(String(calls[0]!.init.body))).toMatchObject({
+      projectId: 'p1',
       commentId: 'c1',
       authorMemberId: 7,
       isReply: false,
@@ -72,6 +75,16 @@ describe('P05 notifyComment', () => {
     const outcome = await notifyComment(deps(fetchImpl as unknown as typeof fetch), {
       ...base,
       recipientIds: [7],
+    });
+    expect(outcome).toBe('skipped');
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it('skips when the project has no NexTore mapping', async () => {
+    const fetchImpl = vi.fn();
+    const outcome = await notifyComment(deps(fetchImpl as unknown as typeof fetch), {
+      ...base,
+      nextoreProjectId: null,
     });
     expect(outcome).toBe('skipped');
     expect(fetchImpl).not.toHaveBeenCalled();

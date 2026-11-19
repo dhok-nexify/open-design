@@ -874,8 +874,14 @@ export function registerProjectCommentRoutes(app: Express, ctx: RegisterProjectC
                 // Degrade to the owner; a comment must never fail over a notification.
               }
             }
+            const nextoreProjectId = (project?.metadata as { nextoreProjectId?: unknown } | null | undefined)
+              ?.nextoreProjectId;
             await notifyCommentSafely(notifier, {
               projectId: req.params.id,
+              nextoreProjectId:
+                typeof nextoreProjectId === 'string' || typeof nextoreProjectId === 'number'
+                  ? String(nextoreProjectId)
+                  : null,
               commentId: String(comment.id),
               authorMemberId: Number(authorMemberId ?? 0) || 0,
               isReply: Boolean((comment as { parentId?: unknown }).parentId),

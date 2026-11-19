@@ -7,7 +7,10 @@
  */
 
 export interface CommentNoticeInput {
+  /** The local Designer project id used by the deep link. */
   projectId: string;
+  /** The NexTore project id the module route and existence check use. */
+  nextoreProjectId?: string | null;
   commentId: string;
   authorMemberId: number;
   isReply: boolean;
@@ -17,6 +20,7 @@ export interface CommentNoticeInput {
 }
 
 export interface CommentNoticePayload {
+  projectId: string;
   commentId: string;
   authorMemberId: number;
   isReply: boolean;
@@ -45,6 +49,7 @@ export function resolveCommentRecipients(
 
 export function buildCommentNoticePayload(input: CommentNoticeInput): CommentNoticePayload {
   return {
+    projectId: input.projectId,
     commentId: input.commentId,
     authorMemberId: input.authorMemberId,
     isReply: input.isReply === true,
@@ -82,6 +87,12 @@ export async function notifyComment(
   const payload = buildCommentNoticePayload(input);
   if (!deps.moduleBaseUrl) return 'skipped';
   if (payload.recipientIds.length === 0) return 'skipped';
+  // The module route is keyed by the NexTore project id; the local Designer id
+  // travels in the body so the notice links back to the project the person uses.
+  const nextoreProjectId = typeof input.nextoreProjectId === 'string'
+    ? input.nextoreProjectId.trim()
+    : '';
+  if (!/^\d+$/.test(nextoreProjectId)) return 'skipped';
 
   try {
     let token = await deps.accessToken();
@@ -95,7 +106,7 @@ export async function notifyComment(
     const fetchImpl = deps.fetchImpl ?? fetch;
     const response = await fetchImpl(
       deps.moduleBaseUrl.replace(/\/+$/, '')
-        + '/api/designer/projects/' + encodeURIComponent(input.projectId)
+        + '/api/designer/projects/' + encodeURIComponent(nextoreProjectId)
         + '/comment-notifications',
       {
         method: 'POST',
