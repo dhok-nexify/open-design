@@ -105,7 +105,7 @@ describe('P05 notifyComment', () => {
   it('falls back to the session store when the request carried no token', async () => {
     const calls: string[] = [];
     const fetchImpl = (async (_url: string, init: RequestInit) => {
-      calls.push((init.headers as Record<string, string>).APIkey);
+      calls.push((init.headers as Record<string, string>).APIkey ?? '');
       return new Response('{}', { status: 200 });
     }) as unknown as typeof fetch;
     const resolveMemberToken = vi.fn(async () => 'store-token');

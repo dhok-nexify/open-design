@@ -3,10 +3,12 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   createRecipientCache,
   resolveProjectManageRecipients,
+  type ProjectPermissionsClient,
 } from '../src/nextore/comment-recipients.js';
 
-function client(payload: unknown) {
-  return { projectPermissions: vi.fn(async () => payload) };
+function client(payload: unknown): ProjectPermissionsClient {
+  // The interface's method is generic; a plain vi.fn cannot satisfy it structurally.
+  return { projectPermissions: vi.fn(async () => payload) } as unknown as ProjectPermissionsClient;
 }
 
 const base = {
@@ -49,7 +51,7 @@ describe('P05 CanManage recipients', () => {
   });
 
   it('degrades to owner only when the module fails', async () => {
-    const failing = { projectPermissions: vi.fn(async () => { throw new Error('500'); }) };
+    const failing = { projectPermissions: vi.fn(async () => { throw new Error('500'); }) } as unknown as ProjectPermissionsClient;
 
     const result = await resolveProjectManageRecipients({ ...base, client: failing });
 

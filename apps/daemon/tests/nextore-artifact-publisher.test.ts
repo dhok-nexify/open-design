@@ -69,7 +69,7 @@ const result = {
 
 describe('publishArtifactJob', () => {
   it('publishes, stores the mapping, and records the content hash', async () => {
-    const publish = vi.fn(async () => result);
+    const publish = vi.fn(async (..._args: unknown[]) => result);
     const outcome = await publishArtifactJob(job(), {
       db,
       client: client(publish),
@@ -93,7 +93,7 @@ describe('publishArtifactJob', () => {
   });
 
   it('publishes against the mapped NexTore project id, not the local one', async () => {
-    const publish = vi.fn(async () => result);
+    const publish = vi.fn(async (..._args: unknown[]) => result);
     const outcome = await publishArtifactJob(job(), {
       db,
       client: client(publish),
@@ -112,7 +112,7 @@ describe('publishArtifactJob', () => {
   });
 
   it('fails without publishing when the project has no NexTore mapping', async () => {
-    const publish = vi.fn(async () => result);
+    const publish = vi.fn(async (..._args: unknown[]) => result);
     const outcome = await publishArtifactJob(job(), {
       db,
       client: client(publish),
@@ -130,7 +130,7 @@ describe('publishArtifactJob', () => {
   });
 
   it('skips the client when the stored hash already matches', async () => {
-    const publish = vi.fn(async () => result);
+    const publish = vi.fn(async (..._args: unknown[]) => result);
     const deps = {
       db,
       client: client(publish),
@@ -147,7 +147,7 @@ describe('publishArtifactJob', () => {
   });
 
   it('returns publish_pending with auth_required when the member has no token', async () => {
-    const publish = vi.fn(async () => result);
+    const publish = vi.fn(async (..._args: unknown[]) => result);
     const outcome = await publishArtifactJob(job(), {
       db,
       client: client(publish),
