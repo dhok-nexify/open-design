@@ -86,7 +86,10 @@ export async function notifyComment(
 ): Promise<CommentNoticeOutcome> {
   const payload = buildCommentNoticePayload(input);
   if (!deps.moduleBaseUrl) return 'skipped';
-  if (payload.recipientIds.length === 0) return 'skipped';
+  if (payload.recipientIds.length === 0) {
+    deps.log?.('[comment-notify] no recipients after the author was excluded');
+    return 'skipped';
+  }
   // The module route is keyed by the NexTore project id; the local Designer id
   // travels in the body so the notice links back to the project the person uses.
   const nextoreProjectId = typeof input.nextoreProjectId === 'string'
@@ -118,7 +121,10 @@ export async function notifyComment(
         body: JSON.stringify(payload),
       },
     );
-    if (response.status === 204) return 'skipped';
+    if (response.status === 204) {
+      deps.log?.('[comment-notify] module accepted (204)');
+      return 'skipped';
+    }
     if (!response.ok) {
       deps.log?.('[comment-notify] module rejected: ' + response.status);
       return 'failed';

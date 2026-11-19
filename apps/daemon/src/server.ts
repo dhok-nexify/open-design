@@ -9681,6 +9681,7 @@ export async function startServer({
     // null so an unauthenticated request simply skips the notification.
     commentNotify: {
       moduleBaseUrl: nextoreConfig?.baseUrl ?? null,
+      log: (message: string) => console.warn(message),
       // No ambient token: the route passes the caller's session token, and this
       // fallback resolves the author's module token from the session store for
       // background/API-token callers. Null means "skip", never "send bare".
