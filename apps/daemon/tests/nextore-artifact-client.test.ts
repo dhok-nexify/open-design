@@ -54,9 +54,7 @@ describe('NextoreClient.publishArtifact', () => {
     const fetchMock = async (input: URL | string, init?: RequestInit) => {
       const url = input instanceof URL ? input : new URL(String(input));
       expect(url.origin).toBe('http://nextore.test');
-      expect(url.pathname).toBe(
-        '/api/designer/projects/project-1/artifacts/artifact-1/publish',
-      );
+      expect(url.pathname).toBe('/api/designer/projects/project-1/artifacts');
 
       const headers = new Headers(init?.headers);
       expect(headers.get('APIkey')).toBe('token-1');

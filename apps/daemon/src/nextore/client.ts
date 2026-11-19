@@ -526,9 +526,10 @@ export function createNextoreClient(
       form.append('metadata', JSON.stringify(metadata));
       const blob = await openAsBlob(file.path, { type: file.mimeType });
       form.append('file', blob, file.name);
+      // The module publishes to the artifacts collection; the artifact id travels
+      // inside the metadata body, not in the path.
       return requestMultipart<T>(
-        'api/designer/projects/' + encodeURIComponent(projectId)
-          + '/artifacts/' + encodeURIComponent(artifactId) + '/publish',
+        'api/designer/projects/' + encodeURIComponent(projectId) + '/artifacts',
         form,
         accessToken,
         signal,

@@ -101,6 +101,13 @@ export async function runNextorePublishWorkerOnce(
       error instanceof Error ? error.message : 'Artifact publish failed.',
     );
   }
+  if (outcome.status === 'failed' || outcome.status === 'publish_pending') {
+    // The queue row can be settled without leaving a mapping row, so the code
+    // is the only durable trace of a first-attempt refusal. Never log the
+    // message: it can carry upstream text.
+    console.warn('[nextore-artifact] publish ' + outcome.status
+      + ' code=' + (outcome.errorCode ?? 'unknown'));
+  }
 
   if (outcome.status === 'published' || outcome.status === 'orphaned' || !outcome.retryable) {
     completeNextorePublish(deps.db, item.id, deps.workerId);
