@@ -12,7 +12,22 @@ type SqliteDb = Database.Database;
  * logout or admin revoke takes effect immediately. Requests without a CLI token
  * fall through to the browser-session gate unchanged.
  */
-export function createApiTokenGate(sessionGate: RequestHandler, getDb: () => SqliteDb | null): RequestHandler {
+export interface ApiTokenGateOptions {
+  /**
+   * Resolve the member's NexTore access token from the daemon's own session
+   * store. A CLI token proves the member, but the module-backed project routes
+   * still call NexTore as that member and read the credential off the resolved
+   * session. Without this the caller is authenticated and then refused with
+   * SESSION_REQUIRED one layer down.
+   */
+  resolveAccessToken?: (memberId: number) => Promise<string | null>;
+}
+
+export function createApiTokenGate(
+  sessionGate: RequestHandler,
+  getDb: () => SqliteDb | null,
+  options: ApiTokenGateOptions = {},
+): RequestHandler {
   return (req: Request, res: Response, next: NextFunction) => {
     if (process.env.NEXTORE_CLI_AUTH !== 'on') {
       sessionGate(req, res, next);
@@ -40,25 +55,37 @@ export function createApiTokenGate(sessionGate: RequestHandler, getDb: () => Sql
       return;
     }
     const at = Date.now();
-    res.locals.nextoreSession = {
-      sid: 'api-token:' + row.id,
-      memberId: row.memberId,
-      member: {
-        id: row.memberId,
-        login: '',
-        fullName: '',
-        email: '',
-        language: 'en',
-        profileObjectId: 0,
-      },
-      accessToken: '',
-      refreshToken: null,
-      tokenExpiresAt: row.expiresAt,
-      createdAt: row.createdAt,
-      lastSeenAt: at,
-      lastValidatedAt: at,
-      apiTokenScopes: row.scopes,
+    const attach = (accessToken: string): void => {
+      res.locals.nextoreSession = {
+        sid: 'api-token:' + row!.id,
+        memberId: row!.memberId,
+        member: {
+          id: row!.memberId,
+          login: '',
+          fullName: '',
+          email: '',
+          language: 'en',
+          profileObjectId: 0,
+        },
+        accessToken,
+        refreshToken: null,
+        tokenExpiresAt: row!.expiresAt,
+        createdAt: row!.createdAt,
+        lastSeenAt: at,
+        lastValidatedAt: at,
+        apiTokenScopes: row!.scopes,
+      };
+      next();
     };
-    next();
+    if (!options.resolveAccessToken) {
+      attach('');
+      return;
+    }
+    // A missing store row is not an auth failure: the caller stays authenticated
+    // and the route that needs NexTore answers with its own SESSION_REQUIRED.
+    void options.resolveAccessToken(row.memberId).then(
+      (token) => attach(token ?? ''),
+      () => attach(''),
+    );
   };
 }

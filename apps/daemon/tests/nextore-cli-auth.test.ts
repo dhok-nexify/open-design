@@ -147,6 +147,57 @@ describe('P10 bearer gate', () => {
     expect(await revoked.json()).toMatchObject({ error: 'invalid_token' });
   });
 
+  it('hydrates the member credential so NexTore-backed routes can act for the caller', async () => {
+    // A CLI token authenticates the member, but project routes still call the
+    // module as that member. Without the hydrated token they answered 401
+    // SESSION_REQUIRED even though the token was valid.
+    process.env.NEXTORE_CLI_AUTH = 'on';
+    const issued = createApiToken(db, { memberId: 7, scopes: ['project:read'] });
+    const app = express();
+    app.use('/api', createApiTokenGate(
+      (_req, res) => res.status(401).json({ error: 'SESSION_REQUIRED' }),
+      () => db,
+      { resolveAccessToken: async (memberId) => (memberId === 7 ? 'nex-access-token' : null) },
+    ));
+    app.get('/api/projects', (_req, res) => {
+      res.json({ accessToken: res.locals.nextoreSession?.accessToken ?? null });
+    });
+    server = createServer(app);
+    await new Promise<void>((resolve) => server!.listen(0, '127.0.0.1', () => resolve()));
+    const { port } = server.address() as AddressInfo;
+
+    const response = await fetch('http://127.0.0.1:' + port + '/api/projects', {
+      headers: { authorization: 'Bearer ' + issued.token },
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ accessToken: 'nex-access-token' });
+  });
+
+  it('stays authenticated with an empty credential when the store has no session', async () => {
+    process.env.NEXTORE_CLI_AUTH = 'on';
+    const issued = createApiToken(db, { memberId: 7, scopes: ['project:read'] });
+    const app = express();
+    app.use('/api', createApiTokenGate(
+      (_req, res) => res.status(401).json({ error: 'SESSION_REQUIRED' }),
+      () => db,
+      { resolveAccessToken: async () => null },
+    ));
+    app.get('/api/projects', (_req, res) => {
+      res.json({ accessToken: res.locals.nextoreSession?.accessToken ?? null });
+    });
+    server = createServer(app);
+    await new Promise<void>((resolve) => server!.listen(0, '127.0.0.1', () => resolve()));
+    const { port } = server.address() as AddressInfo;
+
+    const response = await fetch('http://127.0.0.1:' + port + '/api/projects', {
+      headers: { authorization: 'Bearer ' + issued.token },
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ accessToken: '' });
+  });
+
   it('falls through to the session gate when the flag is off', async () => {
     const issued = createApiToken(db, { memberId: 7, scopes: ['project:read'] });
     const app = express();

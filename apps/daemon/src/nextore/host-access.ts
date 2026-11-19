@@ -13,6 +13,7 @@ import { createNextoreAuth, type NextoreAuth } from './auth/routes.js';
 import { createApiTokenGate } from './auth/api-token-gate.js';
 import { lazyNextoreSecrets, type NextoreSecrets } from './auth/secrets.js';
 import { createNextoreSessionStore } from './auth/session-store.js';
+import { resolveMemberAccessToken } from './artifacts/session-access.js';
 import type { NextoreClient } from './client.js';
 import type { NextoreConfig } from './config.js';
 import { registerNextoreMcpRoutes } from './mcp/routes.js';
@@ -71,7 +72,14 @@ export function mountNextoreAccess(options: NextoreAccessOptions): NextoreAccess
     // must not be able to make the daemon buffer a 128 MB clipper capture.
     // The gate also verifies the browser Origin before it resolves a session,
     // so a cross-site request cannot trigger a token refresh or touch a row.
-    app.use('/api', createApiTokenGate(auth.gate, getDb));
+    app.use('/api', createApiTokenGate(auth.gate, getDb, {
+      // A CLI token proves the member; the project routes still call NexTore as
+      // that member, so hydrate the credential from the daemon's session store.
+      resolveAccessToken: (memberId) => resolveMemberAccessToken(memberId, {
+        store: createNextoreSessionStore(getDb, secrets!),
+        config: config!,
+      }),
+    }));
     app.use('/artifacts', auth.gate);
     app.use('/frames', auth.gate);
 
