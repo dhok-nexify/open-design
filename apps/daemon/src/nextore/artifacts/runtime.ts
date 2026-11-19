@@ -357,7 +357,11 @@ export class NextoreArtifactRuntime {
     if (!isNextoreArtifactPublishEnabled(this.deps.mode)) return null;
     const nextoreProjectId = this.deps.readProjectMapping?.(projectId) ?? null;
     const projectRoot = this.deps.resolveProjectRoot?.(projectId) ?? null;
-    if (!nextoreProjectId || !projectRoot) return null;
+    if (!nextoreProjectId || !projectRoot) {
+      // Nothing to migrate: the project was never linked to NexTore, or its
+      // folder is gone. Retrying cannot change that, so say so.
+      return { adopted: 0, requeued: 0, orphaned: 0, skipped: 0, unavailable: false, notApplicable: true };
+    }
 
     // The member who published most recently may have no live session (an
     // editor edited the file weeks ago), so every candidate is tried until one

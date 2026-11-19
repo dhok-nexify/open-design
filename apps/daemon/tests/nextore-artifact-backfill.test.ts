@@ -50,6 +50,20 @@ describe('runBackfillBatch', () => {
     expect(listBackfillRows(db).map((row) => row.status)).toEqual(['done', 'done', 'pending']);
   });
 
+  it('finishes a project that has nothing to migrate instead of retrying it', async () => {
+    // A project that was never linked to NexTore can never become reconcilable.
+    const result = await runBackfillBatch(deps(async (projectId) => (
+      projectId === 'p1'
+        ? { unavailable: false, notApplicable: true }
+        : { unavailable: false }
+    )));
+
+    expect(result).toMatchObject({ ran: 2, done: 2, failed: 0, retried: 0 });
+    const rows = listBackfillRows(db);
+    expect(rows.find((row) => row.projectId === 'p1')?.lastError).toBe('no_nextore_mapping');
+    expect(rows.every((row) => row.status !== 'pending' || row.projectId === 'p3')).toBe(true);
+  });
+
   it('resumes where it stopped on the next batch', async () => {
     await runBackfillBatch(deps(async () => ({ unavailable: false })));
     const second = await runBackfillBatch(deps(async () => ({ unavailable: false })));

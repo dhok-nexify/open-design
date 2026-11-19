@@ -56,6 +56,11 @@ export interface ReconcileProjectResult {
   skipped: number;
   /** True when the module was unreachable; no local state was changed. */
   unavailable: boolean;
+  /**
+   * True when the project has nothing to reconcile (no NexTore mapping, or no
+   * project root). A backfill must treat this as finished, not as a retry.
+   */
+  notApplicable?: boolean;
 }
 
 const REPRESENTATIONS = new Set<NextoreArtifactRepresentation>(['source', 'snapshot', 'cover']);

@@ -29,7 +29,7 @@ export interface BackfillDeps {
   /** Projects eligible for backfill, in a stable order. */
   projectIds: () => readonly string[];
   /** Reconcile one project; null means "cannot reconcile yet". */
-  reconcileProject: (projectId: string) => Promise<{ unavailable: boolean } | null>;
+  reconcileProject: (projectId: string) => Promise<{ unavailable: boolean; notApplicable?: boolean } | null>;
   batchSize?: number;
   now?: () => number;
 }
@@ -160,6 +160,7 @@ export async function runBackfillBatch(deps: BackfillDeps): Promise<BackfillBatc
   for (const row of due) {
     markRow(deps.db, row.projectId, 'running', row.processed, null, now());
     let unavailable = false;
+    let notApplicable = false;
     let error: string | null = null;
     try {
       const result = await deps.reconcileProject(row.projectId);
@@ -169,6 +170,8 @@ export async function runBackfillBatch(deps: BackfillDeps): Promise<BackfillBatc
       } else if (result.unavailable) {
         error = 'nextore_unavailable';
         unavailable = true;
+      } else if (result.notApplicable) {
+        notApplicable = true;
       }
     } catch (cause) {
       error = cause instanceof Error ? cause.message : 'reconcile_failed';
@@ -191,7 +194,8 @@ export async function runBackfillBatch(deps: BackfillDeps): Promise<BackfillBatc
       continue;
     }
     done += 1;
-    markRow(deps.db, row.projectId, 'done', row.processed, null, now());
+    const outcome = notApplicable ? 'no_nextore_mapping' : null;
+    markRow(deps.db, row.projectId, 'done', row.processed, outcome, now());
   }
 
   const progress = backfillProgress(deps.db, batchSize);
