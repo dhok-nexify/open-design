@@ -85,10 +85,13 @@ export function registerNextoreBackfillRoutes(
     // An explicit start clears a pause; otherwise a paused rollout could never
     // be started again without a second call.
     if (isBackfillPaused(deps.db)) setBackfillPaused(deps.db, false, now());
+    // The operator running the backfill is the last credential candidate, so a
+    // project whose last publisher has no live session still reconciles.
+    const actor = sessionMemberId(res) ?? undefined;
     const batch = await runBackfillBatch({
       db: deps.db,
       projectIds: deps.listProjectIds,
-      reconcileProject: (projectId) => runtime.reconcileProject(projectId),
+      reconcileProject: (projectId) => runtime.reconcileProject(projectId, actor),
       batchSize,
       now,
     });

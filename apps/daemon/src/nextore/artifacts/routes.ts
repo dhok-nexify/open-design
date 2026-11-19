@@ -60,7 +60,11 @@ export function registerNextoreArtifactRoutes(
       return;
     }
     if (!await deps.authorizeProject(req, res, projectId, { mode: 'write', capability: 'writeFiles' })) return;
-    const result = await deps.runtime.reconcileProject(projectId);
+    const actor = (res.locals as { nextoreSession?: { memberId?: unknown } }).nextoreSession?.memberId;
+    const result = await deps.runtime.reconcileProject(
+      projectId,
+      typeof actor === 'number' && Number.isInteger(actor) && actor > 0 ? actor : undefined,
+    );
     if (!result) {
       res.status(409).json({
         error: 'reconcile_unavailable',

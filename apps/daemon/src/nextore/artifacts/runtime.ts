@@ -350,23 +350,40 @@ export class NextoreArtifactRuntime {
    * Compare one project's mapping against the module. Returns null when the
    * daemon cannot reconcile yet (no member, no mapping, no session).
    */
-  async reconcileProject(projectId: string): Promise<ReconcileProjectResult | null> {
+  async reconcileProject(
+    projectId: string,
+    actorMemberId?: number,
+  ): Promise<ReconcileProjectResult | null> {
     if (!isNextoreArtifactPublishEnabled(this.deps.mode)) return null;
-    let memberId = this.projectMembers.get(projectId);
-    if (!memberId) {
-      // Existing deployments predate nextore_project_members: the publish queue
-      // already recorded who published, so a rollout can still start.
-      const fromQueue = findPublishMember(this.deps.db, projectId);
-      if (fromQueue) {
-        memberId = fromQueue;
-        this.projectMembers.set(projectId, fromQueue);
-      }
-    }
     const nextoreProjectId = this.deps.readProjectMapping?.(projectId) ?? null;
     const projectRoot = this.deps.resolveProjectRoot?.(projectId) ?? null;
-    if (!memberId || !nextoreProjectId || !projectRoot) return null;
-    const accessToken = await this.accessTokenFor(memberId);
-    if (!accessToken) return null;
+    if (!nextoreProjectId || !projectRoot) return null;
+
+    // The member who published most recently may have no live session (an
+    // editor edited the file weeks ago), so every candidate is tried until one
+    // yields a usable credential. The operator running a backfill is the last
+    // candidate: they are asking for the project to be reconciled right now.
+    const candidates: number[] = [];
+    const known = this.projectMembers.get(projectId);
+    if (known) candidates.push(known);
+    const fromQueue = findPublishMember(this.deps.db, projectId);
+    if (fromQueue) candidates.push(fromQueue);
+    if (Number.isInteger(actorMemberId) && (actorMemberId ?? 0) > 0) {
+      candidates.push(actorMemberId!);
+    }
+
+    let memberId: number | null = null;
+    let accessToken: string | null = null;
+    for (const candidate of new Set(candidates)) {
+      const token = await this.accessTokenFor(candidate);
+      if (token) {
+        memberId = candidate;
+        accessToken = token;
+        break;
+      }
+    }
+    if (!memberId || !accessToken) return null;
+    this.projectMembers.set(projectId, memberId);
     return reconcileProjectArtifacts({
       db: this.deps.db,
       client: this.deps.client,
