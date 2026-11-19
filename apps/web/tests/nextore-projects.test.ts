@@ -87,7 +87,9 @@ describe('fetchNextoreProjectListing', () => {
     const fetchImpl = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({
-        projects: [{ nextoreProjectId: '1' }],
+        // The module DTO carries the numeric NexTore id and a name; a fixture
+        // with only nextoreProjectId is not a valid listing row.
+        projects: [{ id: 1, name: 'Legacy', nextoreProjectId: '1', designerProjectId: 'local-a' }],
         workspaces: [{ id: 9, name: 'admin Workspace', type: 'personal', sharedOnly: true }],
       }),
     } as unknown as Response);
