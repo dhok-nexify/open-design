@@ -6,7 +6,11 @@ import {
   type NextoreTier,
   type NextoreTierModelsResponse,
 } from '@open-design/contracts';
-import { NextoreClientError, type NextoreClient } from './client.js';
+import {
+  NEXTORE_MODULE_CONTRACT_VERSION,
+  NextoreClientError,
+  type NextoreClient,
+} from './client.js';
 import { createBrandingCache, type BrandingCache } from './branding-cache.js';
 import { registerBrandingSource } from './branding-state.js';
 
@@ -82,6 +86,40 @@ function readSession(res: Response): SelfTestSessionView | null {
 function readLookup(res: Response): SelfTestSessionLookup | undefined {
   const value = (res.locals as { nextoreSessionLookup?: unknown }).nextoreSessionLookup;
   return value === 'ok' || value === 'signed_out' || value === 'unavailable' ? value : undefined;
+}
+
+/**
+ * Health plus the contract manifest. A reachable module that speaks an older or
+ * newer wire contract is a half-deployed pair: every cross-repo feature would
+ * fail on a field the other side does not send, so the self-test fails here
+ * instead of letting the next QA round find it in a feature log.
+ */
+async function probeModule(client: NextoreClient): Promise<NextoreSelfTestCheck> {
+  try {
+    await client.health();
+  } catch (error) {
+    return failedCheck(error);
+  }
+  try {
+    const contract = await client.contract();
+    if (contract && contract.contractVersion === NEXTORE_MODULE_CONTRACT_VERSION) {
+      return { status: 'ok' };
+    }
+    return {
+      status: 'unavailable',
+      code: 'module_contract_mismatch',
+      message: 'The module contract version does not match this Designer build.',
+    };
+  } catch (error) {
+    if (error instanceof NextoreClientError && error.statusCode === 404) {
+      return {
+        status: 'unavailable',
+        code: 'module_contract_missing',
+        message: 'The module does not publish a contract manifest; update the module.',
+      };
+    }
+    return failedCheck(error);
+  }
 }
 
 /**
@@ -166,10 +204,7 @@ export function createNextoreSelfTestHandler(
     const authentication = authenticationCheck(res);
 
     const [module, branding, llm] = await Promise.all([
-      client.health().then(
-        () => ({ status: 'ok' }) as NextoreSelfTestCheck,
-        (error: unknown) => failedCheck(error),
-      ),
+      probeModule(client),
       client.branding().then(
         () => ({ status: 'ok' }) as NextoreSelfTestCheck,
         (error: unknown) => failedCheck(error),

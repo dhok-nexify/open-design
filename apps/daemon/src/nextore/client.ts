@@ -49,8 +49,25 @@ interface RequestOptions {
   body?: unknown;
 }
 
+/**
+ * Version of the daemon→module wire contract. Bump this whenever a request or
+ * response shape that both sides depend on changes, then update the module's
+ * `GET /api/designer/contract` manifest in the same release. The daemon
+ * self-test compares the two values so a half-deployed pair fails loudly
+ * instead of failing later inside a feature.
+ */
+export const NEXTORE_MODULE_CONTRACT_VERSION = 2;
+
+/** Static capability manifest returned by `GET /api/designer/contract`. */
+export interface NextoreModuleContract {
+  contractVersion?: number;
+  features?: string[];
+}
+
 export interface NextoreClient {
   health(signal?: AbortSignal): Promise<NextoreModuleHealthResponse>;
+  /** Static manifest used by the self-test to detect a half-deployed pair. */
+  contract(signal?: AbortSignal): Promise<NextoreModuleContract>;
   branding(signal?: AbortSignal): Promise<NextoreBrandingResponse>;
   bootstrap<T>(accessToken: string, signal?: AbortSignal): Promise<T>;
   /**
@@ -385,6 +402,13 @@ export function createNextoreClient(
     health(signal?: AbortSignal) {
       return request<NextoreModuleHealthResponse>(
         '/api/designer/health',
+        signal ? { signal } : {},
+      );
+    },
+
+    contract(signal?: AbortSignal) {
+      return request<NextoreModuleContract>(
+        '/api/designer/contract',
         signal ? { signal } : {},
       );
     },

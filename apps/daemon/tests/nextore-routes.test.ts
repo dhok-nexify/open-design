@@ -46,6 +46,7 @@ function selfTestClient(overrides: {
 } = {}): NextoreClient {
   return {
     health: overrides.health ?? (async () => ({ moduleVersion: '1.0.0' })),
+    contract: async () => ({ contractVersion: 2, features: [] }),
     branding: overrides.branding ?? (async () => ({
       siteTitle: 'Designer',
       brandName: 'Designer',

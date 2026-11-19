@@ -74,9 +74,11 @@ async function closeServer(): Promise<void> {
 function client(overrides: {
   bootstrap?: (token: string) => Promise<unknown>;
   tierModels?: (token: string, tier: string) => Promise<unknown>;
+  contractVersion?: number;
 } = {}): NextoreClient {
   return {
     health: async () => ({ moduleVersion: '1.0.0' }),
+    contract: async () => ({ contractVersion: overrides.contractVersion ?? 2, features: [] }),
     branding: async () => ({
       siteTitle: 'NexTore Designer',
       brandName: 'NexTore Designer',
@@ -680,6 +682,21 @@ function buildSelfTestApp(nextoreClient: NextoreClient = client()): express.Expr
 }
 
 describe('NexTore self-test session resolution', () => {
+  it('fails the module check when the module speaks another contract version', async () => {
+    // A half-deployed pair must fail here, not later inside a feature.
+    await listen(buildSelfTestApp(client({ contractVersion: 1 })));
+
+    const response = await nativeFetch(baseUrl + '/api/nextore/self-test');
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      ok: false,
+      checks: {
+        module: { status: 'unavailable', code: 'module_contract_mismatch' },
+      },
+    });
+  });
+
   it('answers anonymously when no session cookie arrives', async () => {
     await listen(buildSelfTestApp());
 
