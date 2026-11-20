@@ -14,6 +14,12 @@ ARCH="${ARCH:-$(uname -m)}"
 OUT="${OUT:-dist/nextore-designer-${VERSION}-linux-${ARCH}.tar.gz}"
 STAGE=".tmp/nextore-tarball"
 
+# The NexTore edition never calls the public preview asset host at runtime, so
+# the baked clips have to be on disk before the tree is staged. Fail here rather
+# than ship a package whose previews silently resolve to nothing.
+echo "checking baked plugin previews"
+pnpm exec tsx scripts/fetch-plugin-previews.ts --check
+
 echo "building daemon and web"
 pnpm --filter @open-design/daemon build
 pnpm --filter @open-design/web build

@@ -116,3 +116,21 @@ test('installer installs the pinned opencode when it is missing', async () => {
   assert.match(install, /opencode-ai@\$version/);
   assert.match(install, /command -v opencode/);
 });
+
+test('tarball build refuses to ship without baked plugin previews', async () => {
+  // The NexTore edition cannot reach the public preview asset host, and the
+  // daemon only resolves a baked preview when both clip files exist on disk.
+  // A build that skips the check ships empty preview slots, so the gate has to
+  // run before the tree is staged.
+  const build = await read('build-tarball.sh');
+  const gate = build.indexOf('fetch-plugin-previews.ts --check');
+  const stage = build.indexOf('staging ${STAGE}');
+  assert.ok(gate > 0, 'build-tarball.sh must verify the baked preview set');
+  assert.ok(stage > 0, 'build-tarball.sh must still stage the payload');
+  assert.ok(gate < stage, 'the preview check must run before staging');
+});
+
+test('fetched preview clips stay out of git', async () => {
+  const ignore = await readFile(join(repoRoot, '.gitignore'), 'utf8');
+  assert.match(ignore, /^data\/plugin-previews\/\*\/$/m);
+});

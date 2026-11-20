@@ -68,6 +68,26 @@ tar -xzf dist/nextore-designer-*.tar.gz -C /tmp/designer-payload
 sudo /tmp/designer-payload/install/install.sh --start
 ```
 
+### Baked plugin preview clips
+
+`data/plugin-previews/manifest.json` is committed, but the clips it names are
+not: CI publishes them to the asset host, and the Nextore edition refuses to
+call that host at runtime. The clips therefore have to be materialized before
+packaging, or every plugin preview resolves to nothing and the home showcase
+renders empty slots.
+
+```bash
+pnpm exec tsx scripts/fetch-plugin-previews.ts          # ~20 MB, once per checkout
+pnpm exec tsx scripts/fetch-plugin-previews.ts --check  # what build-tarball.sh runs
+```
+
+`build-tarball.sh` runs the `--check` gate before it stages the tree, so a
+missing set fails the build instead of shipping a silently degraded package.
+For an air-gapped build, point it at an internal mirror with
+`--base https://mirror.internal/plugin-previews` (or `OD_PLUGIN_PREVIEWS_BASE_URL`);
+the runtime never contacts the public host in either case, because the daemon
+serves whatever sits under `data/plugin-previews` from `/api/plugin-previews`.
+
 The installer checks the user-namespace sysctls, probes bubblewrap as the
 service user with and without `NoNewPrivileges`, then probes it again through
 `systemd-run` with the unit's protections. It creates the data directory

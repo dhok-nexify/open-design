@@ -117,3 +117,8 @@ deploy/agent-bins/
 # Python bytecode from workflow helper self-checks / local compile.
 __pycache__/
 *.py[cod]
+
+# Baked plugin-preview clips are fetched at build time by
+# scripts/fetch-plugin-previews.ts; only the manifest is committed. See
+# specs/change/20260618-plugin-preview-bake-pipeline.
+data/plugin-previews/*/
