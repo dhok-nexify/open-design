@@ -94,6 +94,21 @@ describe('snapshot renderer', () => {
     }
   });
 
+  it('ignores a configured snap wrapper and falls back to detection', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'od-snap-config-'));
+    const wrapper = join(dir, process.platform === 'win32' ? 'chromium.cmd' : 'chromium');
+    await writeFile(wrapper, '#!/bin/sh\nexec snap run chromium "$@"\n', 'utf8');
+    const previous = process.env.OD_CHROMIUM_PATH;
+    process.env.OD_CHROMIUM_PATH = wrapper;
+    try {
+      expect(resolveChromiumExecutable()).not.toBe(wrapper);
+    } finally {
+      if (previous === undefined) delete process.env.OD_CHROMIUM_PATH;
+      else process.env.OD_CHROMIUM_PATH = previous;
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
   it('resolves an explicit existing binary and rejects a missing one', () => {
     expect(resolveChromiumExecutable(process.execPath)).toBe(process.execPath);
     expect(resolveChromiumExecutable('C:/definitely/not/here')).toBeNull();

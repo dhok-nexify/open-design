@@ -110,8 +110,18 @@ function fromPath(name: string): string | null {
 
 /** Resolve a Chromium-family binary, or null when the host has none. */
 export function resolveChromiumExecutable(explicit?: string | null): string | null {
-  const configured = (explicit ?? process.env.OD_CHROMIUM_PATH ?? '').trim();
-  if (configured) return existsSync(configured) ? configured : null;
+  // An explicit caller-supplied path is strict: an unusable value is an error,
+  // never a silent switch to something else.
+  if (explicit !== undefined && explicit !== null) {
+    const value = explicit.trim();
+    if (!value) return null;
+    return existsSync(value) && !isSnapBinary(value) ? value : null;
+  }
+  // The environment value is best-effort: earlier installs wrote the snap path
+  // into designer.env, and a deb Chrome installed later must still take over
+  // without editing the environment.
+  const configured = (process.env.OD_CHROMIUM_PATH ?? '').trim();
+  if (configured && existsSync(configured) && !isSnapBinary(configured)) return configured;
   // A real deb Chrome wins over PATH, because PATH on Ubuntu may only hold the
   // snap wrapper.
   if (process.platform === 'linux') {
