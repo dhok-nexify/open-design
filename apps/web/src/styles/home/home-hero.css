@@ -1573,6 +1573,13 @@
   gap: 6px;
   flex: 0 0 auto;
 }
+/* The Fast/Expert switcher mounts after bootstrap and makes this row 41 px
+   tall. Reserving that height keeps the foot from growing when it lands, which
+   was the largest remaining shift (CLS 0.16, 2026-11-20). The dock hides the
+   switcher entirely and keeps its send-only row. */
+.home-hero:not(.home-hero--dock) .home-hero__foot-right {
+  min-height: 41px;
+}
 .home-hero__execution-switcher {
   display: inline-flex;
   min-width: 0;
