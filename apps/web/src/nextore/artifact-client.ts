@@ -99,6 +99,45 @@ export async function shareArtifact(
   return await response.json() as NextoreArtifactShareResult;
 }
 
+/**
+ * Ask the daemon to render the published source HTML to PDF and queue it as the
+ * snapshot representation. Slow (headless Chromium), so the caller waits for the
+ * queue to publish before retrying a share.
+ */
+export async function renderSnapshot(
+  projectId: string,
+  artifactId: string,
+): Promise<{ queued: boolean; pdfBytes: number }> {
+  const response = await fetch(
+    '/api/nextore/projects/' + encodeURIComponent(projectId)
+      + '/artifacts/' + encodeURIComponent(artifactId) + '/snapshot',
+    { method: 'POST', headers: { accept: 'application/json' } },
+  );
+  if (!response.ok) throw await shareError(response);
+  return await response.json() as { queued: boolean; pdfBytes: number };
+}
+
+/** Wait until the snapshot representation is published (or give up). */
+export async function waitForSnapshot(
+  projectId: string,
+  artifactId: string,
+  timeoutMs = 20_000,
+): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    try {
+      const status = await fetchArtifactStatus(projectId, artifactId);
+      const row = status.representations.find((entry) => entry.representation === 'snapshot');
+      if (row?.artifact.status === 'published') return true;
+      if (row?.artifact.status === 'failed') return false;
+    } catch {
+      // Keep waiting: a status hiccup is not a failed render.
+    }
+    await new Promise((resolve) => setTimeout(resolve, 1_500));
+  }
+  return false;
+}
+
 export async function revokeArtifactShare(
   projectId: string,
   artifactId: string,

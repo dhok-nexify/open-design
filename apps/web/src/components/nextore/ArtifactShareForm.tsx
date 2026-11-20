@@ -6,7 +6,12 @@ import type {
 } from '@open-design/contracts';
 
 import { useT } from '../../i18n';
-import { revokeArtifactShare, shareArtifact } from '../../nextore/artifact-client';
+import {
+  renderSnapshot,
+  revokeArtifactShare,
+  shareArtifact,
+  waitForSnapshot,
+} from '../../nextore/artifact-client';
 import { Icon } from '../Icon';
 import styles from './ArtifactShareForm.module.css';
 
@@ -52,15 +57,28 @@ export function ArtifactShareForm({
     setBusy(true);
     setError(null);
     setCopied('idle');
+    const expiry = isoAfterDays(expiryDays);
+    const request = {
+      representation: normalized,
+      previewOnly,
+      ...(expiry ? { expiresAt: expiry } : {}),
+      ...(password.trim() ? { password: password.trim() } : {}),
+    };
     try {
-      const expiry = isoAfterDays(expiryDays);
-      const result = await shareArtifact(projectId, artifactId, {
-        representation: normalized,
-        previewOnly,
-        ...(expiry ? { expiresAt: expiry } : {}),
-        ...(password.trim() ? { password: password.trim() } : {}),
-      });
-      setShare(result);
+      try {
+        setShare(await shareArtifact(projectId, artifactId, request));
+        return;
+      } catch (cause) {
+        // A snapshot is rendered on demand: the first share attempt reports
+        // share_not_ready, we render, wait for the publish, then retry once.
+        const code = cause instanceof Error ? cause.message : '';
+        if (code !== 'share_not_ready' || normalized !== 'snapshot') throw cause;
+      }
+      await renderSnapshot(projectId, artifactId);
+      if (!await waitForSnapshot(projectId, artifactId)) {
+        throw new Error('snapshot_render_timeout');
+      }
+      setShare(await shareArtifact(projectId, artifactId, request));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'share_failed');
     } finally {
