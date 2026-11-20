@@ -803,7 +803,7 @@ export function exportAsImage(dataUrl: string, title: string): void {
   }
 }
 
-export type ProjectPdfExportResult = 'desktop' | 'fallback' | 'cancelled';
+export type ProjectPdfExportResult = 'desktop' | 'server' | 'fallback' | 'cancelled';
 
 export async function exportProjectAsPdf(opts: {
   deck: boolean;
@@ -831,6 +831,12 @@ export async function exportProjectAsPdf(opts: {
       method: 'POST',
     });
     if (!resp.ok) throw new Error(`desktop PDF export unavailable (${resp.status})`);
+    // Headless daemons answer with the rendered PDF itself; the desktop bridge
+    // answers with JSON after its native save dialog.
+    if ((resp.headers.get('content-type') ?? '').includes('application/pdf')) {
+      triggerDownload(await resp.blob(), `${safeFilename(opts.title, 'artifact')}.pdf`);
+      return 'server';
+    }
     const body = await resp.json().catch(() => ({}));
     if (body?.canceled === true) return 'cancelled';
     if (body?.ok !== true) throw new Error(body?.error || 'desktop PDF export failed');

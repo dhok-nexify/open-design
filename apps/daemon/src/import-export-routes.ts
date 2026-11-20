@@ -12,7 +12,12 @@ import {
 import nodePath from 'node:path';
 import os from 'node:os';
 import { readFile, rm } from 'node:fs/promises';
-import type { Readable } from 'node:stream';
+import { pipeline, type Readable } from 'node:stream';
+import { createReadStream } from 'node:fs';
+import {
+  SnapshotRenderError,
+  renderHtmlToPdf,
+} from './nextore/artifacts/snapshot-renderer.js';
 import { isBlocked as isBlockedSystemDir } from './linked-dirs.js';
 import type { RouteDeps } from './server-context.js';
 import type {
@@ -85,7 +90,7 @@ export function registerImportRoutes(app: Express, ctx: RegisterImportRoutesDeps
       path.join(homeReal, d),
     );
     const inCredentialDir = credentialDirs.some(
-      (dir) => normalizedPath === dir || normalizedPath.startsWith(dir + path.sep),
+      (dir) => normalizedPath === dir || normalizedPath.startsWith(dir + nodePath.sep),
     );
     if (isBlockedSystemDir(normalizedPath) || normalizedPath === homeReal || inCredentialDir) {
       return 'cannot use a system or credential directory as a project root';
@@ -306,7 +311,7 @@ export function registerImportRoutes(app: Express, ctx: RegisterImportRoutesDeps
       }
       if (
         normalizedPath === RUNTIME_DATA_DIR_CANONICAL ||
-        normalizedPath.startsWith(RUNTIME_DATA_DIR_CANONICAL + path.sep)
+        normalizedPath.startsWith(RUNTIME_DATA_DIR_CANONICAL + nodePath.sep)
       ) {
         return sendApiError(res, 400, 'BAD_REQUEST', 'cannot point at the data directory');
       }
@@ -469,7 +474,7 @@ export function registerImportRoutes(app: Express, ctx: RegisterImportRoutesDeps
       // /private/var/... and would never start-with the user-shaped path.
       if (
         normalizedPath === RUNTIME_DATA_DIR_CANONICAL ||
-        normalizedPath.startsWith(RUNTIME_DATA_DIR_CANONICAL + path.sep)
+        normalizedPath.startsWith(RUNTIME_DATA_DIR_CANONICAL + nodePath.sep)
       ) {
         return sendApiError(res, 400, 'BAD_REQUEST', 'cannot import the data directory');
       }
@@ -1214,7 +1219,7 @@ export function registerProjectExportRoutes(app: Express, ctx: RegisterProjectEx
         }
         const canonicalDir = await fs.promises.realpath(renderOutputDir).catch(() => renderOutputDir);
         const realPptx = await fs.promises.realpath(rendered.pptxFile).catch(() => null);
-        if (!realPptx || (realPptx !== canonicalDir && !realPptx.startsWith(canonicalDir + path.sep))) {
+        if (!realPptx || (realPptx !== canonicalDir && !realPptx.startsWith(canonicalDir + nodePath.sep))) {
           return sendApiError(
             res,
             502,
@@ -1279,7 +1284,7 @@ export function registerProjectExportRoutes(app: Express, ctx: RegisterProjectEx
             typeof candidate === 'string'
               ? await fs.promises.realpath(candidate).catch(() => null)
               : null;
-          if (!real || (real !== canonicalDir && !real.startsWith(canonicalDir + path.sep))) {
+          if (!real || (real !== canonicalDir && !real.startsWith(canonicalDir + nodePath.sep))) {
             return sendApiError(
               res,
               502,
@@ -1490,14 +1495,6 @@ export function registerProjectExportRoutes(app: Express, ctx: RegisterProjectEx
   });
 
   app.post('/api/projects/:id/export/pdf', async (req, res) => {
-    if (typeof desktopPdfExporter !== 'function') {
-      return sendApiError(
-        res,
-        501,
-        'UPSTREAM_UNAVAILABLE',
-        'desktop PDF export is only available in the desktop runtime',
-      );
-    }
     try {
       const { fileName, title, deck } = req.body || {};
       if (typeof fileName !== 'string' || fileName.length === 0) {
@@ -1516,6 +1513,46 @@ export function registerProjectExportRoutes(app: Express, ctx: RegisterProjectEx
       const metadata = project?.metadata ?? null;
       const versionId = normalizeExportVersionId(req.body?.versionId);
       const sourceHtml = await readExportVersionSource(req.params.id, fileName, versionId, metadata);
+
+      // Headless daemon: render the file with Chromium --print-to-pdf and stream
+      // the PDF back. Same engine as the desktop path, no save dialog and no
+      // 45 s client-side canvas capture (which fails on long pages).
+      if (typeof desktopPdfExporter !== 'function') {
+        const root = (metadata as { baseDir?: unknown } | null)?.baseDir;
+        const projectRoot = typeof root === 'string' && root.trim()
+          ? root.trim()
+          : nodePath.join(PROJECTS_DIR, req.params.id);
+        const absolute = path.resolve(projectRoot, fileName);
+        if (!absolute.startsWith(nodePath.resolve(projectRoot) + nodePath.sep)) {
+          return sendApiError(res, 400, 'BAD_REQUEST', 'fileName escapes the project root');
+        }
+        try {
+          const rendered = await renderHtmlToPdf(absolute);
+          try {
+            const downloadName = (typeof title === 'string' && title.trim() ? title.trim() : fileName)
+              .replace(/[\\/:*?"<>|]+/g, '-');
+            res.setHeader('content-type', 'application/pdf');
+            res.setHeader(
+              'content-disposition',
+              'attachment; filename="' + downloadName.replace(/\.[^.]+$/, '') + '.pdf"',
+            );
+            await pipeline(createReadStream(rendered.path), res);
+          } finally {
+            await rm(rendered.workDir, { recursive: true, force: true }).catch(() => {});
+          }
+          return;
+        } catch (error) {
+          if (error instanceof SnapshotRenderError) {
+            const status = error.code === 'chromium_missing' ? 501
+              : error.code === 'render_timeout' ? 503
+              : error.code === 'render_failed' ? 502
+              : 409;
+            return sendApiError(res, status, error.code.toUpperCase(), error.message);
+          }
+          throw error;
+        }
+      }
+
       const input = await buildDesktopPdfExportInput({
         daemonUrl: daemonUrlRef.current,
         deck: deck === true,
