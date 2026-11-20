@@ -19,6 +19,10 @@ import {
   SnapshotRenderError,
   renderHtmlToPdf,
 } from './nextore/artifacts/snapshot-renderer.js';
+import {
+  captureFullPageImage,
+  type FullPageImageFormat,
+} from './nextore/artifacts/full-page-screenshot.js';
 import { isBlocked as isBlockedSystemDir } from './linked-dirs.js';
 import type { RouteDeps } from './server-context.js';
 import type {
@@ -1611,6 +1615,57 @@ export function registerProjectExportRoutes(app: Express, ctx: RegisterProjectEx
       toolEndpoint: PROJECT_EXPORT_TOOL_ENDPOINT,
     });
     if (!authority) return;
+
+    // Headless daemon: capture the whole document through the DevTools protocol.
+    // The desktop path below renders per-slide/per-viewport; without a compositor
+    // the client used to fall back to the visible pane, i.e. one screen.
+    if (typeof desktopSlideRenderer !== 'function' && typeof desktopArtifactExporter !== 'function') {
+      const body = (req.body ?? {}) as {
+        fileName?: unknown; title?: unknown; imageFormat?: unknown;
+      };
+      const fileName = typeof body.fileName === 'string' ? body.fileName : '';
+      const requestedFormat = typeof body.imageFormat === 'string' ? body.imageFormat.toLowerCase() : 'png';
+      const format: FullPageImageFormat = requestedFormat === 'jpeg' || requestedFormat === 'jpg'
+        ? 'jpeg'
+        : requestedFormat === 'webp' ? 'webp' : 'png';
+      if (!fileName) return sendApiError(res, 400, 'BAD_REQUEST', 'fileName required');
+      const project = getProject(db, req.params.id);
+      if (!project) return sendApiError(res, 404, 'PROJECT_NOT_FOUND', 'project not found');
+      const metadata = project.metadata as { baseDir?: unknown } | null;
+      const rootValue = metadata?.baseDir;
+      const projectRoot = typeof rootValue === 'string' && rootValue.trim()
+        ? rootValue.trim()
+        : nodePath.join(PROJECTS_DIR, req.params.id);
+      const absolute = nodePath.resolve(projectRoot, fileName);
+      if (!absolute.startsWith(nodePath.resolve(projectRoot) + nodePath.sep)) {
+        return sendApiError(res, 400, 'BAD_REQUEST', 'fileName escapes the project root');
+      }
+      try {
+        const shot = await captureFullPageImage(absolute, { format });
+        try {
+          const title = typeof body.title === 'string' && body.title.trim() ? body.title.trim() : fileName;
+          const downloadName = title.replace(/[\\/:*?"<>|]+/g, '-').replace(/\.[^.]+$/, '');
+          const mime = format === 'png' ? 'image/png' : format === 'jpeg' ? 'image/jpeg' : 'image/webp';
+          const extension = format === 'jpeg' ? 'jpg' : format;
+          res.setHeader('content-type', mime);
+          res.setHeader('content-disposition', 'attachment; filename="' + downloadName + '.' + extension + '"');
+          await pipeline(createReadStream(shot.path), res);
+        } finally {
+          await rm(shot.workDir, { recursive: true, force: true }).catch(() => {});
+        }
+        return;
+      } catch (error) {
+        if (error instanceof SnapshotRenderError) {
+          const status = error.code === 'chromium_missing' ? 501
+            : error.code === 'render_timeout' ? 503
+            : error.code === 'render_failed' ? 502
+            : 409;
+          return sendApiError(res, status, error.code.toUpperCase(), error.message);
+        }
+        throw error;
+      }
+    }
+
     await handleScreenshotExport(res, 'image', req.params.id, { authority, body: req.body });
   });
 
