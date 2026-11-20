@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import type { Express, RequestHandler, Response } from 'express';
 import {
   NEXTORE_TIERS,
@@ -12,6 +13,7 @@ import {
   type NextoreClient,
 } from './client.js';
 import { createBrandingCache, type BrandingCache } from './branding-cache.js';
+import { resolveChromiumExecutable } from './artifacts/snapshot-renderer.js';
 import { registerBrandingSource } from './branding-state.js';
 
 export interface RegisterNextoreRoutesDeps {
@@ -231,6 +233,35 @@ export function registerNextoreRoutes(
   deps: RegisterNextoreRoutesDeps,
 ): void {
   app.get('/api/nextore/self-test', createNextoreSelfTestHandler(deps.client));
+
+  /**
+   * Renderer diagnostics: which Chromium the daemon would run, and whether the
+   * deb-first resolver is deployed. Exists because a stale daemon build and a
+   * snap-only PATH look identical from the outside ("chromium exited 46").
+   */
+  app.get('/api/nextore/renderer', (req, res) => {
+    const session = (res.locals as { nextoreSession?: { memberId?: unknown } }).nextoreSession;
+    if (typeof session?.memberId !== 'number') {
+      res.status(401).json({ error: 'SESSION_REQUIRED' });
+      return;
+    }
+    const candidates = [
+      '/usr/bin/google-chrome-stable',
+      '/opt/google/chrome/chrome',
+      '/usr/bin/google-chrome',
+      '/usr/bin/chromium',
+      '/snap/bin/chromium',
+    ];
+    res.setHeader('Cache-Control', 'no-store');
+    res.json({
+      resolver: 'deb-first-v2',
+      resolved: resolveChromiumExecutable(),
+      configured: process.env.OD_CHROMIUM_PATH?.trim() || null,
+      noSandbox: process.env.OD_CHROMIUM_NO_SANDBOX === '1',
+      candidates: Object.fromEntries(candidates.map((path) => [path, existsSync(path)])),
+      pathChromium: process.env.PATH?.split(':').some((dir) => dir === '/snap/bin') ?? false,
+    });
+  });
 
   // Public, cached brand payload for the Designer shell (DESIGN §12.1). The module endpoint is
   // already anonymous; the daemon caches it so every boot does not round-trip to NexTore.
