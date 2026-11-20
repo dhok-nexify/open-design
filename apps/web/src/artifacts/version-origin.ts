@@ -1,5 +1,6 @@
 import type { ArtifactOrigin, ProjectFileVersion } from '@open-design/contracts';
 import type { ArtifactExportResultProps } from '@open-design/contracts/analytics';
+import { sha256Hex } from '../utils/sha256';
 
 const CONTENT_DIGEST_RE = /^[a-f0-9]{64}$/u;
 const ORIGIN_ID_RE = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u;
@@ -44,8 +45,16 @@ function isValidArtifactOrigin(origin: ArtifactOrigin): boolean {
 
 export async function artifactVersionContentDigest(content: string): Promise<string> {
   const bytes = new TextEncoder().encode(String(content ?? ''));
-  const digest = await globalThis.crypto.subtle.digest('SHA-256', bytes);
-  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
+  if (globalThis.crypto?.subtle) {
+    try {
+      const digest = await globalThis.crypto.subtle.digest('SHA-256', bytes);
+      return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
+    } catch {
+      // HTTP deployments do not expose Web Crypto. Fall through to the
+      // synchronous implementation so provenance still works there.
+    }
+  }
+  return sha256Hex(bytes);
 }
 
 export async function matchingArtifactVersionId(

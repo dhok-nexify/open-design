@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import { createHash } from 'node:crypto';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ProjectFileVersion } from '@open-design/contracts';
 
 import {
@@ -23,6 +24,10 @@ function version(overrides: Partial<ProjectFileVersion> = {}): ProjectFileVersio
     ...overrides,
   };
 }
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 describe('artifact export version origin', () => {
   it('emits matched Plugin origin only when the exact UTF-8 digest agrees', async () => {
@@ -94,6 +99,24 @@ describe('artifact export version origin', () => {
       entry_surface: 'open_design_ui',
       artifact_origin_status: 'missing_version',
       origin_entry_surface: 'unknown',
+    });
+  });
+
+  it('keeps provenance working when Web Crypto is unavailable on an HTTP origin', async () => {
+    vi.stubGlobal('crypto', {});
+    const content = '<html><body>HTTP origin</body></html>';
+    const contentDigest = createHash('sha256').update(content).digest('hex');
+
+    await expect(artifactVersionContentDigest(content)).resolves.toBe(contentDigest);
+    await expect(matchingArtifactVersionId(content, version({ contentDigest }))).resolves.toBe('version-1');
+    await expect(artifactExportOriginProps(content, version({
+      contentDigest,
+      origin: { entrySurface: 'open_design_ui' },
+    }))).resolves.toEqual({
+      entry_surface: 'open_design_ui',
+      artifact_origin_status: 'matched',
+      artifact_version_id: 'version-1',
+      origin_entry_surface: 'open_design_ui',
     });
   });
 

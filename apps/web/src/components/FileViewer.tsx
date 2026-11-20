@@ -7543,7 +7543,7 @@ function HtmlViewer({
     try {
       const result = await fetchProjectFileVersions(projectId, file.name);
       const currentVersion = result?.versions?.find((candidate) => candidate.current) ?? null;
-      return matchingArtifactVersionId(content, currentVersion);
+      return await matchingArtifactVersionId(content, currentVersion);
     } catch {
       // Provenance is fail-closed: inability to prove the parent must not
       // block a user edit, but it also must not inherit an origin.
