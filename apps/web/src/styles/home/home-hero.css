@@ -882,6 +882,13 @@
   max-height: none;
   overflow: visible;
 }
+/* The editor settles at about three lines only after Lexical mounts, so the
+   composer grew 48 -> 68 px around 1.3 s and pushed the hero title down
+   (CLS 0.23 measured 2026-11-20). Reserve the resting height on Home; the dock
+   keeps its bounded one-line composer. */
+.home-hero:not(.home-hero--dock) .home-hero__prompt-flow .composer-input-editor {
+  min-height: 68px;
+}
 /* Wrapped lines line up with the chip's icon, so the editor's whole content box
    shifts by that inset and the first line's indent is measured from there. */
 .home-hero__prompt-flow.is-chip-inline .composer-editable,
