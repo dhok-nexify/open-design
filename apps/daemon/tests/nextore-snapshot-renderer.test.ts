@@ -78,6 +78,22 @@ describe('snapshot renderer', () => {
     })).rejects.toMatchObject({ code: 'render_failed' });
   });
 
+  it('skips a snap wrapper script on PATH', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'od-snap-wrapper-'));
+    const wrapper = join(dir, process.platform === 'win32' ? 'chromium.cmd' : 'chromium');
+    await writeFile(wrapper, '#!/bin/sh\nexec snap run chromium "$@"\n', 'utf8');
+    const previous = process.env.PATH;
+    process.env.PATH = dir;
+    try {
+      // Any fallback (a real Chrome in the usual location, or null) is fine;
+      // the wrapper itself must never be chosen.
+      expect(resolveChromiumExecutable()).not.toBe(wrapper);
+    } finally {
+      process.env.PATH = previous;
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
   it('resolves an explicit existing binary and rejects a missing one', () => {
     expect(resolveChromiumExecutable(process.execPath)).toBe(process.execPath);
     expect(resolveChromiumExecutable('C:/definitely/not/here')).toBeNull();

@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { existsSync, realpathSync } from 'node:fs';
+import { existsSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import { mkdir, mkdtemp, open, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { delimiter, dirname, join, sep } from 'node:path';
@@ -78,7 +78,14 @@ const LINUX_LOCATIONS = [
  */
 function isSnapBinary(candidate: string): boolean {
   try {
-    return realpathSync(candidate).startsWith('/snap/');
+    if (realpathSync(candidate).startsWith('/snap/')) return true;
+    // Ubuntu's /usr/bin/chromium-browser is a small wrapper script that execs
+    // the snap, so its realpath is not under /snap/. Real browsers are large
+    // binaries; anything script-sized that mentions snap is the wrapper.
+    if (statSync(candidate).size < 64 * 1024) {
+      return /snap/i.test(readFileSync(candidate, 'latin1').slice(0, 4096));
+    }
+    return false;
   } catch {
     return candidate.startsWith('/snap/');
   }
@@ -105,6 +112,13 @@ function fromPath(name: string): string | null {
 export function resolveChromiumExecutable(explicit?: string | null): string | null {
   const configured = (explicit ?? process.env.OD_CHROMIUM_PATH ?? '').trim();
   if (configured) return existsSync(configured) ? configured : null;
+  // A real deb Chrome wins over PATH, because PATH on Ubuntu may only hold the
+  // snap wrapper.
+  if (process.platform === 'linux') {
+    for (const candidate of LINUX_LOCATIONS) {
+      if (existsSync(candidate) && !isSnapBinary(candidate)) return candidate;
+    }
+  }
   for (const name of BINARY_NAMES) {
     const found = fromPath(name);
     if (found) return found;
@@ -112,11 +126,6 @@ export function resolveChromiumExecutable(explicit?: string | null): string | nu
   if (process.platform === 'win32') {
     for (const candidate of WINDOWS_LOCATIONS) {
       if (existsSync(candidate)) return candidate;
-    }
-  }
-  if (process.platform === 'linux') {
-    for (const candidate of LINUX_LOCATIONS) {
-      if (existsSync(candidate) && !isSnapBinary(candidate)) return candidate;
     }
   }
   return null;
