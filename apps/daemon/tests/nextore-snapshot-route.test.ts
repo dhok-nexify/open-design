@@ -9,7 +9,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { NextoreArtifactRecord } from '@open-design/contracts';
 
 import { SnapshotRenderError } from '../src/nextore/artifacts/snapshot-renderer.js';
-import { registerNextoreSnapshotRoutes } from '../src/nextore/artifacts/snapshot-routes.js';
+import {
+  createSnapshotLimiter,
+  registerNextoreSnapshotRoutes,
+} from '../src/nextore/artifacts/snapshot-routes.js';
 import type { NextoreArtifactRuntime } from '../src/nextore/artifacts/runtime.js';
 
 let server: Server | null = null;
@@ -48,6 +51,8 @@ async function startApp(options: {
   record?: NextoreArtifactRecord | null;
   render?: () => Promise<{ path: string; bytes: number; workDir: string }>;
   deny?: boolean;
+  maxConcurrent?: number;
+  queueLimit?: number;
 } = {}): Promise<{ base: string; queueSnapshot: ReturnType<typeof vi.fn> }> {
   root = await mkdtemp(join(tmpdir(), 'od-snapshot-route-'));
   await writeFile(join(root, 'blog-post.html'), '<html>qa</html>', 'utf8');
@@ -74,6 +79,8 @@ async function startApp(options: {
       }
       return true;
     },
+    ...(options.maxConcurrent !== undefined ? { maxConcurrent: options.maxConcurrent } : {}),
+    ...(options.queueLimit !== undefined ? { queueLimit: options.queueLimit } : {}),
     render: options.render ?? (async () => {
       const workDir = await mkdtemp(join(tmpdir(), 'od-snapshot-out-'));
       const path = join(workDir, 'snapshot.pdf');
@@ -93,6 +100,41 @@ function post(base: string): Promise<globalThis.Response> {
     method: 'POST',
   });
 }
+
+describe('snapshot concurrency limiter', () => {
+  it('runs one render at a time and releases the next slot', async () => {
+    const limiter = createSnapshotLimiter(1, 2);
+    const order: string[] = [];
+    let release: (() => void) | null = null;
+
+    const first = limiter.run(async () => {
+      order.push('first:start');
+      await new Promise<void>((resolve) => { release = resolve; });
+      order.push('first:end');
+    });
+    const second = limiter.run(async () => {
+      order.push('second:start');
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(order).toEqual(['first:start']);
+    expect(limiter.waiting()).toBe(1);
+
+    release!();
+    await Promise.all([first, second]);
+    expect(order).toEqual(['first:start', 'first:end', 'second:start']);
+  });
+
+  it('rejects with the busy error once the queue is full', async () => {
+    const limiter = createSnapshotLimiter(1, 0);
+    let release: (() => void) | null = null;
+    const running = limiter.run(() => new Promise<void>((resolve) => { release = resolve; }));
+
+    await expect(limiter.run(async () => {})).rejects.toMatchObject({ name: 'SnapshotBusyError' });
+    release!();
+    await running;
+  });
+});
 
 describe('nextore snapshot route', () => {
   it('renders the source and queues a snapshot publish', async () => {
@@ -138,6 +180,27 @@ describe('nextore snapshot route', () => {
     expect(response.status).toBe(501);
     await expect(response.json()).resolves.toMatchObject({ error: 'chromium_missing' });
     expect(queueSnapshot).not.toHaveBeenCalled();
+  });
+
+  it('answers 429 when the render queue is full', async () => {
+    let release: (() => void) | null = null;
+    const { base } = await startApp({
+      maxConcurrent: 1,
+      queueLimit: 0,
+      render: () => new Promise((resolve) => {
+        release = () => resolve({ path: join(root!, 'blocked.pdf'), bytes: 0, workDir: join(root!, 'blocked') });
+      }),
+    });
+
+    const first = post(base);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    const second = await post(base);
+
+    expect(second.status).toBe(429);
+    await expect(second.json()).resolves.toMatchObject({ error: 'snapshot_busy' });
+
+    release!();
+    await first;
   });
 
   it('stops at the project authorizer', async () => {

@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { mkdtemp, open, rm, stat } from 'node:fs/promises';
+import { mkdir, mkdtemp, open, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { delimiter, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -37,7 +37,7 @@ export interface ChromiumRenderOptions {
   noSandbox?: boolean;
   log?: (message: string) => void;
   /** Test seam: replaces the child process with a stub. */
-  run?: (executable: string, args: string[], timeoutMs: number) => Promise<void>;
+  run?: (executable: string, args: string[], timeoutMs: number, env?: NodeJS.ProcessEnv) => Promise<void>;
 }
 
 export interface RenderedPdf {
@@ -90,9 +90,17 @@ export function resolveChromiumExecutable(explicit?: string | null): string | nu
   return null;
 }
 
-function runChromium(executable: string, args: string[], timeoutMs: number): Promise<void> {
+function runChromium(
+  executable: string,
+  args: string[],
+  timeoutMs: number,
+  env?: NodeJS.ProcessEnv,
+): Promise<void> {
   return new Promise((resolve, reject) => {
-    const child = spawn(executable, args, { stdio: ['ignore', 'ignore', 'pipe'] });
+    const child = spawn(executable, args, {
+      stdio: ['ignore', 'ignore', 'pipe'],
+      ...(env ? { env } : {}),
+    });
     let stderr = '';
     const timer = setTimeout(() => {
       child.kill('SIGKILL');
@@ -139,6 +147,12 @@ export async function renderHtmlToPdf(
   const workDir = await mkdtemp(join(tmpdir(), 'od-snapshot-'));
   const pdfPath = join(workDir, 'snapshot.pdf');
   const profileDir = join(workDir, 'profile');
+  // The Ubuntu snap build refuses to start without a private XDG runtime dir
+  // owned by the service user: "cannot create XDG_RUNTIME_DIR folder
+  // /run/user/998/snap.chromium". Giving each render its own 0700 directory
+  // keeps snap-confined Chromium working under systemd.
+  const xdgDir = join(workDir, 'xdg');
+  await mkdir(xdgDir, { recursive: true, mode: 0o700 }).catch(() => {});
   const args = [
     '--headless=new',
     '--disable-gpu',
@@ -156,7 +170,8 @@ export async function renderHtmlToPdf(
 
   try {
     const run = options.run ?? runChromium;
-    await run(executable, args, options.timeoutMs ?? 60_000);
+    const childEnv: NodeJS.ProcessEnv = { ...process.env, XDG_RUNTIME_DIR: xdgDir };
+    await run(executable, args, options.timeoutMs ?? 60_000, childEnv);
     const info = await stat(pdfPath).catch(() => null);
     if (!info || info.size === 0) {
       throw new SnapshotRenderError('render_empty', 'Chromium produced an empty PDF.');
