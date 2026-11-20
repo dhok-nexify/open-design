@@ -1409,6 +1409,52 @@ function buildBlobSafeSrcdoc(html: string, options?: SrcdocOptions): string {
   });
 }
 
+/**
+ * Show a small, dismissible action for a print view whose popup the browser
+ * blocked. The URL stays alive until the action is used or dismissed.
+ */
+function showManualPrintAction(url: string): void {
+  if (typeof document === 'undefined' || !document.body) return;
+  document.getElementById('od-print-fallback')?.remove();
+  const host = document.createElement('div');
+  host.id = 'od-print-fallback';
+  host.setAttribute('role', 'alertdialog');
+  host.style.cssText = [
+    'position:fixed', 'right:24px', 'bottom:24px', 'z-index:2147483000',
+    'max-width:360px', 'padding:16px 18px', 'border-radius:12px',
+    'background:#1f2933', 'color:#ffffff', 'font-size:14px', 'line-height:1.5',
+    'box-shadow:0 12px 32px rgba(0,0,0,.28)',
+  ].join(';');
+  const message = document.createElement('p');
+  message.style.cssText = 'margin:0 0 12px;';
+  message.textContent = 'Your browser blocked the print view. Open it with the button below (choose "Save as PDF" there).';
+  const open = document.createElement('button');
+  open.type = 'button';
+  open.textContent = 'Open print view';
+  open.style.cssText = [
+    'margin-right:8px', 'padding:8px 14px', 'border:0', 'border-radius:8px',
+    'background:#ffffff', 'color:#1f2933', 'font-weight:600', 'cursor:pointer',
+  ].join(';');
+  open.addEventListener('click', () => {
+    host.remove();
+    window.open(url, '_blank');
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  });
+  const dismiss = document.createElement('button');
+  dismiss.type = 'button';
+  dismiss.textContent = 'Dismiss';
+  dismiss.style.cssText = [
+    'padding:8px 12px', 'border:1px solid rgba(255,255,255,.4)', 'border-radius:8px',
+    'background:transparent', 'color:#ffffff', 'cursor:pointer',
+  ].join(';');
+  dismiss.addEventListener('click', () => {
+    host.remove();
+    URL.revokeObjectURL(url);
+  });
+  host.append(message, open, dismiss);
+  document.body.appendChild(host);
+}
+
 export function openSandboxedPreviewInNewTab(
   html: string,
   title: string,
@@ -1506,10 +1552,10 @@ export async function exportAsPdf(
   const win = window.open('', '_blank');
 
   if (!win) {
-    if (typeof alert !== 'undefined') {
-      alert('Popup blocked! Click the popup-blocked icon in your browser address bar (or browser menu), choose "Always allow pop-ups" for this site, then retry Export PDF.');
-    }
-    URL.revokeObjectURL(url);
+    // The popup ran after an async capture, so the browser is right to block
+    // it. Hand the user a real button instead of an alert with no action: a
+    // click is a fresh user gesture and the popup is allowed.
+    showManualPrintAction(url);
     return;
   }
 
