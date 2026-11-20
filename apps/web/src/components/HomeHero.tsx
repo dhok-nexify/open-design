@@ -2571,7 +2571,24 @@ export const HomeHero = forwardRef<HomeHeroHandle, Props>(function HomeHero(
 
       {isDock ? null : recommendationSlot}
 
-      {isDock ? null : examplePluginPresets.length > 0 && activeChipId ? (
+      {/* While the plugin list loads there is no row at all, and the home column
+          re-centers the moment 320 px of presets appear (CLS 0.16 cold,
+          2026-11-20). Reserve the four-row viewport the real list caps at so
+          the composer and title never move; the placeholder is inert and
+          hidden from assistive tech. */}
+      {!isDock && pluginsLoading && activeChipId ? (
+        <div
+          className="home-hero__prompt-examples home-hero__plugin-presets-wrap"
+          data-testid="home-hero-plugin-presets-loading"
+          aria-hidden="true"
+        >
+          <div className="home-hero__plugin-presets">
+            {[0, 1, 2, 3].map((key) => (
+              <div key={key} className="home-hero__plugin-preset-skeleton" />
+            ))}
+          </div>
+        </div>
+      ) : isDock ? null : examplePluginPresets.length > 0 && activeChipId ? (
         <PluginPromptPresets
           chipId={activeChipId}
           plugins={examplePluginPresets}

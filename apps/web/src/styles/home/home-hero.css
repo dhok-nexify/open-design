@@ -3171,6 +3171,18 @@
   /* No visible scrollbar — wheel/trackpad covers it, as on the rail before. */
   scrollbar-width: none;
 }
+/* P05/CLS: the real list caps at four rows (see --preset-row-h above). While
+   it loads, these inert placeholders hold that exact viewport so the centered
+   home column does not re-anchor when the presets land (CLS 0.16 cold,
+   2026-11-20). */
+.home-hero__plugin-preset-skeleton {
+  flex: 0 0 var(--preset-row-h);
+  height: var(--preset-row-h);
+  margin: 0;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--text-strong) 6%, transparent);
+  pointer-events: none;
+}
 .home-hero__plugin-preset-row {
   appearance: none;
   display: flex;
