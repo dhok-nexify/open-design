@@ -12,7 +12,8 @@ import {
 import nodePath from 'node:path';
 import os from 'node:os';
 import { readFile, rm } from 'node:fs/promises';
-import { pipeline, type Readable } from 'node:stream';
+import { pipeline } from 'node:stream/promises';
+import type { Readable } from 'node:stream';
 import { createReadStream } from 'node:fs';
 import {
   SnapshotRenderError,
