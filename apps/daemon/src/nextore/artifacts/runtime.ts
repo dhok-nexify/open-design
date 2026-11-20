@@ -443,6 +443,42 @@ export class NextoreArtifactRuntime {
     return getNextoreArtifact(this.deps.db, projectId, artifactId, representation);
   }
 
+  /**
+   * Queue a rendered snapshot for publication. The renderer runs in the route
+   * (it is slow IO); the runtime only owns the durable queue row and the drain.
+   */
+  queueSnapshot(input: {
+    projectId: string;
+    artifactId: string;
+    memberId: number;
+    relativePath: string;
+    sourcePath: string;
+    name: string;
+    mimeType: string;
+  }): void {
+    const now = this.deps.now ?? Date.now;
+    enqueueNextorePublish(this.deps.db, {
+      projectId: input.projectId,
+      artifactId: input.artifactId,
+      representation: 'snapshot',
+      memberId: input.memberId,
+      runId: null,
+      tier: null,
+      relativePath: input.relativePath,
+      sourcePath: input.sourcePath,
+      name: input.name,
+      mimeType: input.mimeType,
+      reason: 'snapshot-request',
+      now: now(),
+    });
+    void this.wake();
+  }
+
+  /** Absolute project root, or null when the project folder is gone. */
+  projectRoot(projectId: string): string | null {
+    return this.deps.resolveProjectRoot?.(projectId) ?? null;
+  }
+
   /** NexTore project folder id for a local project, or null when unmapped. */
   nextoreProjectId(projectId: string): string | null {
     return this.deps.readProjectMapping?.(projectId) ?? null;

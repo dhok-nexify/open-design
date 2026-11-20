@@ -437,6 +437,7 @@ import { resolveNextoreArtifactAuthorityMode } from './nextore/artifacts/feature
 import { registerNextoreArtifactRoutes } from './nextore/artifacts/routes.js';
 import { registerNextoreArtifactDownloadRoutes } from './nextore/artifacts/download-routes.js';
 import { registerNextoreArtifactShareRoutes } from './nextore/artifacts/share-routes.js';
+import { registerNextoreSnapshotRoutes } from './nextore/artifacts/snapshot-routes.js';
 import { registerNextoreBackfillRoutes } from './nextore/artifacts/backfill-routes.js';
 import { registerCliAuthRoutes } from './nextore/auth/cli-auth-routes.js';
 import { resolveMemberAccessToken } from './nextore/artifacts/session-access.js';
@@ -9541,6 +9542,10 @@ export async function startServer({
     registerNextoreArtifactShareRoutes(app, {
       runtime: nextoreArtifactRuntime,
       client: nextoreClient,
+      authorizeProject: authorizeProjectRequest,
+    });
+    registerNextoreSnapshotRoutes(app, {
+      runtime: nextoreArtifactRuntime,
       authorizeProject: authorizeProjectRequest,
     });
     registerNextoreBackfillRoutes(app, {

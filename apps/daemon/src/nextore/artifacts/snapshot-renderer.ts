@@ -150,7 +150,7 @@ export async function renderHtmlToPdf(
     '--allow-file-access-from-files',
     '--virtual-time-budget=5000',
     '--print-to-pdf=' + pdfPath,
-    ...(options.noSandbox ? ['--no-sandbox'] : []),
+    ...((options.noSandbox ?? process.env.OD_CHROMIUM_NO_SANDBOX === '1') ? ['--no-sandbox'] : []),
     pathToFileURL(htmlPath).href,
   ];
 
