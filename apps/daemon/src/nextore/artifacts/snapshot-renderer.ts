@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, realpathSync } from 'node:fs';
 import { mkdir, mkdtemp, open, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { delimiter, join } from 'node:path';
@@ -57,6 +57,29 @@ const BINARY_NAMES = [
   'msedge',
 ];
 
+/** Paths tried on Linux when nothing usable is on PATH (snap builds excluded). */
+const LINUX_LOCATIONS = [
+  '/usr/bin/google-chrome-stable',
+  '/usr/bin/google-chrome',
+  '/opt/google/chrome/chrome',
+  '/usr/bin/chromium',
+  '/usr/bin/chromium-browser',
+];
+
+/**
+ * The Ubuntu snap build cannot start under systemd ("cannot create
+ * XDG_RUNTIME_DIR folder /run/user/<uid>/snap.chromium"), so it is never
+ * chosen automatically - only through OD_CHROMIUM_PATH when an operator
+ * insists.
+ */
+function isSnapBinary(candidate: string): boolean {
+  try {
+    return realpathSync(candidate).startsWith('/snap/');
+  } catch {
+    return candidate.startsWith('/snap/');
+  }
+}
+
 const WINDOWS_LOCATIONS = [
   'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
   'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
@@ -69,7 +92,7 @@ function fromPath(name: string): string | null {
   for (const dir of pathValue.split(delimiter)) {
     if (!dir) continue;
     const candidate = join(dir, name);
-    if (existsSync(candidate)) return candidate;
+    if (existsSync(candidate) && !isSnapBinary(candidate)) return candidate;
   }
   return null;
 }
@@ -85,6 +108,11 @@ export function resolveChromiumExecutable(explicit?: string | null): string | nu
   if (process.platform === 'win32') {
     for (const candidate of WINDOWS_LOCATIONS) {
       if (existsSync(candidate)) return candidate;
+    }
+  }
+  if (process.platform === 'linux') {
+    for (const candidate of LINUX_LOCATIONS) {
+      if (existsSync(candidate) && !isSnapBinary(candidate)) return candidate;
     }
   }
   return null;
