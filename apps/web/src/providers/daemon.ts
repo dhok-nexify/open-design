@@ -1646,24 +1646,47 @@ export async function steerChatRun(
   return { ok: true, messageId: body?.messageId ?? '' };
 }
 
-export async function listActiveChatRuns(
+/**
+ * Identity component of a run-read cache key. Workspace-bound reads answer
+ * differently per workspace/member, so a coalesced result must never cross
+ * that boundary; headerless local reads share a single "local" scope.
+ */
+function runReadScopeKey(workspaceContext?: WorkspaceCollabContext | null): string {
+  if (!workspaceContext) return 'local';
+  return workspaceContext.workspaceId + ':' + workspaceContext.workspaceMemberId;
+}
+
+async function readActiveChatRuns(
   projectId: string,
   conversationId: string,
   workspaceContext?: WorkspaceCollabContext | null,
 ): Promise<ChatRunStatusResponse[]> {
-  try {
-    const qs = new URLSearchParams({ projectId, conversationId, status: 'active' });
-    const resp = await fetch(`/api/runs?${qs.toString()}`, {
-      ...(workspaceContext
-        ? { headers: workspaceProjectHeaders(workspaceContext) }
-        : {}),
-    });
-    if (!resp.ok) return [];
-    const body = (await resp.json()) as ChatRunListResponse;
-    return body.runs ?? [];
-  } catch {
-    return [];
-  }
+  const qs = new URLSearchParams({ projectId, conversationId, status: 'active' });
+  const resp = await fetch(`/api/runs?${qs.toString()}`, {
+    // Background reattach backstop: never compete with the user's own reads.
+    priority: 'low',
+    ...(workspaceContext
+      ? { headers: workspaceProjectHeaders(workspaceContext) }
+      : {}),
+  });
+  if (!resp.ok) return [];
+  const body = (await resp.json()) as ChatRunListResponse;
+  return body.runs ?? [];
+}
+
+/**
+ * Coalesced wrapper: every mounted workspace surface that asks about the same
+ * project/conversation shares one in-flight request and a short settled window,
+ * so a mount burst costs one read instead of one per caller.
+ */
+export function listActiveChatRuns(
+  projectId: string,
+  conversationId: string,
+  workspaceContext?: WorkspaceCollabContext | null,
+): Promise<ChatRunStatusResponse[]> {
+  const key = 'runs:active:' + runReadScopeKey(workspaceContext) + ':' + projectId + ':' + conversationId;
+  return coalescedGet(key, () => readActiveChatRuns(projectId, conversationId, workspaceContext))
+    .catch(() => [] as ChatRunStatusResponse[]);
 }
 
 export async function listProjectRuns(
@@ -1681,17 +1704,17 @@ export async function listProjectRuns(
  * so interval pollers must stop instead of repeating the same failed request
  * (each one was also captured as a diagnostic incident).
  */
-export async function listProjectRunsWithScope(
+async function readProjectRunsWithScope(
   workspaceContext?: WorkspaceCollabContext | null,
   projectId?: string,
 ): Promise<{ runs: ChatRunStatusResponse[]; scopeRequired: boolean }> {
-  try {
     // The NexTore edition authorizes runs per project and rejects an
     // unscoped list, so callers that already know the project pass it here.
     const query = typeof projectId === 'string' && projectId
       ? '?' + new URLSearchParams({ projectId }).toString()
       : '';
     const resp = await fetch('/api/runs' + query, {
+      priority: 'low',
       ...(workspaceContext
         ? { headers: workspaceProjectHeaders(workspaceContext) }
         : {}),
@@ -1707,9 +1730,6 @@ export async function listProjectRunsWithScope(
     }
     const body = (await resp.json()) as ChatRunListResponse;
     return { runs: body.runs ?? [], scopeRequired: false };
-  } catch {
-    return { runs: [], scopeRequired: false };
-  }
 }
 
 /**
@@ -1750,7 +1770,21 @@ function refusalReason(status: number): 'forbidden' | 'not_found' | 'unavailable
   return 'unavailable';
 }
 
-export async function listRunsForProject(
+/**
+ * Coalesced wrapper for the scoped list read. The daemon's
+ * PROJECT_SCOPE_REQUIRED answer is deterministic, so sharing it briefly is
+ * strictly cheaper than re-asking from every mounted caller.
+ */
+export function listProjectRunsWithScope(
+  workspaceContext?: WorkspaceCollabContext | null,
+  projectId?: string,
+): Promise<{ runs: ChatRunStatusResponse[]; scopeRequired: boolean }> {
+  const key = 'runs:list:' + runReadScopeKey(workspaceContext) + ':' + (projectId ?? '*');
+  return coalescedGet(key, () => readProjectRunsWithScope(workspaceContext, projectId))
+    .catch(() => ({ runs: [], scopeRequired: false }));
+}
+
+async function readRunsForProject(
   projectId: string,
   workspaceContext?: WorkspaceCollabContext | null,
 ): Promise<ProjectRunsRead> {
@@ -1777,6 +1811,14 @@ export async function listRunsForProject(
   } catch {
     return { ok: false, reason: 'unavailable' };
   }
+}
+
+export function listRunsForProject(
+  projectId: string,
+  workspaceContext?: WorkspaceCollabContext | null,
+): Promise<ProjectRunsRead> {
+  const key = 'runs:for-project:' + runReadScopeKey(workspaceContext) + ':' + projectId;
+  return coalescedGet(key, () => readRunsForProject(projectId, workspaceContext));
 }
 
 /**
