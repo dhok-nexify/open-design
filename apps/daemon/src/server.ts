@@ -10299,6 +10299,7 @@ export async function startServer({
   }
   registerProjectExportRoutes(app, {
     db,
+    vendorDir: VENDOR_DIR,
     http: httpDeps,
     paths: pathDeps,
     node: nodeDeps,

@@ -309,6 +309,60 @@ describe('bundleStandaloneHtml', () => {
     expect(result.html).toContain('rel="modulepreload" href="data:text/javascript;base64,');
   });
 
+  it('inlines /vendor assets through the vendor reader without treating them as project files', async () => {
+    const projectReads: string[] = [];
+    const vendorReads: string[] = [];
+    const result = await bundleStandaloneHtml({
+      entryPath: 'index.html',
+      html: `<!doctype html><html><head>
+        <link rel="stylesheet" href="/vendor/fonts@1.0.0/fonts.css">
+      </head><body><img src="vendor/local.png"></body></html>`,
+      readAsset: async (projectPath) => {
+        projectReads.push(projectPath);
+        if (projectPath !== 'vendor/local.png') return null;
+        const buffer = Buffer.from('local project asset');
+        return { buffer, mime: 'image/png', size: buffer.length };
+      },
+      readVendorAsset: async (vendorPath) => {
+        vendorReads.push(vendorPath);
+        if (vendorPath === 'fonts@1.0.0/fonts.css') {
+          const buffer = Buffer.from(`@font-face { font-family: Demo; src: url('./demo.woff2'); }`);
+          return { buffer, mime: 'text/css; charset=utf-8', size: buffer.length };
+        }
+        if (vendorPath === 'fonts@1.0.0/demo.woff2') {
+          const buffer = Buffer.from([1, 2, 3, 4]);
+          return { buffer, mime: 'font/woff2', size: buffer.length };
+        }
+        return null;
+      },
+    });
+
+    expect(vendorReads).toEqual(['fonts@1.0.0/fonts.css', 'fonts@1.0.0/demo.woff2']);
+    expect(projectReads).toEqual(['vendor/local.png']);
+    expect(result.externalDependencies).toEqual([]);
+    expect(result.html).toContain('data-od-inline-asset="/vendor/fonts@1.0.0/fonts.css"');
+    expect(result.html).toContain('data:font/woff2;base64,');
+    expect(result.html).not.toContain('href="/vendor/fonts@1.0.0/fonts.css"');
+    expect(result.html).not.toContain("url('./demo.woff2')");
+  });
+
+  it('rejects /vendor traversal before reading any vendor asset', async () => {
+    let vendorReads = 0;
+    await expect(bundleStandaloneHtml({
+      entryPath: 'index.html',
+      html: '<link rel="stylesheet" href="/vendor/%2e%2e/package.json">',
+      readAsset: async () => null,
+      readVendorAsset: async () => {
+        vendorReads += 1;
+        return null;
+      },
+    })).rejects.toMatchObject({
+      name: 'StandaloneHtmlExportError',
+      kind: 'invalid-source',
+    });
+    expect(vendorReads).toBe(0);
+  });
+
   it('leaves remote dependencies untouched and lists them in the document', async () => {
     const result = await bundleStandaloneHtml({
       entryPath: 'index.html',

@@ -828,6 +828,12 @@ describe('POST /api/projects/:id/export/html route', () => {
       path.join(root, 'pages', 'vite-dist-read-error.html'),
       '<!doctype html><script type="module" src="/src/main.tsx"></script>',
     );
+    await writeFile(
+      path.join(root, 'pages', 'vendor.html'),
+      '<!doctype html><html><head>' +
+        '<link rel="stylesheet" href="/vendor/fonts@1.0.0/fonts.css">' +
+        '</head><body>Vendor asset export</body></html>',
+    );
   });
 
   afterAll(() => new Promise<void>((resolve) => server.close(() => resolve())));
@@ -859,6 +865,17 @@ describe('POST /api/projects/:id/export/html route', () => {
     expect(html).not.toContain('../assets/bg.svg');
     expect(html).not.toContain('../assets/font.woff2');
     expect(html).not.toContain('../scripts/main.js');
+  });
+
+  it('inlines manifest-approved /vendor assets instead of reporting a missing project file', async () => {
+    const response = await postExport({ fileName: 'pages/vendor.html' });
+    const html = await response.text();
+    expect(response.status, html).toBe(200);
+    expect(response.headers.get('x-open-design-external-dependencies')).toBe('0');
+    expect(html).toContain('data-od-inline-asset="/vendor/fonts@1.0.0/fonts.css"');
+    expect(html).toContain('@font-face');
+    expect(html).not.toContain('href="/vendor/fonts@1.0.0/fonts.css"');
+    expect(html).not.toContain('@od-vendor/');
   });
 
   it('returns a structured dependency chain instead of a successful broken file', async () => {

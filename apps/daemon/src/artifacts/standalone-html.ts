@@ -46,10 +46,16 @@ export interface StandaloneAssetReader {
   (projectPath: string): Promise<StandaloneAssetHandle | null>;
 }
 
+export interface StandaloneVendorAssetReader {
+  (vendorPath: string): Promise<StandaloneAssetHandle | null>;
+}
+
 export interface StandaloneHtmlOptions {
   entryPath: string;
   html: string;
   readAsset: StandaloneAssetReader;
+  /** Resolves a manifest-approved path relative to the daemon /vendor root. */
+  readVendorAsset?: StandaloneVendorAssetReader;
   limits?: Partial<StandaloneHtmlLimits>;
 }
 
@@ -88,6 +94,10 @@ const DEFAULT_LIMITS: StandaloneHtmlLimits = {
 
 const TEXT_JAVASCRIPT_MIME = 'text/javascript';
 const PROJECT_MODULE_PREFIX = 'od-project:/';
+// Virtual, reserved project-path namespace used only while bundling /vendor assets. A real
+// project cannot reference it: normalizeProjectPath rejects the prefix.
+const VENDOR_ASSET_KEY_PREFIX = '@od-vendor/';
+const VENDOR_URL_PREFIX = '/vendor/';
 const IMPORT_RE = /^\s*(?:url\(\s*)?(?:(['"])(.*?)\1|([^\s)'";]+))\s*\)?([\s\S]*)$/u;
 const EMBEDDABLE_LINK_RELATIONS = new Set([
   'apple-touch-icon',
@@ -117,7 +127,12 @@ export async function bundleStandaloneHtml(options: StandaloneHtmlOptions): Prom
     );
   }
 
-  const bundler = new StandaloneBundler(options.readAsset, limits, entryBytes);
+  const bundler = new StandaloneBundler(
+    options.readAsset,
+    options.readVendorAsset,
+    limits,
+    entryBytes,
+  );
   let html = await bundler.bundleDocument(options.html, entryPath, [entryPath]);
   html = bundler.injectExternalDependencyManifest(html, [entryPath]);
   const outputBytes = Buffer.byteLength(html, 'utf8');
@@ -142,6 +157,7 @@ class StandaloneBundler {
 
   constructor(
     private readonly readAsset: StandaloneAssetReader,
+    private readonly readVendorAsset: StandaloneVendorAssetReader | undefined,
     private readonly limits: StandaloneHtmlLimits,
     entryBytes: number,
   ) {
@@ -822,6 +838,26 @@ class StandaloneBundler {
         chain,
       );
     }
+    if (decoded.startsWith(VENDOR_URL_PREFIX)) {
+      const vendorPath = normalizeVendorAssetPath(
+        decoded.slice(VENDOR_URL_PREFIX.length),
+        chain,
+      );
+      return { kind: 'local', value: { projectPath: vendorAssetKey(vendorPath), fragment } };
+    }
+    if (isVendorAssetPath(ownerPath) && !pathname.startsWith('/')) {
+      const vendorJoined = path.posix.join(
+        path.posix.dirname(vendorAssetPath(ownerPath)),
+        decoded,
+      );
+      return {
+        kind: 'local',
+        value: {
+          projectPath: vendorAssetKey(normalizeVendorAssetPath(vendorJoined, chain)),
+          fragment,
+        },
+      };
+    }
     const joined = pathname.startsWith('/')
       ? decoded.replace(/^\/+/, '')
       : path.posix.join(path.posix.dirname(ownerPath), decoded);
@@ -837,7 +873,9 @@ class StandaloneBundler {
     }
     this.countedPaths.add(projectPath);
     const pending = (async () => {
-      const handle = await this.readAsset(projectPath);
+      const handle = isVendorAssetPath(projectPath)
+        ? await this.readVendorAsset?.(vendorAssetPath(projectPath)) ?? null
+        : await this.readAsset(projectPath);
       if (!handle) {
         throw new StandaloneHtmlExportError(
           `Missing local dependency: ${chain.join(' -> ')}`,
@@ -895,6 +933,14 @@ function countLegacyFirstLevelCandidates(html: string): number {
 function normalizeProjectBasePath(value: string, chain: string[]): string {
   const normalized = path.posix.normalize(value.replace(/\\/gu, '/')).replace(/^\.\//u, '');
   if (normalized === '.' || normalized === '') return '';
+  if (normalized.startsWith(VENDOR_ASSET_KEY_PREFIX)) {
+    throw new StandaloneHtmlExportError(
+      `Document base path uses the reserved vendor namespace: ${value}`,
+      'invalid-source',
+      value,
+      chain,
+    );
+  }
   if (normalized === '..' || normalized.startsWith('../') || path.posix.isAbsolute(normalized)) {
     throw new StandaloneHtmlExportError(
       `Document base path escapes the project root: ${value}`,
@@ -912,6 +958,47 @@ function normalizeProjectPath(value: string, chain: string[]): string {
     throw new StandaloneHtmlExportError(
       `Dependency path escapes the project root: ${value}`,
       'path-outside-project',
+      value,
+      chain,
+    );
+  }
+  if (normalized.startsWith(VENDOR_ASSET_KEY_PREFIX)) {
+    throw new StandaloneHtmlExportError(
+      `Dependency path uses the reserved vendor namespace: ${value}`,
+      'invalid-source',
+      value,
+      chain,
+    );
+  }
+  return normalized;
+}
+
+function isVendorAssetPath(projectPath: string): boolean {
+  return projectPath.startsWith(VENDOR_ASSET_KEY_PREFIX);
+}
+
+function vendorAssetPath(projectPath: string): string {
+  return projectPath.slice(VENDOR_ASSET_KEY_PREFIX.length);
+}
+
+function vendorAssetKey(vendorPath: string): string {
+  return VENDOR_ASSET_KEY_PREFIX + vendorPath;
+}
+
+function normalizeVendorAssetPath(value: string, chain: string[]): string {
+  const normalized = path.posix.normalize(value.replace(/\\/gu, '/')).replace(/^\.\//u, '');
+  if (
+    !normalized
+    || normalized === '.'
+    || normalized === '..'
+    || normalized.startsWith('../')
+    || path.posix.isAbsolute(normalized)
+    || normalized.includes('\0')
+    || normalized.split('/').some((segment) => !segment || segment === '.' || segment === '..')
+  ) {
+    throw new StandaloneHtmlExportError(
+      `Vendor dependency path escapes the vendor root: ${value}`,
+      'invalid-source',
       value,
       chain,
     );

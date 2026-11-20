@@ -43,6 +43,7 @@ import {
   StandaloneHtmlExportError,
   bundleStandaloneHtml,
   type StandaloneAssetReader,
+  type StandaloneVendorAssetReader,
 } from './artifacts/standalone-html.js';
 import {
   buildDeckRenderInput,
@@ -53,6 +54,7 @@ import {
   type BuildDeckRenderInputOptions,
 } from './deck-export.js';
 import { readProjectFileVersion } from './project-file-versions.js';
+import { resolveVendorRequest, verifyVendorAsset } from './vendor/serve.js';
 import { authorizeReasoningEgress, sendReasoningEgressDenial } from './reasoning-egress.js';
 import { sandboxImportedProjectRootUnavailableReason } from './sandbox-mode.js';
 import { parseOrchestratorWorkspace } from './workspace-contract.js';
@@ -650,7 +652,26 @@ type ScreenshotExportRequest = {
   readonly body: ScreenshotExportBody | null | undefined;
 };
 
+function createVendorAssetReader(vendorDir: string): StandaloneVendorAssetReader {
+  return async (vendorPath) => {
+    const resolved = resolveVendorRequest(vendorDir, vendorPath);
+    if (resolved.status !== 200 || !resolved.asset || !resolved.absolutePath) {
+      return null;
+    }
+    if (!verifyVendorAsset(resolved.absolutePath, resolved.asset)) {
+      throw new Error(`Vendor asset integrity check failed: /vendor/${vendorPath}`);
+    }
+    return {
+      mime: resolved.asset.contentType,
+      size: resolved.asset.bytes,
+      read: async () => readFile(resolved.absolutePath!),
+    };
+  };
+}
+
 export interface RegisterProjectExportRoutesDeps extends RouteDeps<'db' | 'http' | 'paths' | 'node' | 'ids' | 'projectStore' | 'exports' | 'projectFiles' | 'validation' | 'auth' | 'projectPreviewScopes'> {
+  /** Root of the manifest-approved /vendor assets copied with the daemon. */
+  vendorDir?: string;
   authorizeProjectRequest: AuthorizeProjectRequest;
   authorizeProjectToolRequest: AuthorizeProjectToolRequest;
   resolveAccountScopedTeamExportMember?: (workspaceId: string) => Promise<string | null>;
@@ -972,6 +993,9 @@ export function registerProjectExportRoutes(app: Express, ctx: RegisterProjectEx
         entryPath: exportSource.relPath,
         html: exportSource.html,
         readAsset: assetReader,
+        ...(ctx.vendorDir
+          ? { readVendorAsset: createVendorAssetReader(ctx.vendorDir) }
+          : {}),
       });
 
       const titleBase = typeof body?.title === 'string' && body.title.trim()
