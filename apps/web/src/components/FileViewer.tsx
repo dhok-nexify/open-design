@@ -16159,7 +16159,10 @@ function HtmlViewer({
     // reports; otherwise (Copy screenshot, Mark/Draw capture) it grabs the
     // CURRENT slide, mirroring what's on screen. An ordinary page is its
     // full-page capture either way.
-    if (isOpenDesignHostAvailable() && projectId && file.name) {
+    // Not gated on the desktop host any more: a headless daemon renders the
+    // whole page (PNG/JPEG/WebP) through Chrome, and answers 501 when it has no
+    // renderer, in which case the visible-viewport capture below still runs.
+    if (projectId && file.name) {
       // Deck-vs-page uses the same signal as PDF export — broader than the viewer's nav
       // signal — so runtime-managed decks (`<deck-stage>` / `data-screen-label`,
       // no literal `.slide`) export as a deck instead of a single page-mode shot
@@ -17933,6 +17936,15 @@ function HtmlViewer({
                     aria-label={t('fileViewer.unifiedExportTab')}
                     disabled={viewerOnly}
                     title={viewerOnly ? viewerOnlyDisabledTitle : undefined}
+                    /*
+                     * The unified popover anchors to whichever button carries
+                     * this id. Only the Share button carried it, so in the
+                     * NexTore edition — where cloud share is hidden — the Export
+                     * menu found no anchor and AnchoredMenuShell rendered
+                     * nothing: the button looked dead. Export takes over the
+                     * anchor exactly when Share is not rendered.
+                     */
+                    data-artifact-anchor={artifactCloudShareAvailable ? undefined : toolbarMenuAnchorId}
                     onClick={openDownloadMenu}
                   >
                     <RemixIcon name="download-line" size={15} />
