@@ -1895,6 +1895,11 @@
 .home-hero__workdir-row {
   width: 100%;
   max-width: 720px;
+  /* The picker only mounts once the host hands down `onPickWorkingDir`, which
+     arrives after bootstrap. Reserving its 34px trigger height keeps the
+     composer from growing (and the title from being pushed down) when it lands:
+     measured CLS 0.11-0.22, cluster 5.0-6.6 s, 2026-11-20. */
+  min-height: 34px;
   /* Mirrors the input card's inner inset (16px) so the 工作目录 trigger's box
      lines up with the attach button directly above it — this row sits on the
      tray, one level out from that card, so it has to restate the number. */
