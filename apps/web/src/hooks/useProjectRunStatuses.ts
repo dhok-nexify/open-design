@@ -46,7 +46,7 @@ import {
  * caused feel immediate; the poll catches runs started elsewhere (the CLI,
  * another window). One timer for every subscribed surface together.
  */
-const POLL_MS = 4000;
+const POLL_MS = 10_000;
 
 const EMPTY_SUMMARIES: ReadonlyMap<string, ProjectRunSummary> = new Map();
 const EMPTY_STATUSES: ReadonlyMap<string, ProjectDisplayStatus> = new Map();
@@ -191,12 +191,38 @@ function refreshAll(): void {
   refresh(union, contextForSubscribed);
 }
 
+let listeningForVisibility = false;
+
+function startPollTimer(): void {
+  // A hidden tab cannot show a status, so its backstop poll is pure server
+  // load. Resume with an immediate refresh when the tab comes back.
+  if (pollTimer === null && document.visibilityState !== 'hidden') {
+    pollTimer = setInterval(refreshAll, POLL_MS);
+  }
+}
+
+function handleVisibilityChange(): void {
+  if (document.visibilityState === 'hidden') {
+    if (pollTimer !== null) {
+      clearInterval(pollTimer);
+      pollTimer = null;
+    }
+    return;
+  }
+  refreshAll();
+  startPollTimer();
+}
+
 function startFeed(): void {
   if (typeof window === 'undefined') return;
-  if (pollTimer === null) pollTimer = setInterval(refreshAll, POLL_MS);
+  startPollTimer();
   if (!listeningForRunsChanged) {
     window.addEventListener(RUNS_CHANGED_EVENT, refreshAll);
     listeningForRunsChanged = true;
+  }
+  if (!listeningForVisibility) {
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    listeningForVisibility = true;
   }
 }
 
@@ -208,6 +234,10 @@ function stopFeed(): void {
   if (listeningForRunsChanged) {
     window.removeEventListener(RUNS_CHANGED_EVENT, refreshAll);
     listeningForRunsChanged = false;
+  }
+  if (listeningForVisibility) {
+    document.removeEventListener('visibilitychange', handleVisibilityChange);
+    listeningForVisibility = false;
   }
 }
 

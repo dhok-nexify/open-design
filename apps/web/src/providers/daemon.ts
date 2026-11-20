@@ -67,7 +67,7 @@ function isRunCancelOrigin(value: unknown): value is RunCancelOrigin {
 import { workspaceProjectHeaders } from '../state/projects';
 import { setRuntimeAmrConsoleOrigin } from '../runtime/amr-guidance';
 import { canRetainSuccessfulRunForBlockedStrategy } from '../runtime/blocked-strategy-result';
-import { coalescedGet } from '../lib/coalesced-get';
+import { coalescedGet, evictCoalescedGet } from '../lib/coalesced-get';
 import { currentWorkspaceAccountGeneration } from '../collab/workspace-identity';
 
 /**
@@ -704,6 +704,18 @@ export function createStrategyTaskBlockedError(
   const reasonCode = strategyTask.blockedContext?.reasonCodes[0]?.trim();
   if (reasonCode) error.code = reasonCode;
   return error;
+}
+
+/** Cache keys owned by the run-list reads, invalidated on every run change. */
+const runReadKeys = new Set<string>();
+
+// The event is the freshness contract for run status, and it can be dispatched
+// from anywhere (this module, components, tests). Listen once at the source so
+// a coalescing window can never answer a change with the pre-change snapshot.
+if (typeof window !== 'undefined') {
+  window.addEventListener(RUNS_CHANGED_EVENT, () => {
+    for (const key of runReadKeys) evictCoalescedGet(key);
+  });
 }
 
 function notifyRunsChanged() {
@@ -1685,6 +1697,7 @@ export function listActiveChatRuns(
   workspaceContext?: WorkspaceCollabContext | null,
 ): Promise<ChatRunStatusResponse[]> {
   const key = 'runs:active:' + runReadScopeKey(workspaceContext) + ':' + projectId + ':' + conversationId;
+  runReadKeys.add(key);
   return coalescedGet(key, () => readActiveChatRuns(projectId, conversationId, workspaceContext))
     .catch(() => [] as ChatRunStatusResponse[]);
 }
@@ -1780,6 +1793,7 @@ export function listProjectRunsWithScope(
   projectId?: string,
 ): Promise<{ runs: ChatRunStatusResponse[]; scopeRequired: boolean }> {
   const key = 'runs:list:' + runReadScopeKey(workspaceContext) + ':' + (projectId ?? '*');
+  runReadKeys.add(key);
   return coalescedGet(key, () => readProjectRunsWithScope(workspaceContext, projectId))
     .catch(() => ({ runs: [], scopeRequired: false }));
 }
@@ -1818,6 +1832,7 @@ export function listRunsForProject(
   workspaceContext?: WorkspaceCollabContext | null,
 ): Promise<ProjectRunsRead> {
   const key = 'runs:for-project:' + runReadScopeKey(workspaceContext) + ':' + projectId;
+  runReadKeys.add(key);
   return coalescedGet(key, () => readRunsForProject(projectId, workspaceContext));
 }
 

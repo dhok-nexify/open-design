@@ -85,6 +85,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' });
   globalThis.fetch = originalFetch;
   vi.useRealTimers();
 });
@@ -131,6 +132,9 @@ describe('useProjectRunStatuses — one feed for every surface', () => {
     await flush();
     expect(first.result.current.get('p1')).toBe('running');
     first.unmount();
+    // The coalescing window is one second; a genuine remount after that window
+    // must still revalidate.
+    await act(async () => { await vi.advanceTimersByTimeAsync(1_100); });
 
     const second = renderHook(() => useProjectRunStatuses(['p1', 'p4']));
     // Synchronously — before any request could have answered.
@@ -169,7 +173,7 @@ describe('useProjectRunStatuses — one feed for every surface', () => {
     expect(result.current.get('p1')).toBe('succeeded');
     expect(runRequests('p1')).toHaveLength(2);
 
-    await act(async () => { await vi.advanceTimersByTimeAsync(3_999); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(9_999); });
     expect(runRequests('p1')).toHaveLength(2);
     await act(async () => { await vi.advanceTimersByTimeAsync(1); });
     expect(runRequests('p1')).toHaveLength(3);
@@ -181,9 +185,31 @@ describe('useProjectRunStatuses — one feed for every surface', () => {
     await flush();
     expect(runRequests()).toHaveLength(3);
 
-    await act(async () => { await vi.advanceTimersByTimeAsync(4_000); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(10_000); });
     expect(runRequests()).toHaveLength(6);
     expect(runRequests('p1')).toHaveLength(2);
+  });
+
+  it('pauses the backstop poll while the tab is hidden and refreshes on return', async () => {
+    const { result } = renderHook(() => useProjectRunStatuses(['p1']));
+    await flush();
+    expect(runRequests('p1')).toHaveLength(1);
+
+    RUNS = { ...DEFAULT_RUNS, p1: { status: 'succeeded' } };
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' });
+    act(() => {
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    await act(async () => { await vi.advanceTimersByTimeAsync(30_000); });
+    expect(runRequests('p1')).toHaveLength(1);
+
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' });
+    await act(async () => {
+      document.dispatchEvent(new Event('visibilitychange'));
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(runRequests('p1')).toHaveLength(2);
+    expect(result.current.get('p1')).toBe('succeeded');
   });
 
   it('stops polling once the last surface lets go', async () => {
@@ -212,7 +238,7 @@ describe('useProjectRunStatuses — one feed for every surface', () => {
 
     // A NEW finished run is a new notice for both.
     RUNS = { ...DEFAULT_RUNS, p4: { status: 'succeeded', runId: 'r2' } };
-    await act(async () => { await vi.advanceTimersByTimeAsync(4_000); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(10_000); });
     expect(rail.result.current.get('p4')).toBe('succeeded');
     expect(switcher.result.current.get('p4')).toBe('succeeded');
   });
@@ -262,8 +288,8 @@ describe('useProjectRunStatuses — a project the server refuses (ND-R17-01)', (
 
     await act(async () => { await vi.advanceTimersByTimeAsync(12_000); });
     expect(runRequests('p-locked')).toHaveLength(1);
-    // The readable project keeps its normal poll.
-    expect(runRequests('p1').length).toBeGreaterThanOrEqual(3);
+    // The readable project keeps its normal poll (initial + one 10s tick).
+    expect(runRequests('p1').length).toBeGreaterThanOrEqual(2);
   });
 
   it('treats a missing project the same way', async () => {
@@ -278,7 +304,7 @@ describe('useProjectRunStatuses — a project the server refuses (ND-R17-01)', (
     RUNS = { ...DEFAULT_RUNS, 'p-flaky': { status: 'running', http: 503 } };
     renderHook(() => useProjectRunStatuses(['p-flaky']));
     await flush();
-    await act(async () => { await vi.advanceTimersByTimeAsync(8_000); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(20_000); });
     expect(runRequests('p-flaky').length).toBeGreaterThanOrEqual(3);
   });
 
@@ -288,6 +314,7 @@ describe('useProjectRunStatuses — a project the server refuses (ND-R17-01)', (
     await flush();
     expect(runRequests('p-locked')).toHaveLength(1);
     first.unmount();
+    await act(async () => { await vi.advanceTimersByTimeAsync(1_100); });
 
     // A grant landed while the surface was away: the next mount asks once more.
     RUNS = { ...DEFAULT_RUNS, 'p-locked': { status: 'succeeded' } };
