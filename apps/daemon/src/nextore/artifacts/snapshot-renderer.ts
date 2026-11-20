@@ -1,9 +1,10 @@
 import { spawn } from 'node:child_process';
 import { existsSync, realpathSync } from 'node:fs';
-import { mkdir, mkdtemp, open, rm, stat } from 'node:fs/promises';
+import { mkdir, mkdtemp, open, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { delimiter, join } from 'node:path';
+import { delimiter, dirname, join, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { randomUUID } from 'node:crypto';
 
 /**
  * Headless HTML → PDF for the artifact snapshot representation (P04-S).
@@ -33,6 +34,9 @@ export interface ChromiumRenderOptions {
   /** Explicit binary; otherwise OD_CHROMIUM_PATH, then a PATH/common-location lookup. */
   executable?: string | null;
   timeoutMs?: number;
+  /** Print page size in CSS pixels; defaults to 1200 x 1600 (desktop width). */
+  pageWidth?: number;
+  pageHeight?: number;
   /** Containers without a user namespace need this; off unless asked for. */
   noSandbox?: boolean;
   log?: (message: string) => void;
@@ -181,11 +185,30 @@ export async function renderHtmlToPdf(
   // keeps snap-confined Chromium working under systemd.
   const xdgDir = join(workDir, 'xdg');
   await mkdir(xdgDir, { recursive: true, mode: 0o700 }).catch(() => {});
+  // Render a copy that carries the print rules: a page the width of the design
+  // (nothing clipped or scaled), no browser header/footer, and exact colours
+  // (artifacts use gradients and dark surfaces). The <base> keeps relative
+  // CSS/images/fonts resolving from the artifact's own directory.
+  const pageWidth = options.pageWidth ?? 1200;
+  const pageHeight = options.pageHeight ?? 1600;
+  const printCss = '<style data-od-print>@page{size:' + pageWidth + 'px ' + pageHeight
+    + 'px;margin:0}html,body{margin:0!important;padding:0!important;background:#fff!important}'
+    + '*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}</style>';
+  let sourceHtml = await readFile(htmlPath, 'utf8');
+  const baseHref = pathToFileURL(dirname(htmlPath) + sep).href;
+  const baseTag = '<base href="' + baseHref + '">';
+  sourceHtml = sourceHtml.includes('</head>')
+    ? sourceHtml.replace('</head>', baseTag + printCss + '</head>')
+    : baseTag + printCss + sourceHtml;
+  const printPath = join(workDir, 'print-' + randomUUID() + '.html');
+  await writeFile(printPath, sourceHtml, 'utf8');
+
   const args = [
     '--headless=new',
     '--disable-gpu',
     '--hide-scrollbars',
     '--no-pdf-header-footer',
+    '--print-to-pdf-no-header',
     '--disable-extensions',
     '--user-data-dir=' + profileDir,
     // Local assets (CSS, images, fonts) sit next to the HTML file.
@@ -193,7 +216,7 @@ export async function renderHtmlToPdf(
     '--virtual-time-budget=5000',
     '--print-to-pdf=' + pdfPath,
     ...((options.noSandbox ?? process.env.OD_CHROMIUM_NO_SANDBOX === '1') ? ['--no-sandbox'] : []),
-    pathToFileURL(htmlPath).href,
+    pathToFileURL(printPath).href,
   ];
 
   try {
