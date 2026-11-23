@@ -450,6 +450,7 @@ describe('NextoreArtifactRuntime reconciliation sweep', () => {
 describe('NextoreArtifactRuntime out-of-run trigger', () => {
   function watchedRuntime(options: {
     deliverable?: { valid: boolean; entryFile: string | null; artifactKind: string | null; linkedPage: string | null };
+    resolveFallbackMember?: (projectId: string) => Promise<number | null>;
   } = {}) {
     const store = new FakeSessionStore();
     store.rows.set('sid-1', {
@@ -494,6 +495,9 @@ describe('NextoreArtifactRuntime out-of-run trigger', () => {
         },
         projectRoot,
       }),
+      ...(options.resolveFallbackMember
+        ? { resolveFallbackMember: options.resolveFallbackMember }
+        : {}),
     });
     return {
       worker,
@@ -575,17 +579,34 @@ describe('NextoreArtifactRuntime out-of-run trigger', () => {
     worker.unwatchAll();
   });
 
-  it('still watches a project whose publishing member is unknown, and says so', async () => {
+  it('publishes as a borrowed editor when no publisher was ever recorded', async () => {
     seedPublishedRecord();
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    const { worker, fire } = watchedRuntime();
+    // Legacy project: artifact rows exist, the member table does not.
+    const fallback = vi.fn(async () => 7);
+    const { worker, fire } = watchedRuntime({ resolveFallbackMember: fallback });
 
     expect(worker.restoreWatchers()).toBe(1);
     fire();
-    await new Promise((resolve) => setTimeout(resolve, 60));
+    await new Promise((resolve) => setTimeout(resolve, 80));
+
+    expect(fallback).toHaveBeenCalledWith('project-1');
+    expect(listNextorePublishQueue(db, 'project-1')).toEqual([
+      expect.objectContaining({ reason: 'file-change', memberId: 7 }),
+    ]);
+    worker.unwatchAll();
+  });
+
+  it('drops the change with a reason when no member may edit the project', async () => {
+    seedPublishedRecord();
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { worker, fire } = watchedRuntime({ resolveFallbackMember: async () => null });
+
+    expect(worker.restoreWatchers()).toBe(1);
+    fire();
+    await new Promise((resolve) => setTimeout(resolve, 80));
 
     expect(listNextorePublishQueue(db, 'project-1')).toEqual([]);
-    expect(warn).toHaveBeenCalledWith(expect.stringContaining('no publishing member is recorded'));
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('no signed-in member may edit'));
     warn.mockRestore();
     worker.unwatchAll();
   });

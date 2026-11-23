@@ -80,6 +80,11 @@ export interface NextoreArtifactRuntimeDeps {
   resolveProjectDeliverable?: (
     projectId: string,
   ) => Promise<{ deliverable: NextoreDeliverableSnapshot; projectRoot: string }>;
+  /**
+   * Last resort for out-of-run publishing: a signed-in member who may edit the
+   * project, used only when no publisher was ever recorded for it.
+   */
+  resolveFallbackMember?: (projectId: string) => Promise<number | null>;
   /** Debounce for out-of-run edits; defaults to 1500 ms. */
   fileChangeDebounceMs?: number;
   /** Absolute project root, needed to requeue a drifted artifact. */
@@ -225,22 +230,44 @@ export class NextoreArtifactRuntime {
     const delay = this.deps.fileChangeDebounceMs ?? 1_500;
     const timer = setTimeout(() => {
       this.fileTimers.delete(projectId);
-      // Resolve at fire time: the map is filled on startup and on every
-      // publish, but a project restored from older data may only have the
-      // queue to answer with.
-      const memberId = this.projectMembers.get(projectId)
-        ?? findPublishMember(this.deps.db, projectId);
-      if (!memberId) {
-        console.warn(
-          '[nextore-artifact] file change ignored project=' + projectId
-            + ': no publishing member is recorded for this project',
-        );
-        return;
-      }
-      void this.publishProjectDeliverable(projectId, memberId);
+      void this.publishProjectAfterChange(projectId);
     }, delay);
     timer.unref?.();
     this.fileTimers.set(projectId, timer);
+  }
+
+  /**
+   * Publish after an out-of-run edit, resolving whose session to use.
+   *
+   * A recorded publisher is preferred. A project published before the daemon
+   * kept that record has none, so a signed-in member who may edit the project
+   * stands in and the choice is remembered for later edits. Only when nothing
+   * can be resolved is the change dropped - with a log line naming the reason.
+   */
+  private async publishProjectAfterChange(projectId: string): Promise<void> {
+    let memberId: number | null = this.projectMembers.get(projectId)
+      ?? findPublishMember(this.deps.db, projectId)
+      ?? null;
+    if (!memberId && this.deps.resolveFallbackMember) {
+      try {
+        memberId = await this.deps.resolveFallbackMember(projectId);
+      } catch {
+        memberId = null;
+      }
+      if (memberId) {
+        const at = (this.deps.now ?? Date.now)();
+        this.projectMembers.set(projectId, memberId);
+        rememberProjectMember(this.deps.db, projectId, memberId, at);
+      }
+    }
+    if (!memberId) {
+      console.warn(
+        '[nextore-artifact] file change ignored project=' + projectId
+          + ': no signed-in member may edit this project',
+      );
+      return;
+    }
+    await this.publishProjectDeliverable(projectId, memberId);
   }
 
   private async publishProjectDeliverable(projectId: string, memberId: number): Promise<void> {

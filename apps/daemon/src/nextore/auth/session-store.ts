@@ -117,6 +117,15 @@ export interface NextoreSessionStore {
    * dropped by the same rule as `find`.
    */
   listByMember(memberId: number): NextoreSession[];
+
+  /**
+   * Distinct members holding a live row, most recently active first.
+   *
+   * Needed when a project must be published but the daemon no longer knows who
+   * published it: a signed-in member who may edit the project is a valid
+   * stand-in, and recency keeps the choice aligned with who is using the app.
+   */
+  listMemberIds?(): number[];
 }
 
 function toFeatures(value: unknown): NextoreSessionFeatures {
@@ -322,6 +331,12 @@ export function createNextoreSessionStore(
       return sessions;
     },
 
+    listMemberIds() {
+      const rows = db()
+        .prepare(`SELECT member_id, MAX(last_seen_at) AS seen FROM nextore_sessions WHERE member_id > 0 GROUP BY member_id ORDER BY seen DESC`)
+        .all() as Array<{ member_id: number }>;
+      return rows.map((row) => row.member_id).filter((id) => Number.isInteger(id) && id > 0);
+    },
     pruneExpired(before) {
       return db().prepare('DELETE FROM nextore_sessions WHERE last_seen_at < ?').run(before).changes;
     },

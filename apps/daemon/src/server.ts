@@ -1025,6 +1025,7 @@ import {
   pinProjectToolActor,
 } from './collab/project-request-authority.js';
 import { createProjectAuthorizer, createProjectMappingReader } from './nextore/acl/authorizer-host.js';
+import { normalizeAccess } from './nextore/wire.js';
 import { withLastKnownWorkspaceContext } from './collab/workspace-context.js';
 import {
   createWorkspaceTypeRegistry,
@@ -3761,6 +3762,31 @@ export async function startServer({
             },
             projectRoot: resolveProjectDir(PROJECTS_DIR, projectId, project?.metadata),
           };
+        },
+        // A project published before the daemon recorded a publisher can still
+        // be kept automatic: borrow a signed-in member who may edit it, then
+        // remember them so later edits do not repeat the lookup.
+        resolveFallbackMember: async (projectId) => {
+          const nextoreProjectId = createProjectMappingReader(db)(projectId);
+          if (!nextoreProjectId) return null;
+          const store = createNextoreSessionStore(() => db, nextoreSecrets);
+          const candidates = store.listMemberIds?.() ?? [];
+          for (const candidate of candidates.slice(0, 5)) {
+            const token = await resolveMemberAccessToken(candidate, {
+              store,
+              config: nextoreConfig,
+            });
+            if (!token) continue;
+            try {
+              const access = normalizeAccess(
+                await nextoreClient.projectAccess<unknown>(token, nextoreProjectId),
+              );
+              if (access.exists && access.canRead && access.canEdit) return candidate;
+            } catch {
+              // Try the next signed-in member.
+            }
+          }
+          return null;
         },
         // Every publish state transition is forwarded on the project event
         // stream as `nextore-artifact`. Events are not persisted: the status
