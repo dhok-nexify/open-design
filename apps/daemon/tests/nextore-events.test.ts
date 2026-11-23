@@ -140,6 +140,19 @@ describe('P03 dispatchEvent', () => {
     expect(hooks.onMemberDisabled).toHaveBeenCalledWith(7);
     expect(dispatchEvent({ ...event, type: 'unknown' } as never, hooks)).toBe(false);
   });
+
+  it('invalidates access even when an object event has no local project id', () => {
+    const hooks = {
+      onPermissionChanged: vi.fn(),
+      onProjectGone: vi.fn(),
+      onMemberDisabled: vi.fn(),
+    };
+    dispatchEvent({ ...event, type: 'permission.changed', projectId: undefined } as never, hooks);
+    dispatchEvent({ ...event, type: 'project.moved', projectId: undefined } as never, hooks);
+
+    expect(hooks.onPermissionChanged).toHaveBeenCalledWith('');
+    expect(hooks.onProjectGone).toHaveBeenCalledWith('');
+  });
 });
 
 describe('P03 event route', () => {

@@ -153,11 +153,14 @@ export interface EventHooks {
 export function dispatchEvent(event: NextoreEvent, hooks: EventHooks): boolean {
   switch (event.type) {
     case 'permission.changed':
-      if (event.projectId) hooks.onPermissionChanged(event.projectId);
+      // An object-level permission change may not resolve to one local project
+      // (workspace/folder changes cascade), so the hook still has to run. The
+      // daemon's hook invalidates the whole access cache and ignores the id.
+      hooks.onPermissionChanged(event.projectId ?? '');
       return true;
     case 'project.deleted':
     case 'project.moved':
-      if (event.projectId) hooks.onProjectGone(event.projectId);
+      hooks.onProjectGone(event.projectId ?? '');
       return true;
     case 'member.locked':
     case 'member.deleted':
