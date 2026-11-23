@@ -30,6 +30,7 @@ import { NEXTORE_WEB_EDITION, isFeatureEnabled } from '../nextore/features';
 import { TierToggle } from '../nextore/TierToggle';
 import { ProjectPermissionsDialog } from '../nextore/ProjectPermissionsDialog';
 import { ShareLinkDialog } from './ShareLinkDialog';
+import { ProjectShareDialog } from './nextore/ProjectShareDialog';
 import { NextoreArtifactDialog } from './nextore/NextoreArtifactDialog';
 import {
   readStoredNextoreTierForProject,
@@ -2576,6 +2577,7 @@ export function ProjectView({
   const [nextoreProjectAccess, setNextoreProjectAccess] =
     useState<NextoreProjectAccessView | null>(null);
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
+  const [projectShareOpen, setProjectShareOpen] = useState(false);
   const [permissionsOpen, setPermissionsOpen] = useState(false);
   useEffect(() => {
     if (NEXTORE_WEB_EDITION !== 'nextore' || !project?.id) {
@@ -15357,6 +15359,7 @@ export function ProjectView({
               <NextoreProjectActions
                 access={nextoreProjectAccess}
                 onOpenShareLinks={() => setShareDialogOpen(true)}
+                onOpenProjectShare={() => setProjectShareOpen(true)}
                 onOpenPermissions={() => { void openNextorePermissions(); }}
               />
             ) : null}
@@ -15630,6 +15633,12 @@ export function ProjectView({
           projectId={project.id}
           open={permissionsOpen}
           onClose={() => setPermissionsOpen(false)}
+        />
+      ) : null}
+      {projectShareOpen && project && NEXTORE_WEB_EDITION === 'nextore' ? (
+        <ProjectShareDialog
+          projectId={project.id}
+          onClose={() => setProjectShareOpen(false)}
         />
       ) : null}
       {shareDialogOpen && project ? (

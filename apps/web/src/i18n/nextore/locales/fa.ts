@@ -16,6 +16,7 @@ export const faOverlay: LocaleOverlay = {
   "home.noCreateTitle": "Creating projects is not enabled for your account",
   "nextore.comments.followedRename": "به {name} تغییر نام یافت. اکنون {count} نظر این فایل را دنبال می‌کند.",
   "nextore.project.share.title": "کل پروژه (پیوند پوشه)",
+  "nextore.project.share.action": "اشتراک‌گذاری کل پروژه",
   "nextore.project.share.create": "ایجاد پیوند پروژه",
   "nextore.share.confirmRevoke": "Revoke this share link? People using it will lose access.",
   "nextore.share.days": "{count} days",

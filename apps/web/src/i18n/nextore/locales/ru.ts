@@ -16,6 +16,7 @@ export const ruOverlay: LocaleOverlay = {
   "home.noCreateTitle": "Creating projects is not enabled for your account",
   "nextore.comments.followedRename": "Переименовано в {name}. Теперь к этому файлу привязано комментариев: {count}.",
   "nextore.project.share.title": "Весь проект (ссылка на папку)",
+  "nextore.project.share.action": "Поделиться всем проектом",
   "nextore.project.share.create": "Создать ссылку на проект",
   "nextore.share.confirmRevoke": "Revoke this share link? People using it will lose access.",
   "nextore.share.days": "{count} days",

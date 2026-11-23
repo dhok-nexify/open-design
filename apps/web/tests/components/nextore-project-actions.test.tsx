@@ -36,17 +36,19 @@ afterEach(() => cleanup());
 
 function renderActions(access: NextoreProjectAccessView | null) {
   const onOpenShareLinks = vi.fn();
+  const onOpenProjectShare = vi.fn();
   const onOpenPermissions = vi.fn();
   render(
     <I18nProvider initial="en">
       <NextoreProjectActions
         access={access}
         onOpenShareLinks={onOpenShareLinks}
+        onOpenProjectShare={onOpenProjectShare}
         onOpenPermissions={onOpenPermissions}
       />
     </I18nProvider>,
   );
-  return { onOpenShareLinks, onOpenPermissions };
+  return { onOpenShareLinks, onOpenProjectShare, onOpenPermissions };
 }
 
 describe('NexTore project entries', () => {
@@ -58,6 +60,15 @@ describe('NexTore project entries', () => {
     expect(share).toHaveAttribute('type', 'button');
     fireEvent.click(share);
     expect(onOpenShareLinks).toHaveBeenCalledTimes(1);
+  });
+
+  it('offers the whole-project share as its own entry', () => {
+    const { onOpenProjectShare } = renderActions(LOCAL_PROJECT_ACCESS);
+
+    const projectShare = screen.getByTestId('nextore-project-share');
+    expect(projectShare).toHaveTextContent('Share whole project');
+    fireEvent.click(projectShare);
+    expect(onOpenProjectShare).toHaveBeenCalledTimes(1);
   });
 
   it('hides the share link when the module disables it or the member cannot manage', () => {

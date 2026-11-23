@@ -16,6 +16,7 @@ export const idOverlay: LocaleOverlay = {
   "home.noCreateTitle": "Creating projects is not enabled for your account",
   "nextore.comments.followedRename": "Diganti nama menjadi {name}. {count} komentar kini mengikuti file ini.",
   "nextore.project.share.title": "Seluruh proyek (tautan folder)",
+  "nextore.project.share.action": "Bagikan seluruh proyek",
   "nextore.project.share.create": "Buat tautan proyek",
   "nextore.share.confirmRevoke": "Revoke this share link? People using it will lose access.",
   "nextore.share.days": "{count} days",

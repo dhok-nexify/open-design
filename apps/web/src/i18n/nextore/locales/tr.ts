@@ -16,6 +16,7 @@ export const trOverlay: LocaleOverlay = {
   "home.noCreateTitle": "Creating projects is not enabled for your account",
   "nextore.comments.followedRename": "{name} olarak yeniden adlandırıldı. Artık {count} yorum bu dosyayı takip ediyor.",
   "nextore.project.share.title": "Tüm proje (klasör bağlantısı)",
+  "nextore.project.share.action": "Tüm projeyi paylaş",
   "nextore.project.share.create": "Proje bağlantısı oluştur",
   "nextore.share.confirmRevoke": "Revoke this share link? People using it will lose access.",
   "nextore.share.days": "{count} days",

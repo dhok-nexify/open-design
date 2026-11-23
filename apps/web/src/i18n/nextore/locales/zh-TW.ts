@@ -16,6 +16,7 @@ export const zhTWOverlay: LocaleOverlay = {
   "home.noCreateTitle": "您的帳號沒有建立專案的權限",
   "nextore.comments.followedRename": "已重新命名為 {name}，{count} 則留言已跟隨此檔案。",
   "nextore.project.share.title": "整個專案（資料夾連結）",
+  "nextore.project.share.action": "分享整個專案",
   "nextore.project.share.create": "建立專案連結",
   "nextore.share.confirmRevoke": "確定要撤銷此分享連結？使用中的人將失去存取權。",
   "nextore.share.days": "{count} 天",

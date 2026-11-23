@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 
 import { useT } from '../../i18n';
 import { Icon } from '../Icon';
-import styles from './NextoreArtifactDialog.module.css';
+import styles from './ProjectShareForm.module.css';
 
 interface FolderShareState {
   shared: boolean;
@@ -12,10 +12,11 @@ interface FolderShareState {
 /**
  * Folder-level share control for the NexTore edition.
  *
- * The folder link is a NexTore ShareObject owned by the platform: reading it
- * never creates one, creating it is upsert, and revoking is idempotent. This
- * section only renders when the daemon exposes the folder route, so the same
- * dialog keeps working against an older daemon.
+ * Lives in its own dialog: a project link and a file link are different scopes,
+ * so this form never competes with the artifact share form for attention.
+ * Reading the link never creates one, creating is upsert, and revoking is
+ * idempotent. The control hides itself when the daemon exposes no folder route,
+ * so an older daemon simply shows nothing.
  */
 export function ProjectShareForm({ projectId }: { projectId: string }) {
   const t = useT();
@@ -108,51 +109,42 @@ export function ProjectShareForm({ projectId }: { projectId: string }) {
 
   return (
     <section
-      className={styles.projectShare}
-      aria-labelledby="nextore-project-share-title"
+      className={styles.form}
+      aria-label={t('nextore.project.share.title')}
       data-testid="nextore-project-share"
     >
-      <div className={styles.projectShareHead}>
-        <span className={styles.projectShareIcon} aria-hidden="true">
-          <Icon name="folder" size={16} />
-        </span>
-        <div className={styles.projectShareText}>
-          <h3 id="nextore-project-share-title" className={styles.projectShareTitle}>
-            {t('nextore.project.share.title')}
-          </h3>
-          <p className={styles.projectShareHint}>{t('nextore.share.subtitle')}</p>
-        </div>
-      </div>
+      <p className={styles.hint}>{t('nextore.share.subtitle')}</p>
 
       {state.shared && state.url ? (
-        <div className={styles.projectShareBody}>
+        <div className={styles.body}>
           <input
-            className={styles.projectShareUrl}
+            className={styles.url}
             value={state.url}
             readOnly
             onFocus={(event) => event.currentTarget.select()}
             aria-label={t('fileViewer.copyShareLink')}
           />
-          <div className={styles.projectShareActions}>
-            <button type="button" className={styles.projectShareButton} onClick={() => { void copy(); }} disabled={busy}>
+          <div className={styles.actions}>
+            <button type="button" className={styles.secondary} onClick={() => { void copy(); }} disabled={busy}>
               {copied ? t('promptTemplates.copyDone') : t('fileViewer.copyShareLink')}
             </button>
-            <button type="button" className={styles.projectShareDanger} onClick={() => { void revoke(); }} disabled={busy}>
+            <button type="button" className={styles.danger} onClick={() => { void revoke(); }} disabled={busy}>
               {t('common.delete')}
             </button>
           </div>
         </div>
       ) : (
-        <div className={styles.projectShareBody}>
-          <div className={styles.projectShareActions}>
-            <button type="button" className={styles.projectShareCreate} onClick={() => { void create(); }} disabled={busy}>
+        <div className={styles.body}>
+          <div className={styles.actions}>
+            <button type="button" className={styles.primary} onClick={() => { void create(); }} disabled={busy}>
               <Icon name="link" size={14} aria-hidden="true" />
               <span>{busy ? t('nextore.artifact.share.creating') : t('nextore.project.share.create')}</span>
             </button>
           </div>
         </div>
       )}
-      {error ? <p role="alert" className={styles.projectShareError}>{error}</p> : null}
+
+      {error ? <p role="alert" className={styles.error}>{error}</p> : null}
     </section>
   );
 }

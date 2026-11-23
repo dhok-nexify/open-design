@@ -16,6 +16,7 @@ export const arOverlay: LocaleOverlay = {
   "home.noCreateTitle": "Creating projects is not enabled for your account",
   "nextore.comments.followedRename": "أُعيدت التسمية إلى {name}. أصبح {count} من التعليقات مرتبطة بهذا الملف.",
   "nextore.project.share.title": "المشروع بالكامل (رابط المجلد)",
+  "nextore.project.share.action": "مشاركة المشروع بالكامل",
   "nextore.project.share.create": "إنشاء رابط للمشروع",
   "nextore.share.confirmRevoke": "Revoke this share link? People using it will lose access.",
   "nextore.share.days": "{count} days",

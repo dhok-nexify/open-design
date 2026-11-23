@@ -16,6 +16,7 @@ export const thOverlay: LocaleOverlay = {
   "home.noCreateTitle": "Creating projects is not enabled for your account",
   "nextore.comments.followedRename": "เปลี่ยนชื่อเป็น {name} แล้ว ขณะนี้มีความคิดเห็น {count} รายการติดตามไฟล์นี้",
   "nextore.project.share.title": "ทั้งโปรเจกต์ (ลิงก์โฟลเดอร์)",
+  "nextore.project.share.action": "แชร์ทั้งโปรเจกต์",
   "nextore.project.share.create": "สร้างลิงก์โปรเจกต์",
   "nextore.share.confirmRevoke": "Revoke this share link? People using it will lose access.",
   "nextore.share.days": "{count} days",

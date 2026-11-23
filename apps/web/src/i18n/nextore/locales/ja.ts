@@ -16,6 +16,7 @@ export const jaOverlay: LocaleOverlay = {
   "home.noCreateTitle": "Creating projects is not enabled for your account",
   "nextore.comments.followedRename": "{name} に名前を変更しました。{count} 件のコメントがこのファイルに追従しました。",
   "nextore.project.share.title": "プロジェクト全体（フォルダリンク）",
+  "nextore.project.share.action": "プロジェクト全体を共有",
   "nextore.project.share.create": "プロジェクトリンクを作成",
   "nextore.share.confirmRevoke": "Revoke this share link? People using it will lose access.",
   "nextore.share.days": "{count} days",

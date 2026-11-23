@@ -22,6 +22,9 @@ export interface NextoreDict {
 
   /** NexTore edition: creates the folder ShareObject (distinct from a file link). */
   'nextore.project.share.create': string;
+
+  /** NexTore edition: header entry that opens the folder share dialog. */
+  'nextore.project.share.action': string;
   'nextorePermissions.title': string;
   'nextorePermissions.description': string;
   'nextorePermissions.inherit': string;

@@ -16,6 +16,7 @@ export const koOverlay: LocaleOverlay = {
   "home.noCreateTitle": "Creating projects is not enabled for your account",
   "nextore.comments.followedRename": "{name}(으)로 이름을 변경했습니다. {count}개의 댓글이 이 파일을 따라 이동했습니다.",
   "nextore.project.share.title": "프로젝트 전체(폴더 링크)",
+  "nextore.project.share.action": "프로젝트 전체 공유",
   "nextore.project.share.create": "프로젝트 링크 만들기",
   "nextore.share.confirmRevoke": "Revoke this share link? People using it will lose access.",
   "nextore.share.days": "{count} days",

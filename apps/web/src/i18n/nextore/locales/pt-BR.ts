@@ -16,6 +16,7 @@ export const ptBROverlay: LocaleOverlay = {
   "home.noCreateTitle": "Creating projects is not enabled for your account",
   "nextore.comments.followedRename": "Renomeado para {name}. {count} comentário(s) agora seguem este arquivo.",
   "nextore.project.share.title": "Projeto inteiro (link da pasta)",
+  "nextore.project.share.action": "Compartilhar o projeto inteiro",
   "nextore.project.share.create": "Criar link do projeto",
   "nextore.share.confirmRevoke": "Revoke this share link? People using it will lose access.",
   "nextore.share.days": "{count} days",

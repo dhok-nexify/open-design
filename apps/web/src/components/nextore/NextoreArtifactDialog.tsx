@@ -16,7 +16,6 @@ import { Icon } from '../Icon';
 import { ArtifactShareForm } from './ArtifactShareForm';
 import { ArtifactStatusChip } from './ArtifactStatusChip';
 import { LegacyShareBanner } from './LegacyShareBanner';
-import { ProjectShareForm } from './ProjectShareForm';
 import styles from './NextoreArtifactDialog.module.css';
 
 /**
@@ -187,7 +186,6 @@ export function NextoreArtifactDialog({
                   : 'source'}
               />
 
-              <ProjectShareForm projectId={projectId} />
             </>
           )}
         </div>

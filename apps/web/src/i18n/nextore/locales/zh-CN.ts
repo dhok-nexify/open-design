@@ -16,6 +16,7 @@ export const zhCNOverlay: LocaleOverlay = {
   "home.noCreateTitle": "您的账号没有创建项目的权限",
   "nextore.comments.followedRename": "已重命名为 {name}，{count} 条留言已跟随此文件。",
   "nextore.project.share.title": "整个项目（文件夹链接）",
+  "nextore.project.share.action": "分享整个项目",
   "nextore.project.share.create": "创建项目链接",
   "nextore.share.confirmRevoke": "确定要撤销此分享链接？正在使用的人将失去访问权限。",
   "nextore.share.days": "{count} 天",

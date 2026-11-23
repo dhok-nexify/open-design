@@ -39,10 +39,14 @@ export function artifactShareEntryMode(
 export function NextoreProjectActions({
   access,
   onOpenShareLinks,
+  onOpenProjectShare,
   onOpenPermissions,
 }: {
   access: NextoreProjectAccessView | null;
+  /** Single-file share: the artifact dialog. */
   onOpenShareLinks: () => void;
+  /** Whole-project (folder) share: its own dialog. */
+  onOpenProjectShare: () => void;
   onOpenPermissions: () => void;
 }): ReactElement {
   const t = useT();
@@ -55,15 +59,29 @@ export function NextoreProjectActions({
   return (
     <>
       {shareMode === 'dialog' ? (
-        <button
-          type="button"
-          className="chrome-action chrome-action-secondary chrome-action-with-label chrome-action-text-only"
-          data-testid="nextore-share-link"
-          onClick={onOpenShareLinks}
-        >
-          <Icon name="link" size={14} />
-          {t('fileViewer.publishSingleFileTitle')}
-        </button>
+        <>
+          <button
+            type="button"
+            className="chrome-action chrome-action-secondary chrome-action-with-label chrome-action-text-only"
+            data-testid="nextore-share-link"
+            onClick={onOpenShareLinks}
+          >
+            <Icon name="link" size={14} />
+            {t('fileViewer.publishSingleFileTitle')}
+          </button>
+          {/* A folder link is a different scope from a file link, so it gets its
+              own entry and its own dialog instead of a second button inside the
+              artifact dialog. */}
+          <button
+            type="button"
+            className="chrome-action chrome-action-secondary chrome-action-with-label chrome-action-text-only"
+            data-testid="nextore-project-share"
+            onClick={onOpenProjectShare}
+          >
+            <Icon name="folder" size={14} />
+            {t('nextore.project.share.action')}
+          </button>
+        </>
       ) : null}
       {/* The ACL editor is a management surface, not a viewer: the module
           refuses every read for a member without CanManage, so offering the

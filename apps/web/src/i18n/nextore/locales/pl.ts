@@ -16,6 +16,7 @@ export const plOverlay: LocaleOverlay = {
   "home.noCreateTitle": "Creating projects is not enabled for your account",
   "nextore.comments.followedRename": "Zmieniono nazwę na {name}. Teraz z tym plikiem powiązano komentarzy: {count}.",
   "nextore.project.share.title": "Cały projekt (link do folderu)",
+  "nextore.project.share.action": "Udostępnij cały projekt",
   "nextore.project.share.create": "Utwórz link do projektu",
   "nextore.share.confirmRevoke": "Revoke this share link? People using it will lose access.",
   "nextore.share.days": "{count} days",
