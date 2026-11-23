@@ -87,6 +87,33 @@ describe('project file rename route', () => {
     expect(await renamed.text()).toBe('body');
   });
 
+  it('moves the declared entry file with the rename', async () => {
+    // The deliverable validator reads metadata.entryFile. If a rename leaves the
+    // old path behind, the project looks entry-less and the automatic NexTore
+    // republish refuses to publish the renamed file at all.
+    const projectId = `rename-entry-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const created = await fetch(`${baseUrl}/api/projects`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: projectId,
+        name: projectId,
+        metadata: { kind: 'prototype', entryFile: 'index.html' },
+      }),
+    });
+    expect(created.status).toBe(200);
+    await writeText(projectId, 'index.html', '<html></html>');
+
+    const resp = await renameFile(projectId, 'index.html', 'landing.html');
+    expect(resp.status).toBe(200);
+
+    const projectResp = await fetch(`${baseUrl}/api/projects/${projectId}`);
+    const projectBody = (await projectResp.json()) as {
+      project: { metadata?: { entryFile?: string } };
+    };
+    expect(projectBody.project.metadata?.entryFile).toBe('landing.html');
+  });
+
   it('renames case-only filename changes instead of treating them as no-ops', async () => {
     const projectId = await createProject();
     await writeText(projectId, 'paste-1.txt', 'body');

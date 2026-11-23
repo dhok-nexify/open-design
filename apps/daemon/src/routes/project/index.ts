@@ -6645,7 +6645,7 @@ export function registerProjectFileRoutes(app: Express, ctx: RegisterProjectFile
   const { PROJECTS_DIR, DESIGN_SYSTEMS_DIR, USER_DESIGN_SYSTEMS_DIR } = ctx.paths;
   const { upload } = ctx.uploads;
   const { fs } = ctx.node;
-  const { getProject, getWorkspaceProject, getWorkspaceProjectByProjectId } = ctx.projectStore;
+  const { getProject, getWorkspaceProject, getWorkspaceProjectByProjectId, updateProject } = ctx.projectStore;
   const authorizeProjectRequest =
     ctx.authorizeProjectRequest ??
     createAuthorizeProjectRequest({
@@ -8832,6 +8832,20 @@ export function registerProjectFileRoutes(app: Express, ctx: RegisterProjectFile
         result.newName,
         project?.metadata,
       );
+      // The project's declared entry follows the file it names. Leaving the old
+      // path behind makes the project look entry-less, and the automatic
+      // republish then refuses to publish the rename at all.
+      const declaredEntry = typeof project?.metadata?.entryFile === 'string'
+        ? project.metadata.entryFile.replaceAll('\\', '/')
+        : null;
+      if (declaredEntry && declaredEntry === result.oldName.replaceAll('\\', '/')) {
+        updateProject(db, projectId, {
+          metadata: {
+            ...(project?.metadata ?? {}),
+            entryFile: result.newName.replaceAll('\\', '/'),
+          },
+        });
+      }
       // The workspace identity follows the file. History does not: a snapshot's
       // `source_path_at_capture` records where the bytes came from at the time
       // and stays put, so an HTML card keeps opening the renamed latest while
