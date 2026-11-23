@@ -4,6 +4,7 @@ import {
   NEXTORE_ARTIFACT_REPRESENTATIONS,
   NEXTORE_ARTIFACT_SHARE_REPRESENTATIONS,
   NEXTORE_ARTIFACT_STATUSES,
+  formatNextoreArtifactVersion,
   isNextoreArtifactErrorCode,
   isNextoreArtifactRepresentation,
   isNextoreArtifactShareRepresentation,
@@ -153,5 +154,20 @@ describe('nextore artifact error codes', () => {
 
   it('keeps the declared error list free of duplicates', () => {
     expect(new Set(NEXTORE_ARTIFACT_ERROR_CODES).size).toBe(NEXTORE_ARTIFACT_ERROR_CODES.length);
+  });
+});
+
+describe('nextore artifact version label', () => {
+  it('keeps the legacy sentinel and one-digit versions readable', () => {
+    expect(formatNextoreArtifactVersion(0)).toBe('');
+    expect(formatNextoreArtifactVersion(-3)).toBe('');
+    expect(formatNextoreArtifactVersion(1)).toBe('1');
+    expect(formatNextoreArtifactVersion(42)).toBe('42');
+  });
+
+  it('renders the platform major/minor encoding', () => {
+    expect(formatNextoreArtifactVersion(200)).toBe('2.0');
+    expect(formatNextoreArtifactVersion(201)).toBe('2.1');
+    expect(formatNextoreArtifactVersion(1030)).toBe('10.30');
   });
 });

@@ -187,6 +187,8 @@ const localAllow: AuthorizeProjectRequest = vi.fn(async () => true);
       capability: 'share',
     })).resolves.toBe(false);
     expect(deny).toHaveBeenCalledTimes(2);
+    expect(deny).toHaveBeenNthCalledWith(1, res, 403, 'DOWNLOAD_FORBIDDEN', expect.any(String));
+    expect(deny).toHaveBeenNthCalledWith(2, res, 403, 'SHARE_FORBIDDEN', expect.any(String));
     await expect(run(req, res, 'local-1', {
       mode: 'write',
       capability: 'rename',
@@ -202,12 +204,23 @@ const localAllow: AuthorizeProjectRequest = vi.fn(async () => true);
       mode: 'read',
       capability: 'download',
     })).resolves.toBe(false);
-    expect(deny).toHaveBeenCalledWith(res, 403, 'PROJECT_FORBIDDEN', expect.any(String));
+    expect(deny).toHaveBeenCalledWith(res, 403, 'DOWNLOAD_FORBIDDEN', expect.any(String));
     // Annotating is a read-level right: the banner promises "view and comment".
     await expect(run(req, res, 'local-1', {
       mode: 'write',
       capability: 'comment',
     })).resolves.toBe(true);
+  });
+
+  it('reports no access when the read right itself is missing', async () => {
+    const { authorizer: run, deny } = authorizer({
+      load: vi.fn().mockResolvedValue({ ...READ_ONLY, canRead: false, canDownload: false }),
+    });
+    await expect(run(req, res, 'local-1', {
+      mode: 'read',
+      capability: 'download',
+    })).resolves.toBe(false);
+    expect(deny).toHaveBeenCalledWith(res, 403, 'PROJECT_FORBIDDEN', expect.any(String));
   });
 
   it('does not serve writes from the access cache', async () => {

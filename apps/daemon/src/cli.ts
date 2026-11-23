@@ -29,7 +29,7 @@ import { BYOK_OPENCODE_AGENT_ID } from './runtimes/byok-opencode.js';
 import { redactSecrets } from './connectionTest.js';
 import { SidecarFactory } from '@open-design/sidecar';
 import { APP_KEYS, SIDECAR_MESSAGES } from '@open-design/sidecar-proto';
-import { EXPORT_FORMATS, EXPORT_IMAGE_FORMATS, mediaFailureNextStep, parseApiFailureDetail, resolveEdition } from '@open-design/contracts';
+import { EXPORT_FORMATS, EXPORT_IMAGE_FORMATS, formatNextoreArtifactVersion, mediaFailureNextStep, parseApiFailureDetail, resolveEdition } from '@open-design/contracts';
 import type { ArtifactLintFinding, LintArtifactCliResultEnvelope, LintArtifactResponse, LintFailOn } from '@open-design/contracts';
 import { buildExportCliRequestBody, buildExportCliResultEnvelope, resolveExportCliDeckMode } from './export-cli-request.js';
 import { exportRoutePath } from './export-cli-routing.js';
@@ -7881,7 +7881,7 @@ async function runNextoreArtifact(args, flags, base, stringFlags) {
       console.log([
         row.representation,
         artifact.status || '-',
-        'v' + (artifact.currentVersion || '-'),
+        'v' + (formatNextoreArtifactVersion(artifact.currentVersion) || '-'),
         queue.pending ? 'queued' : 'idle',
         row.share ? 'shared' : 'unshared',
       ].join('\t'));

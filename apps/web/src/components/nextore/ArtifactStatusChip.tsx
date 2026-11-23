@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import type {
-  NextoreArtifactRepresentation,
-  NextoreArtifactRepresentationStatus,
+import {
+  formatNextoreArtifactVersion,
+  type NextoreArtifactRepresentation,
+  type NextoreArtifactRepresentationStatus,
 } from '@open-design/contracts';
 
 import { useT, type DictKey } from '../../i18n';
@@ -139,8 +140,9 @@ export function ArtifactStatusChip({
     }
   }, [artifactId, load, projectId, representation]);
 
-  const versionLabel = row?.artifact.currentVersion
-    ? t(STATE_KEY[state], { version: String(row.artifact.currentVersion) })
+  const version = formatNextoreArtifactVersion(row?.artifact.currentVersion ?? 0);
+  const versionLabel = version
+    ? t(STATE_KEY[state], { version })
     : t(STATE_KEY[state]);
 
   return (

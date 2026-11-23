@@ -71,6 +71,26 @@ function requiredRight(
 }
 
 /**
+ * Name the right that actually failed. A member who may read but not download
+ * does have access to the project; answering "you do not have access" sends
+ * them to an administrator for a problem that does not exist and hides the real
+ * limitation from the client.
+ */
+function denialFor(
+  access: NextoreProjectAccess,
+  options: AuthorizeProjectRequestOptions,
+): [string, string] {
+  if (!access.canRead) return ['PROJECT_FORBIDDEN', 'You do not have access to this project.'];
+  if (options.capability === 'download') {
+    return ['DOWNLOAD_FORBIDDEN', 'Downloading is not permitted for this project.'];
+  }
+  if (options.capability === 'share') {
+    return ['SHARE_FORBIDDEN', 'Sharing is not permitted for this project.'];
+  }
+  return ['PROJECT_FORBIDDEN', 'You do not have access to this project.'];
+}
+
+/**
  * Wraps the local project authorizer with the NexTore ACL (NXD-D07).
  *
  * Order matters: the local gate runs first so workspace placeholders, revoked
@@ -144,7 +164,8 @@ export function createNextoreProjectAuthorizer(
       return false;
     }
     if (!requiredRight(access, options)) {
-      deps.deny(res, 403, 'PROJECT_FORBIDDEN', 'You do not have access to this project.');
+      const [code, message] = denialFor(access, options);
+      deps.deny(res, 403, code, message);
       return false;
     }
     return true;

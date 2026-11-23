@@ -239,3 +239,17 @@ export function isNextoreArtifactErrorCode(value: unknown): value is NextoreArti
   return typeof value === 'string'
     && (NEXTORE_ARTIFACT_ERROR_CODES as readonly string[]).includes(value);
 }
+
+/**
+ * Render the platform version number for people.
+ *
+ * NexTore stores a version as major * 100 + minor, and a file that has never
+ * been revised still carries the sentinel 1. Printing the raw value turns
+ * "second version" into "v200", which reads like two hundred revisions, so
+ * every surface formats it the same way.
+ */
+export function formatNextoreArtifactVersion(version: number): string {
+  if (!Number.isFinite(version) || version <= 0) return '';
+  if (version < 100) return String(Math.trunc(version));
+  return Math.trunc(version / 100) + '.' + (version % 100);
+}
