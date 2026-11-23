@@ -159,3 +159,63 @@
   line-height: 1.3;
   color: var(--text-strong, inherit);
 }
+
+.projectShare {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-subtle, rgba(0, 0, 0, 0.1));
+}
+
+.shareHint {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-muted, inherit);
+}
+
+.projectShareRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.projectShareUrl {
+  flex: 1 1 220px;
+  min-width: 0;
+  padding: 6px 8px;
+  border: 1px solid var(--border-subtle, rgba(0, 0, 0, 0.15));
+  border-radius: var(--radius-md, 8px);
+  background: var(--bg-sunken, rgba(0, 0, 0, 0.03));
+  font: inherit;
+  font-size: 12px;
+}
+
+.projectShareButton,
+.projectShareDanger {
+  padding: 6px 12px;
+  border-radius: var(--radius-md, 8px);
+  border: 1px solid var(--border-subtle, rgba(0, 0, 0, 0.15));
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+}
+
+.projectShareButton:disabled,
+.projectShareDanger:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.projectShareDanger {
+  color: var(--danger, #b42318);
+  border-color: var(--danger, #b42318);
+}
+
+.projectShareError {
+  margin: 0;
+  color: var(--danger, #b42318);
+  font-size: 12px;
+}

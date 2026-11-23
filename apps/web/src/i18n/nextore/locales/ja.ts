@@ -15,6 +15,7 @@ export const jaOverlay: LocaleOverlay = {
   "home.noCreateBody": "You can open projects shared with you. Ask a NexTore administrator for the DesignerCreateProject right if you need to create your own.",
   "home.noCreateTitle": "Creating projects is not enabled for your account",
   "nextore.comments.followedRename": "{name} に名前を変更しました。{count} 件のコメントがこのファイルに追従しました。",
+  "nextore.project.share.title": "プロジェクト全体（フォルダリンク）",
   "nextore.share.confirmRevoke": "Revoke this share link? People using it will lose access.",
   "nextore.share.days": "{count} days",
   "nextore.share.empty": "No active share links.",

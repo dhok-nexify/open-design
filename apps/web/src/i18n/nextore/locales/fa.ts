@@ -15,6 +15,7 @@ export const faOverlay: LocaleOverlay = {
   "home.noCreateBody": "You can open projects shared with you. Ask a NexTore administrator for the DesignerCreateProject right if you need to create your own.",
   "home.noCreateTitle": "Creating projects is not enabled for your account",
   "nextore.comments.followedRename": "به {name} تغییر نام یافت. اکنون {count} نظر این فایل را دنبال می‌کند.",
+  "nextore.project.share.title": "کل پروژه (پیوند پوشه)",
   "nextore.share.confirmRevoke": "Revoke this share link? People using it will lose access.",
   "nextore.share.days": "{count} days",
   "nextore.share.empty": "No active share links.",

@@ -15,6 +15,7 @@ export const huOverlay: LocaleOverlay = {
   "home.noCreateBody": "You can open projects shared with you. Ask a NexTore administrator for the DesignerCreateProject right if you need to create your own.",
   "home.noCreateTitle": "Creating projects is not enabled for your account",
   "nextore.comments.followedRename": "Átnevezve: {name}. Most {count} megjegyzés követi ezt a fájlt.",
+  "nextore.project.share.title": "Teljes projekt (mappahivatkozás)",
   "nextore.share.confirmRevoke": "Revoke this share link? People using it will lose access.",
   "nextore.share.days": "{count} days",
   "nextore.share.empty": "No active share links.",

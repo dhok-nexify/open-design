@@ -16,6 +16,9 @@ export interface NextoreDict {
 
   /** NexTore edition: a rename moved the file's comment thread with it. */
   'nextore.comments.followedRename': string;
+
+  /** NexTore edition: folder-level share section in the artifact dialog. */
+  'nextore.project.share.title': string;
   'nextorePermissions.title': string;
   'nextorePermissions.description': string;
   'nextorePermissions.inherit': string;
