@@ -34,6 +34,17 @@ export type NextoreAccessOptions = {
   isRunScopedExportRequest: (req: Request) => boolean;
 };
 
+/**
+ * The P03 event push is a signed server-to-server request: it has no browser
+ * Origin and no session cookie. Its route verifies the HMAC and timestamp
+ * before doing any work, so it must pass the browser auth gate.
+ */
+export function isNextoreEventPushRequest(req: Request): boolean {
+  return req.method === 'POST'
+    && req.baseUrl === '/api'
+    && req.path === '/nextore/events';
+}
+
 export type NextoreAccess = {
   auth: NextoreAuth | null;
   /** Lazy loader; secrets are read on first use, never at boot. */
@@ -59,7 +70,7 @@ export function mountNextoreAccess(options: NextoreAccessOptions): NextoreAccess
         client,
         secrets,
         store: createNextoreSessionStore(getDb, secrets),
-        allowRequest: isRunScopedExportRequest,
+        allowRequest: (req) => isRunScopedExportRequest(req) || isNextoreEventPushRequest(req),
       })
     : null;
 
