@@ -304,6 +304,48 @@ describe('nextore publish queue', () => {
     expect(claimNextNextorePublish(db, { workerId: 'worker-c', now: 3_000 })).toBeNull();
   });
 
+  it('wakes a dead letter only when a different hash is enqueued', () => {
+    const enqueue = (contentHash: string) => enqueueNextorePublish(db, {
+      projectId: 'project-1',
+      artifactId: 'artifact-1',
+      representation: 'source',
+      relativePath: 'index.html',
+      reason: 'run-complete',
+      now: 1_000,
+      contentHash,
+    });
+
+    enqueue('a'.repeat(64));
+    const first = claimNextNextorePublish(db, { workerId: 'worker-a', now: 1_000, leaseMs: 50 })!;
+    failNextorePublish(db, {
+      id: first.id,
+      workerId: 'worker-a',
+      error: 'module rejected the bytes',
+      deadLetter: true,
+      now: 1_500,
+      contentHash: 'a'.repeat(64),
+    });
+    expect(getNextorePublishQueueItem(db, first.id)).toMatchObject({
+      deadLetteredAt: 1_500,
+      lastContentHash: 'a'.repeat(64),
+    });
+
+    // Same bytes: stays parked, so a permanently bad artifact cannot loop.
+    enqueue('a'.repeat(64));
+    expect(claimNextNextorePublish(db, { workerId: 'worker-b', now: 2_000 })).toBeNull();
+
+    // New bytes: the edit is a real change, so the job becomes claimable again.
+    enqueue('b'.repeat(64));
+    expect(getNextorePublishQueueItem(db, first.id)).toMatchObject({
+      deadLetteredAt: null,
+      attempts: 0,
+      nextAttemptAt: 1_000,
+      lastError: null,
+    });
+    expect(claimNextNextorePublish(db, { workerId: 'worker-c', now: 2_000 }))
+      .toMatchObject({ claimedBy: 'worker-c', attempts: 1 });
+  });
+
   it('resets a dead-lettered job through an explicit retry', () => {
     enqueueNextorePublish(db, {
       projectId: 'project-1',

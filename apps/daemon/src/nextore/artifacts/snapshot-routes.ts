@@ -4,6 +4,7 @@ import { basename, join, resolve, sep } from 'node:path';
 import type { Express, Response } from 'express';
 
 import type { AuthorizeProjectRequest } from '../../collab/project-request-authority.js';
+import { hashFileSha256 } from './publisher.js';
 import { SnapshotRenderError, renderHtmlToPdf, type ChromiumRenderOptions, type RenderedPdf } from './snapshot-renderer.js';
 import type { NextoreArtifactRuntime } from './runtime.js';
 
@@ -168,6 +169,7 @@ export function registerNextoreSnapshotRoutes(
       await rm(rendered.workDir, { recursive: true, force: true }).catch(() => {});
     }
 
+    const contentHash = await hashFileSha256(destination).catch(() => null);
     runtime.queueSnapshot({
       projectId,
       artifactId,
@@ -176,6 +178,7 @@ export function registerNextoreSnapshotRoutes(
       sourcePath: destination,
       name,
       mimeType: 'application/pdf',
+      contentHash,
     });
 
     res.status(202).json({

@@ -58,7 +58,8 @@ function publishQueueTableSql(tableName: string, ifNotExists: boolean): string {
       claimed_by TEXT,
       lease_until INTEGER,
       dead_letter_at INTEGER,
-      last_error TEXT
+      last_error TEXT,
+      last_content_hash TEXT
     );
   `;
 }
@@ -110,6 +111,7 @@ const MIGRATION_TABLE_SQL = `
 
 export const NEXTORE_ARTIFACT_MIGRATION_ID = 'p04a_artifact_representation_v1';
 export const NEXTORE_QUEUE_PAYLOAD_MIGRATION_ID = 'p04c_queue_payload_v1';
+export const NEXTORE_QUEUE_FAILED_HASH_MIGRATION_ID = 'p04c_queue_failed_hash_v1';
 
 /**
  * Canonical DDL for a fresh database. Existing databases go through
@@ -213,6 +215,19 @@ function migratePublishQueuePayload(db: SqliteDb): void {
 }
 
 /**
+ * Remember which content a job last failed on.
+ *
+ * Without it a dead-lettered job can never tell "the same bad bytes" from
+ * "someone fixed the file": the published content hash is older than both, so
+ * comparing against it would either never wake or wake in a loop.
+ */
+function migratePublishQueueFailedHash(db: SqliteDb): void {
+  if (!hasTable(db, 'nextore_publish_queue')) return;
+  if (tableColumns(db, 'nextore_publish_queue').includes('last_content_hash')) return;
+  db.exec('ALTER TABLE nextore_publish_queue ADD COLUMN last_content_hash TEXT');
+}
+
+/**
  * Add `representation` to the artifact and queue tables exactly once. Existing
  * rows are preserved as the `source` representation; the old queue id is
  * rewritten to include the representation segment.
@@ -240,6 +255,16 @@ export function migrateNextoreArtifactSchema(db: SqliteDb): void {
       db.prepare(
         `INSERT INTO nextore_schema_migrations (id, applied_at) VALUES (?, ?)`,
       ).run(NEXTORE_QUEUE_PAYLOAD_MIGRATION_ID, Date.now());
+    }
+
+    const failedHashApplied = db.prepare(
+      `SELECT 1 AS applied FROM nextore_schema_migrations WHERE id = ?`,
+    ).get(NEXTORE_QUEUE_FAILED_HASH_MIGRATION_ID) as { applied: number } | undefined;
+    if (!failedHashApplied) {
+      migratePublishQueueFailedHash(db);
+      db.prepare(
+        `INSERT INTO nextore_schema_migrations (id, applied_at) VALUES (?, ?)`,
+      ).run(NEXTORE_QUEUE_FAILED_HASH_MIGRATION_ID, Date.now());
     }
 
     db.exec(INDEX_SQL);
@@ -361,6 +386,7 @@ interface QueueRow {
   lease_until: number | null;
   dead_letter_at: number | null;
   last_error: string | null;
+  last_content_hash?: string | null;
 }
 
 function toArtifactRecord(row: ArtifactRow): NextoreArtifactRecord {
@@ -410,6 +436,7 @@ function toQueueItem(row: QueueRow): NextorePublishQueueItem {
     leaseUntil: row.lease_until,
     deadLetteredAt: row.dead_letter_at,
     lastError: row.last_error,
+    lastContentHash: row.last_content_hash ?? null,
   };
 }
 
@@ -601,6 +628,13 @@ export interface EnqueueNextorePublishInput {
   artifactId: string;
   representation: NextoreArtifactRepresentation;
   memberId?: number;
+  /**
+   * Hash of the bytes this enqueue is about to publish.
+   *
+   * A dead-lettered job is only woken by a *different* hash: retrying the same
+   * bytes automatically would loop forever, which is why that case stays manual.
+   */
+  contentHash?: string | null;
   runId?: string | null;
   tier?: 'fast' | 'expert' | null;
   relativePath: string;
@@ -637,8 +671,9 @@ export function enqueueNextorePublish(
     INSERT INTO nextore_publish_queue (
       id, project_id, artifact_id, representation, member_id, run_id, tier,
       relative_path, source_path, name, mime_type, reason, attempts,
-      next_attempt_at, created_at, claimed_by, lease_until, dead_letter_at, last_error
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, NULL, NULL, NULL, NULL)
+      next_attempt_at, created_at, claimed_by, lease_until, dead_letter_at, last_error,
+      last_content_hash
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, NULL, NULL, NULL, NULL, ?)
     ON CONFLICT(id) DO UPDATE SET
       representation = excluded.representation,
       member_id = excluded.member_id,
@@ -649,8 +684,36 @@ export function enqueueNextorePublish(
       name = excluded.name,
       mime_type = excluded.mime_type,
       reason = excluded.reason,
-      next_attempt_at = MIN(nextore_publish_queue.next_attempt_at, excluded.next_attempt_at),
+      next_attempt_at = CASE
+        WHEN nextore_publish_queue.dead_letter_at IS NOT NULL
+         AND excluded.last_content_hash IS NOT NULL
+         AND nextore_publish_queue.last_content_hash IS NOT NULL
+         AND excluded.last_content_hash <> nextore_publish_queue.last_content_hash
+          THEN excluded.next_attempt_at
+        ELSE MIN(nextore_publish_queue.next_attempt_at, excluded.next_attempt_at)
+      END,
+      attempts = CASE
+        WHEN nextore_publish_queue.dead_letter_at IS NOT NULL
+         AND excluded.last_content_hash IS NOT NULL
+         AND nextore_publish_queue.last_content_hash IS NOT NULL
+         AND excluded.last_content_hash <> nextore_publish_queue.last_content_hash
+          THEN 0
+        ELSE nextore_publish_queue.attempts
+      END,
+      dead_letter_at = CASE
+        WHEN nextore_publish_queue.dead_letter_at IS NOT NULL
+         AND excluded.last_content_hash IS NOT NULL
+         AND nextore_publish_queue.last_content_hash IS NOT NULL
+         AND excluded.last_content_hash <> nextore_publish_queue.last_content_hash
+          THEN NULL
+        ELSE nextore_publish_queue.dead_letter_at
+      END,
       last_error = CASE
+        WHEN nextore_publish_queue.dead_letter_at IS NOT NULL
+         AND excluded.last_content_hash IS NOT NULL
+         AND nextore_publish_queue.last_content_hash IS NOT NULL
+         AND excluded.last_content_hash <> nextore_publish_queue.last_content_hash
+          THEN NULL
         WHEN nextore_publish_queue.dead_letter_at IS NULL THEN NULL
         ELSE nextore_publish_queue.last_error
       END
@@ -669,6 +732,7 @@ export function enqueueNextorePublish(
     input.reason,
     now,
     now,
+    input.contentHash ?? null,
   );
   const item = getNextorePublishQueueItem(db, id);
   if (!item) throw new Error('nextore publish queue row disappeared after enqueue');
@@ -684,7 +748,7 @@ export function getNextorePublishQueueItem(
     SELECT id, project_id, artifact_id, representation, member_id, run_id, tier,
            relative_path, source_path, name, mime_type, reason, attempts,
            next_attempt_at, created_at, claimed_by, lease_until, dead_letter_at,
-           last_error
+           last_error, last_content_hash
       FROM nextore_publish_queue
      WHERE id = ?
   `).get(id) as QueueRow | undefined;
@@ -712,7 +776,7 @@ export function listNextorePublishQueue(
     SELECT id, project_id, artifact_id, representation, member_id, run_id, tier,
            relative_path, source_path, name, mime_type, reason, attempts,
            next_attempt_at, created_at, claimed_by, lease_until, dead_letter_at,
-           last_error
+           last_error, last_content_hash
       FROM nextore_publish_queue
       ${where}
      ORDER BY created_at ASC, id ASC
@@ -782,6 +846,8 @@ export interface FailNextorePublishInput {
   retryAt?: number | null;
   deadLetter?: boolean;
   now?: number;
+  /** Content this attempt failed on; a later *different* hash may wake a dead letter. */
+  contentHash?: string | null;
 }
 
 export function failNextorePublish(
@@ -795,9 +861,16 @@ export function failNextorePublish(
          SET claimed_by = NULL,
              lease_until = NULL,
              dead_letter_at = ?,
-             last_error = ?
+             last_error = ?,
+             last_content_hash = COALESCE(?, last_content_hash)
        WHERE id = ? AND claimed_by = ?
-    `).run(input.now ?? Date.now(), input.error, input.id, input.workerId);
+    `).run(
+      input.now ?? Date.now(),
+      input.error,
+      input.contentHash ?? null,
+      input.id,
+      input.workerId,
+    );
     return result.changes > 0;
   }
 
@@ -809,9 +882,16 @@ export function failNextorePublish(
        SET claimed_by = NULL,
            lease_until = NULL,
            next_attempt_at = ?,
-           last_error = ?
+           last_error = ?,
+           last_content_hash = COALESCE(?, last_content_hash)
      WHERE id = ? AND claimed_by = ?
-  `).run(input.retryAt, input.error, input.id, input.workerId);
+  `).run(
+    input.retryAt,
+    input.error,
+    input.contentHash ?? null,
+    input.id,
+    input.workerId,
+  );
   return result.changes > 0;
 }
 

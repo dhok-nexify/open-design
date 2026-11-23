@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { createReadStream } from 'node:fs';
+import { createReadStream, readFileSync } from 'node:fs';
 import { stat } from 'node:fs/promises';
 import type Database from 'better-sqlite3';
 import type {
@@ -77,6 +77,18 @@ const NON_RETRYABLE_CODES = new Set([
   'project_not_found',
   'storage_profile_unavailable',
 ]);
+
+/**
+ * Synchronous sibling of {@link hashFileSha256}.
+ *
+ * `enqueueRun` is called from a synchronous path that cannot await, yet the
+ * enqueued hash is what lets a later edit wake a dead-lettered job. Deliverables
+ * are small enough (HTML, rendered PDF) that one read is cheaper than making the
+ * whole run-finalization path async.
+ */
+export function hashFileSha256Sync(filePath: string): string {
+  return createHash('sha256').update(readFileSync(filePath)).digest('hex');
+}
 
 export async function hashFileSha256(filePath: string): Promise<string> {
   const hash = createHash('sha256');

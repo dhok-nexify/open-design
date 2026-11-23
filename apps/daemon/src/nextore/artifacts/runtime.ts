@@ -22,7 +22,12 @@ import {
   rememberProjectMember,
   retryNextorePublish,
 } from './store.js';
-import { publishArtifactJob, type PublishOutcomeStatus } from './publisher.js';
+import {
+  hashFileSha256,
+  hashFileSha256Sync,
+  publishArtifactJob,
+  type PublishOutcomeStatus,
+} from './publisher.js';
 import {
   resolvePublishableArtifacts,
   type NextoreDeliverableSnapshot,
@@ -40,6 +45,23 @@ import {
 } from './worker.js';
 
 type SqliteDb = Database.Database;
+
+/** A hash is only an optimisation hint here: an unreadable file must still enqueue. */
+async function hashQuietly(filePath: string): Promise<string | null> {
+  try {
+    return await hashFileSha256(filePath);
+  } catch {
+    return null;
+  }
+}
+
+function hashQuietlySync(filePath: string): string | null {
+  try {
+    return hashFileSha256Sync(filePath);
+  } catch {
+    return null;
+  }
+}
 
 export interface NextoreArtifactStatusEvent {
   projectId: string;
@@ -149,6 +171,7 @@ export class NextoreArtifactRuntime {
     });
     const now = this.deps.now ?? Date.now;
     for (const artifact of artifacts) {
+      const sourcePath = path.resolve(input.projectRoot, artifact.sourcePath);
       enqueueNextorePublish(this.deps.db, {
         projectId: artifact.projectId,
         artifactId: artifact.artifactId,
@@ -157,11 +180,12 @@ export class NextoreArtifactRuntime {
         runId: input.runId,
         tier: input.tier,
         relativePath: artifact.relativePath,
-        sourcePath: path.resolve(input.projectRoot, artifact.sourcePath),
+        sourcePath,
         name: artifact.name,
         mimeType: artifact.mimeType,
         reason: 'run-complete',
         now: now(),
+        contentHash: hashQuietlySync(sourcePath),
       });
     }
     if (artifacts.length > 0) {
@@ -321,6 +345,7 @@ export class NextoreArtifactRuntime {
     }
     const now = this.deps.now ?? Date.now;
     for (const artifact of artifacts) {
+      const sourcePath = path.resolve(projectRoot, artifact.sourcePath);
       enqueueNextorePublish(this.deps.db, {
         projectId: artifact.projectId,
         artifactId: artifact.artifactId,
@@ -329,11 +354,12 @@ export class NextoreArtifactRuntime {
         runId: null,
         tier: null,
         relativePath: artifact.relativePath,
-        sourcePath: path.resolve(projectRoot, artifact.sourcePath),
+        sourcePath,
         name: artifact.name,
         mimeType: artifact.mimeType,
         reason: 'file-change',
         now: now(),
+        contentHash: await hashQuietly(sourcePath),
       });
     }
     if (this.deps.autoDrain !== false) void this.wake();
@@ -553,6 +579,7 @@ export class NextoreArtifactRuntime {
     sourcePath: string;
     name: string;
     mimeType: string;
+    contentHash?: string | null;
   }): void {
     const now = this.deps.now ?? Date.now;
     enqueueNextorePublish(this.deps.db, {
@@ -568,6 +595,7 @@ export class NextoreArtifactRuntime {
       mimeType: input.mimeType,
       reason: 'snapshot-request',
       now: now(),
+      contentHash: input.contentHash ?? null,
     });
     void this.wake();
   }

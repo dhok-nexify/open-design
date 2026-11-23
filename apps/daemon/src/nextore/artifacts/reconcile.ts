@@ -5,6 +5,7 @@ import type { NextoreArtifactRepresentation } from '@open-design/contracts';
 
 import type { NextoreArtifactClient } from '../client.js';
 import { mimeTypeFor } from './registry.js';
+import { hashFileSha256 } from './publisher.js';
 import {
   enqueueNextorePublish,
   listNextoreArtifacts,
@@ -174,6 +175,7 @@ export async function reconcileProjectArtifacts(
         result.skipped += 1;
         continue;
       }
+      const contentHash = await hashFileSha256(sourcePath).catch(() => local.contentHash);
       enqueueNextorePublish(input.db, {
         projectId: local.projectId,
         artifactId: local.artifactId,
@@ -187,6 +189,7 @@ export async function reconcileProjectArtifacts(
         mimeType: mimeTypeFor(local.relativePath),
         reason: 'reconcile',
         now: at,
+        contentHash,
       });
       result.requeued += 1;
       upsertNextoreArtifact(input.db, {

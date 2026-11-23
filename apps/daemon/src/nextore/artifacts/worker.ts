@@ -123,6 +123,7 @@ export async function runNextorePublishWorkerOnce(
       error: outcome.errorCode ?? 'dead_letter',
       deadLetter: true,
       now: at,
+      contentHash: outcome.contentHash ?? null,
     });
     updateNextoreArtifactStatus(deps.db, {
       projectId: item.projectId,
@@ -142,6 +143,7 @@ export async function runNextorePublishWorkerOnce(
     workerId: deps.workerId,
     error: outcome.message ?? outcome.errorCode ?? 'retry',
     retryAt: now() + delay,
+    contentHash: outcome.contentHash ?? null,
   });
   return { claimed: item, outcome };
 }

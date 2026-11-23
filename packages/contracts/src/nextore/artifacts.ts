@@ -125,6 +125,8 @@ export interface NextorePublishQueueItem {
   leaseUntil: number | null;
   deadLetteredAt: number | null;
   lastError: string | null;
+  /** Content the last failed attempt tried to publish; null before any failure. */
+  lastContentHash?: string | null;
 }
 
 /** POST /api/nextore/projects/:id/artifacts/:artifactId/share request. */
