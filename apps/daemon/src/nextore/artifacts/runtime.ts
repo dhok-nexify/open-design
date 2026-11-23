@@ -195,7 +195,6 @@ export class NextoreArtifactRuntime {
     if (!isNextoreArtifactPublishEnabled(this.deps.mode) || !this.deps.watchProjectFiles) return 0;
     let restored = 0;
     for (const projectId of listWatchableArtifactProjectIds(this.deps.db)) {
-      if (!this.projectMembers.get(projectId)) continue;
       try {
         this.watchProject(projectId);
         restored += 1;
@@ -221,13 +220,23 @@ export class NextoreArtifactRuntime {
   }
 
   private scheduleFileChangePublish(projectId: string): void {
-    const memberId = this.projectMembers.get(projectId);
-    if (!memberId) return;
     const pending = this.fileTimers.get(projectId);
     if (pending) clearTimeout(pending);
     const delay = this.deps.fileChangeDebounceMs ?? 1_500;
     const timer = setTimeout(() => {
       this.fileTimers.delete(projectId);
+      // Resolve at fire time: the map is filled on startup and on every
+      // publish, but a project restored from older data may only have the
+      // queue to answer with.
+      const memberId = this.projectMembers.get(projectId)
+        ?? findPublishMember(this.deps.db, projectId);
+      if (!memberId) {
+        console.warn(
+          '[nextore-artifact] file change ignored project=' + projectId
+            + ': no publishing member is recorded for this project',
+        );
+        return;
+      }
       void this.publishProjectDeliverable(projectId, memberId);
     }, delay);
     timer.unref?.();
@@ -240,18 +249,34 @@ export class NextoreArtifactRuntime {
     let resolved: { deliverable: NextoreDeliverableSnapshot; projectRoot: string };
     try {
       resolved = await resolve(projectId);
-    } catch {
+    } catch (error) {
+      console.warn(
+        '[nextore-artifact] file change ignored project=' + projectId
+          + ': deliverable resolution failed (' + (error instanceof Error ? error.message : String(error)) + ')',
+      );
       return;
     }
     const { deliverable, projectRoot } = resolved;
-    if (!deliverable.valid || !deliverable.entryFile) return;
+    if (!deliverable.valid || !deliverable.entryFile) {
+      console.warn(
+        '[nextore-artifact] file change ignored project=' + projectId
+          + ': the project has no valid deliverable entry file',
+      );
+      return;
+    }
 
     const entry = deliverable.entryFile.replaceAll('\\', '/');
     const records = listNextoreArtifacts(this.deps.db, projectId)
       .filter((row) => row.representation === 'source');
     const match = records.find((row) => row.relativePath === entry)
       ?? (records.length === 1 ? records[0] : null);
-    if (!match) return;
+    if (!match) {
+      console.warn(
+        '[nextore-artifact] file change ignored project=' + projectId
+          + ': no published source artifact matches entry=' + entry,
+      );
+      return;
+    }
 
     const artifacts = resolvePublishableArtifacts({
       projectId,
@@ -260,7 +285,13 @@ export class NextoreArtifactRuntime {
       tier: null,
       deliverable,
     });
-    if (artifacts.length === 0) return;
+    if (artifacts.length === 0) {
+      console.warn(
+        '[nextore-artifact] file change ignored project=' + projectId
+          + ': the artifact registry returned no publishable representation for entry=' + entry,
+      );
+      return;
+    }
     const now = this.deps.now ?? Date.now;
     for (const artifact of artifacts) {
       enqueueNextorePublish(this.deps.db, {
@@ -323,6 +354,9 @@ export class NextoreArtifactRuntime {
           // A project that just published must keep tracking later edits, even
           // when the publish came from reconcile/adoption rather than a run.
           if (outcome?.status === 'published') {
+            const at = (this.deps.now ?? Date.now)();
+            this.projectMembers.set(tick.claimed.projectId, tick.claimed.memberId);
+            rememberProjectMember(this.deps.db, tick.claimed.projectId, tick.claimed.memberId, at);
             try {
               this.watchProject(tick.claimed.projectId);
             } catch {

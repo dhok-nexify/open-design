@@ -575,6 +575,21 @@ describe('NextoreArtifactRuntime out-of-run trigger', () => {
     worker.unwatchAll();
   });
 
+  it('still watches a project whose publishing member is unknown, and says so', async () => {
+    seedPublishedRecord();
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { worker, fire } = watchedRuntime();
+
+    expect(worker.restoreWatchers()).toBe(1);
+    fire();
+    await new Promise((resolve) => setTimeout(resolve, 60));
+
+    expect(listNextorePublishQueue(db, 'project-1')).toEqual([]);
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('no publishing member is recorded'));
+    warn.mockRestore();
+    worker.unwatchAll();
+  });
+
   it('starts watching a project that publishes without a run', async () => {
     seedPublishedRecord();
     rememberProjectMember(db, 'project-1', 7, 1_000);

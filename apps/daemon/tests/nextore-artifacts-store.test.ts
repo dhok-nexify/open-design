@@ -11,6 +11,7 @@ import {
   getNextorePublishQueueItem,
   listNextoreArtifacts,
   listNextorePublishQueue,
+  listProjectMembers,
   markNextoreArtifactOrphaned,
   nextorePublishQueueId,
   retryNextorePublish,
@@ -412,5 +413,45 @@ describe('nextore artifact representation migration', () => {
     } finally {
       legacy.close();
     }
+  });
+});
+
+describe('publisher identity', () => {
+  it('records the member who publishes on every enqueue path', () => {
+    // Snapshot and reconcile publishes have no run to remember them; without
+    // this row a restart cannot answer "whose session publishes this project".
+    enqueueNextorePublish(db, {
+      projectId: 'project-1',
+      artifactId: 'index.html',
+      representation: 'snapshot',
+      memberId: 9,
+      relativePath: '.od-snapshots/index.pdf',
+      reason: 'snapshot',
+      now: 1_000,
+    });
+
+    expect(listProjectMembers(db)).toEqual([{ projectId: 'project-1', memberId: 9 }]);
+  });
+
+  it('leaves the recorded member alone when a job carries none', () => {
+    enqueueNextorePublish(db, {
+      projectId: 'project-1',
+      artifactId: 'index.html',
+      representation: 'snapshot',
+      memberId: 9,
+      relativePath: '.od-snapshots/index.pdf',
+      reason: 'snapshot',
+      now: 1_000,
+    });
+    enqueueNextorePublish(db, {
+      projectId: 'project-1',
+      artifactId: 'index.html',
+      representation: 'source',
+      relativePath: 'index.html',
+      reason: 'file-change',
+      now: 2_000,
+    });
+
+    expect(listProjectMembers(db)).toEqual([{ projectId: 'project-1', memberId: 9 }]);
   });
 });

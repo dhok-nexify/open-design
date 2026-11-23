@@ -621,6 +621,13 @@ export function enqueueNextorePublish(
   input: EnqueueNextorePublishInput,
 ): NextorePublishQueueItem {
   ensureNextoreArtifactSchema(db);
+  // Remember who publishes this project on every path, not only on runs: a
+  // restart then knows whose session to use for out-of-run edits. Snapshot and
+  // reconcile publishes used to leave no durable member, so the first edit
+  // after a restart was silently ignored.
+  if (typeof input.memberId === 'number' && input.memberId > 0) {
+    rememberProjectMember(db, input.projectId, input.memberId, input.now ?? Date.now());
+  }
   const now = input.now ?? Date.now();
   const id = nextorePublishQueueId(input.projectId, input.artifactId, input.representation);
   const sourcePath = input.sourcePath ?? input.relativePath;
