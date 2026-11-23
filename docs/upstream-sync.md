@@ -19,25 +19,21 @@ Every file a downstream change touches is either:
 the config. **Budgets only go down.** Raising one is a product decision that needs
 an explicit review, not a convenience for getting a branch merged.
 
-History: the budget moved 488 -> 496 -> 505 -> 522 -> 557 -> 561. The 496
-entry was measured against the pre-commit tree, so it understated committed
-divergence. 505 was the committed count at `05d75ad6be`; six later NexTore UI
-fixes touched 17 additional upstream-owned files, so 522 was the count at
-`5d5c925c88`. Four further NexTore commits (CLI authorization consent,
-credential hydration, comment notices, file-manager handoff) touched 35 more
-upstream-owned files, so the 2026-11-19 checkpoint `42f6745cc9` measured 557.
-The upstream merge to `07258801b9` moved the base without adding fork
-divergence; the Windows adaptations for the new upstream tests added 4 files,
-so 561 is the committed count after the merge. The added files are test and
-wiring adaptations, not product logic: per-imported-file stylesheet injection,
-path-separator normalisation, the focus-directory refresh contract, NexTore
-switcher and comment styles, brand-copy expectations declared fork-owned, the
-packaged `previous.log` path join, the live-preview server timeout, the POSIX
-shell guard, and the live-artifact whitespace fix.
-Payback: upstream the path-separator, stylesheet-segment, `previous.log` and
-POSIX-shell-guard fixes, then drop the entries and lower the budget again.
-Every later commit must re-run `pnpm sync:check`; do not carry a stale budget
-into the next sync.
+History: the budget moved 488 -> 496 -> 505 -> 522 -> 557 -> 561 -> 572.
+The 496 entry was measured against the pre-commit tree, so it understated
+committed divergence. 505 was the committed count at `05d75ad6be`; six later
+NexTore UI fixes touched 17 additional upstream-owned files, so 522 was the
+count at `5d5c925c88`. Four further NexTore commits touched 35 more files, so
+the 2026-11-19 checkpoint `42f6745cc9` measured 557; the Windows adaptations
+for that merge added 4 files, giving 561. Local NexTore work between the two
+syncs (export and snapshot rendering, layout reservations, polling) touched 11
+more upstream-owned files, so the 2026-11-23 checkpoint `c079f7d790` measured
+572. The two upstream commits merged on 2026-11-23 added no fork divergence;
+the guard fix for the snapshot renderer is fork-owned.
+Payback: upstream the path-separator, stylesheet-segment, `previous.log`,
+POSIX-shell-guard, and HTML-boundary fixes, then drop the entries and lower
+the budget again. Every later commit must re-run `pnpm sync:check`; do not
+carry a stale budget into the next sync.
 
 ### 2026-11-17 snapshot
 
@@ -67,6 +63,22 @@ the next sync.
 The only conflict was `README.md`: upstream added an OpenDesign product tour,
 while the fork keeps the NexTore edition README. Root marketing copy stays
 downstream.
+
+### 2026-11-23 snapshot
+
+| Item | Value |
+| --- | --- |
+| Checkpoint tag | `pre-upstream-sync-20261123` (`c079f7d790`) |
+| Merge commit | `4ef4e06df0` |
+| Upstream tip merged | `e033aad1d1` |
+| Divergence budget | 572 upstream-owned files |
+| Merge conflicts | 0 |
+| Modify/delete conflicts | 0 |
+
+The upstream delta was two commits: dynamic Vela video-duration validation and
+removal of the external-link icon from the sign-in reopen link. No manual merge
+resolution was needed. The only integration fix was a pre-existing guard
+failure in the fork-owned snapshot renderer.
 
 ## Commands
 
@@ -207,6 +219,13 @@ Copy this into the sync PR and tick every line:
 | Stale budget at checkpoint | `sync:check` measured 557 while the document still said 522. | Four NexTore commits after the last measurement touched 35 upstream-owned files. | Re-measure at the checkpoint before merging, not only after. |
 | README product tour | Upstream added a large OpenDesign tour and the merge conflicted. | Root marketing copy belongs to the downstream edition. | Keep the fork README and record the decision in the sync PR. |
 
+### Added on 2026-11-23
+
+| Pitfall | Symptom | Root cause and durable fix | Guard |
+| --- | --- | --- | --- |
+| HTML boundary guard | `pnpm guard` failed on `snapshot-renderer.ts` for a text `</head>` replace. | Fork code matched a structural tag by text; an author script string can contain it too. The renderer now uses `findRealTagOffset` with `HTML_TAG_PATTERNS.headClose`, and a regression test pins a `</head>` inside a script. | Use `findRealTagOffset` / `findRealTagEnd` for every structural HTML boundary. |
+| Budget drift between syncs | The document said 561 while the checkpoint measured 572. | Local export, snapshot, layout, and polling work touched 11 upstream-owned files between syncs. | Re-measure at the checkpoint before merging, not only after. |
+
 ## Windows and line endings
 
 The suite asserts exact source text, so the checkout must be LF on every
@@ -259,6 +278,11 @@ upstream-owned files:
    time; the merge report shows them as owned rather than as new debt. Only
    copy-assertion tests belong there — behaviour tests stay upstream-owned and are
    adapted in place when the conformance work changes.
+
+7. **HTML boundaries.** Never text-match `<head>`, `</body>`, `<base>`, or
+   `<title>`. Use `findRealTagOffset` / `findRealTagEnd` from
+   `packages/contracts/src/runtime/html-injection-points.ts`; the guard rejects
+   text matches because author script strings can contain those tags.
 
 ## Automation path
 
