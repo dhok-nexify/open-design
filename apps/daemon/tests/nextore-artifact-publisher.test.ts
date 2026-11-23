@@ -146,6 +146,30 @@ describe('publishArtifactJob', () => {
     expect(publish).not.toHaveBeenCalled();
   });
 
+  it('publishes a rename even when the bytes are unchanged', async () => {
+    // Renaming the file keeps the content hash identical. Skipping on hash alone
+    // would leave the published copy under its old name forever.
+    const publish = vi.fn(async (..._args: unknown[]) => result);
+    const deps = {
+      db,
+      client: client(publish),
+      resolveAccessToken: async () => 'token-1',
+      now: () => 1_000,
+    };
+    await publishArtifactJob(job(), deps);
+    publish.mockClear();
+
+    const renamed = await publishArtifactJob(job({
+      relativePath: 'landing.html',
+      name: 'landing.html',
+    }), deps);
+
+    expect(publish).toHaveBeenCalledTimes(1);
+    expect(renamed.status).toBe('published');
+    expect(getNextoreArtifact(db, 'project-1', 'artifact-1', 'source')?.relativePath)
+      .toBe('landing.html');
+  });
+
   it('returns publish_pending with auth_required when the member has no token', async () => {
     const publish = vi.fn(async (..._args: unknown[]) => result);
     const outcome = await publishArtifactJob(job(), {

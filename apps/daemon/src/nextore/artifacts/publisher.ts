@@ -214,7 +214,14 @@ export async function publishArtifactJob(
   let contentHash = await hashFile(job.sourcePath);
   const existing = getNextoreArtifact(
     deps.db, job.projectId, job.artifactId, job.representation);
-  if (existing && existing.contentHash === contentHash) {
+  // A rename moves the file without changing a byte. Only content AND path
+  // matching is a true no-op; otherwise the module must hear about the new name
+  // or the published copy keeps the old one forever.
+  if (
+    existing
+    && existing.contentHash === contentHash
+    && existing.relativePath === job.relativePath
+  ) {
     return published(existing.treeObjectId, existing.currentVersion, contentHash);
   }
 
