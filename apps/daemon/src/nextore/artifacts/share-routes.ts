@@ -196,6 +196,90 @@ export function registerNextoreArtifactShareRoutes(
     }
   });
 
+  /** GET /api/nextore/projects/:id/share — the current folder link, if any. */
+  app.get('/api/nextore/projects/:id/share', async (req, res) => {
+    if (unavailable(res)) return;
+    const runtime = deps.runtime!;
+    const client = deps.client!;
+    const projectId = String(req.params.id ?? '');
+    if (!projectId) {
+      fail(res, 400, 'BAD_REQUEST', 'project id is required');
+      return;
+    }
+    if (!await deps.authorizeProject(req, res, projectId, { mode: 'read', capability: 'share' })) return;
+    const memberId = sessionMemberId(res);
+    if (!memberId) {
+      fail(res, 401, 'SESSION_REQUIRED', 'A NexTore session is required.');
+      return;
+    }
+    const nextoreProjectId = runtime.nextoreProjectId(projectId);
+    if (!nextoreProjectId) {
+      fail(res, 409, 'project_not_mapped', 'The project is not linked to a NexTore project.');
+      return;
+    }
+    const accessToken = await runtime.accessTokenFor(memberId);
+    if (!accessToken) {
+      fail(res, 401, 'auth_required', 'The NexTore session has expired; sign in again.');
+      return;
+    }
+    try {
+      const result = await client.projectShare<{ shared?: unknown; url?: unknown }>(
+        accessToken,
+        nextoreProjectId,
+      );
+      const url = typeof result?.url === 'string' && result.url ? result.url : null;
+      res.json({ projectId, shared: result?.shared === true && url !== null, url });
+    } catch (error) {
+      mapClientError(res, error, 'share_status_failed');
+    }
+  });
+
+  /**
+   * DELETE /api/nextore/projects/:id/share — revoke the folder link.
+   *
+   * Repeat deletes are a normal outcome of a refresh-then-click race, so an
+   * already-absent link answers { revoked: false } instead of an error.
+   */
+  app.delete('/api/nextore/projects/:id/share', async (req, res) => {
+    if (unavailable(res)) return;
+    const runtime = deps.runtime!;
+    const client = deps.client!;
+    const projectId = String(req.params.id ?? '');
+    if (!projectId) {
+      fail(res, 400, 'BAD_REQUEST', 'project id is required');
+      return;
+    }
+    if (!await deps.authorizeProject(req, res, projectId, { mode: 'write', capability: 'share' })) return;
+    const memberId = sessionMemberId(res);
+    if (!memberId) {
+      fail(res, 401, 'SESSION_REQUIRED', 'A NexTore session is required.');
+      return;
+    }
+    const nextoreProjectId = runtime.nextoreProjectId(projectId);
+    if (!nextoreProjectId) {
+      fail(res, 409, 'project_not_mapped', 'The project is not linked to a NexTore project.');
+      return;
+    }
+    const accessToken = await runtime.accessTokenFor(memberId);
+    if (!accessToken) {
+      fail(res, 401, 'auth_required', 'The NexTore session has expired; sign in again.');
+      return;
+    }
+    try {
+      const result = await client.unshareProject<{ revoked?: unknown }>(
+        accessToken,
+        nextoreProjectId,
+      );
+      res.json({ projectId, revoked: result?.revoked !== false });
+    } catch (error) {
+      if (error instanceof NextoreClientError && error.statusCode === 404) {
+        res.json({ projectId, revoked: false });
+        return;
+      }
+      mapClientError(res, error, 'share_revoke_failed');
+    }
+  });
+
   app.post('/api/nextore/projects/:id/share', async (req, res) => {
     if (unavailable(res)) return;
     const runtime = deps.runtime!;

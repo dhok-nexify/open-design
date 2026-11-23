@@ -43,6 +43,8 @@ function clientStub(handlers: {
   shareArtifact?: (...args: unknown[]) => Promise<unknown>;
   revokeArtifactShare?: (...args: unknown[]) => Promise<unknown>;
   shareProject?: (...args: unknown[]) => Promise<unknown>;
+  projectShare?: (...args: unknown[]) => Promise<unknown>;
+  unshareProject?: (...args: unknown[]) => Promise<unknown>;
 }): NextoreArtifactClient {
   return {
     publishArtifact: vi.fn(),
@@ -52,6 +54,8 @@ function clientStub(handlers: {
     shareArtifact: vi.fn(handlers.shareArtifact ?? (async () => ({ url: 'https://share.test/s/abc' }))),
     revokeArtifactShare: vi.fn(handlers.revokeArtifactShare ?? (async () => ({ revoked: true }))),
     shareProject: vi.fn(handlers.shareProject ?? (async () => ({ url: 'https://share.test/s/folder' }))),
+    projectShare: vi.fn(handlers.projectShare ?? (async () => ({ shared: false, url: null }))),
+    unshareProject: vi.fn(handlers.unshareProject ?? (async () => ({ revoked: true }))),
   } as unknown as NextoreArtifactClient;
 }
 
@@ -99,6 +103,53 @@ function postJson(base: string, path: string, body: unknown): Promise<globalThis
     body: JSON.stringify(body),
   });
 }
+
+describe('nextore folder share routes', () => {
+  it('reports an existing folder link without creating one', async () => {
+    const client = clientStub({
+      projectShare: async () => ({ shared: true, url: 'https://share.test/PublicShare?key=abc' }),
+    });
+    const base = await startApp({ runtime: runtimeStub(), client });
+
+    const response = await fetch(base + '/api/nextore/projects/project-1/share');
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      shared: true,
+      url: 'https://share.test/PublicShare?key=abc',
+    });
+    expect(client.shareProject).not.toHaveBeenCalled();
+  });
+
+  it('revokes the folder link and treats a repeat delete as already revoked', async () => {
+    const client = clientStub({ unshareProject: async () => ({ revoked: false }) });
+    const base = await startApp({ runtime: runtimeStub(), client });
+
+    const response = await fetch(base + '/api/nextore/projects/project-1/share', {
+      method: 'DELETE',
+    });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ revoked: false });
+    expect(client.unshareProject).toHaveBeenCalledWith('token-1', 'nc-77');
+  });
+
+  it('maps a missing folder link (404 upstream) to revoked:false', async () => {
+    const client = clientStub({
+      unshareProject: async () => {
+        throw new NextoreClientError('nextore_http_error', 'No active share link.', 404, 'share_not_found');
+      },
+    });
+    const base = await startApp({ runtime: runtimeStub(), client });
+
+    const response = await fetch(base + '/api/nextore/projects/project-1/share', {
+      method: 'DELETE',
+    });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ revoked: false });
+  });
+});
 
 describe('nextore artifact share routes', () => {
   it('creates a snapshot share by default', async () => {

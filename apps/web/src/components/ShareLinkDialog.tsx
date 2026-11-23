@@ -45,6 +45,10 @@ export function ShareLinkDialog({
   const t = useT();
   const [links, setLinks] = useState<ShareLinkSummary[]>([]);
   const [loading, setLoading] = useState(true);
+  // NexTore owns folder links (ShareObject). When the daemon exposes that
+  // route the dialog manages that link; otherwise it falls back to the legacy
+  // Designant link list.
+  const [folderShare, setFolderShare] = useState<{ shared: boolean; url: string | null } | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [createdUrl, setCreatedUrl] = useState<string | null>(null);
@@ -54,6 +58,22 @@ export function ShareLinkDialog({
   const load = useCallback(async () => {
     setLoading(true);
     try {
+      // NexTore-first: a 200 here means the platform owns this project's link.
+      const folder = await fetch(
+        '/api/nextore/projects/' + encodeURIComponent(projectId) + '/share',
+        { headers: { accept: 'application/json' } },
+      );
+      if (folder.ok) {
+        const payload = (await folder.json()) as { shared?: unknown; url?: unknown };
+        setFolderShare({
+          shared: payload.shared === true,
+          url: typeof payload.url === 'string' ? payload.url : null,
+        });
+        setLinks([]);
+        setError(null);
+        return;
+      }
+      setFolderShare(null);
       const response = await fetch(
         '/api/nextore/projects/' + encodeURIComponent(projectId) + '/share-links',
         { headers: { accept: 'application/json' } },
@@ -104,6 +124,25 @@ export function ShareLinkDialog({
       const expiresAt = expiryDays === 0
         ? null
         : new Date(Date.now() + expiryDays * 24 * 60 * 60 * 1000).toISOString();
+      if (folderShare) {
+        const created = await fetch(
+          '/api/nextore/projects/' + encodeURIComponent(projectId) + '/share',
+          {
+            method: 'POST',
+            headers: { 'content-type': 'application/json', accept: 'application/json' },
+            body: JSON.stringify({ expiresAt }),
+          },
+        );
+        if (!created.ok) {
+          setError(t('fileViewer.publishFileFailed'));
+          return;
+        }
+        const payload = (await created.json()) as { url?: unknown };
+        const url = typeof payload.url === 'string' ? payload.url : null;
+        setFolderShare({ shared: url !== null, url });
+        setCreatedUrl(url);
+        return;
+      }
       const response = await fetch(
         '/api/nextore/projects/' + encodeURIComponent(projectId) + '/share-links',
         {
@@ -121,6 +160,28 @@ export function ShareLinkDialog({
       await load();
     } catch {
       setError(t('fileViewer.publishFileFailed'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const revokeFolder = async () => {
+    if (!window.confirm(t('nextore.share.confirmRevoke'))) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const response = await fetch(
+        '/api/nextore/projects/' + encodeURIComponent(projectId) + '/share',
+        { method: 'DELETE' },
+      );
+      if (!response.ok) {
+        setError(t('nextore.share.loadFailed'));
+        return;
+      }
+      setFolderShare({ shared: false, url: null });
+      setCreatedUrl(null);
+    } catch {
+      setError(t('nextore.share.loadFailed'));
     } finally {
       setBusy(false);
     }
@@ -211,6 +272,25 @@ export function ShareLinkDialog({
           </button>
         </div>
 
+        {!createdUrl && folderShare?.url ? (
+          <div className={styles.created}>
+            <input
+              className={styles.url}
+              value={folderShare.url}
+              readOnly
+              onFocus={(event) => event.currentTarget.select()}
+              aria-label={t('fileViewer.copyShareLink')}
+            />
+            <button
+              type="button"
+              className={styles.copyButton}
+              onClick={() => { void navigator.clipboard.writeText(folderShare.url ?? '').then(() => setCopied(true)).catch(() => setCopied(false)); }}
+            >
+              {copied ? t('promptTemplates.copyDone') : t('fileViewer.copyShareLink')}
+            </button>
+          </div>
+        ) : null}
+
         {createdUrl ? (
           <div className={styles.created}>
             <input
@@ -233,6 +313,26 @@ export function ShareLinkDialog({
         </div>
         {loading ? (
           <p className={styles.muted}>{t('common.loading')}</p>
+        ) : folderShare ? (
+          folderShare.shared ? (
+            <ul className={styles.list}>
+              <li className={styles.item}>
+                <div className={styles.itemText}>
+                  <span>{t('nextore.share.subtitle')}</span>
+                </div>
+                <button
+                  type="button"
+                  className={styles.revoke}
+                  disabled={busy}
+                  onClick={() => { void revokeFolder(); }}
+                >
+                  {t('common.delete')}
+                </button>
+              </li>
+            </ul>
+          ) : (
+            <p className={styles.muted}>{t('nextore.share.empty')}</p>
+          )
         ) : activeLinks.length === 0 ? (
           <p className={styles.muted}>{t('nextore.share.empty')}</p>
         ) : (

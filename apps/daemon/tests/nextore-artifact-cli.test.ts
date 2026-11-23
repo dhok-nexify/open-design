@@ -37,6 +37,21 @@ async function startStub(): Promise<void> {
         res.end(JSON.stringify({ representations: [{ representation: 'source', artifact: { status: 'published', currentVersion: 3 } }] }));
         return;
       }
+      if (url === '/api/nextore/projects/p1/share') {
+        res.setHeader('content-type', 'application/json');
+        if (req.method === 'GET') {
+          res.end(JSON.stringify({ shared: true, url: 'https://share.test/PublicShare?key=abc' }));
+          return;
+        }
+        if (req.method === 'POST') {
+          res.end(JSON.stringify({ url: 'https://share.test/PublicShare?key=new' }));
+          return;
+        }
+        if (req.method === 'DELETE') {
+          res.end(JSON.stringify({ revoked: true }));
+          return;
+        }
+      }
       if (req.method === 'GET' && url.startsWith('/api/nextore/projects/p1/artifacts/a1/download')) {
         res.setHeader('content-type', 'application/octet-stream');
         res.setHeader('content-length', '9');
@@ -195,5 +210,27 @@ describe('od nextore artifact CLI', () => {
     expect(JSON.parse(result.stdout)).toMatchObject({ representation: 'source', retried: true });
     const request = requests.find((item) => item.url.endsWith('/retry'));
     expect(request?.method).toBe('POST');
+  });
+
+  it('manages the project folder link', async () => {
+    await startStub();
+
+    const status = await runCli(['nextore', 'project', 'status', 'p1', '--daemon-url', baseUrl, '--json']);
+    expect(status.code, status.stderr).toBe(0);
+    expect(JSON.parse(status.stdout)).toMatchObject({ shared: true });
+
+    const share = await runCli(['nextore', 'project', 'share', 'p1', '--daemon-url', baseUrl, '--json']);
+    expect(share.code).toBe(0);
+    expect(JSON.parse(share.stdout)).toMatchObject({ url: 'https://share.test/PublicShare?key=new' });
+
+    const unshare = await runCli(['nextore', 'project', 'unshare', 'p1', '--daemon-url', baseUrl, '--json']);
+    expect(unshare.code).toBe(0);
+    expect(JSON.parse(unshare.stdout)).toMatchObject({ revoked: true });
+
+    expect(requests.map((request) => request.method + ' ' + request.url)).toEqual([
+      'GET /api/nextore/projects/p1/share',
+      'POST /api/nextore/projects/p1/share',
+      'DELETE /api/nextore/projects/p1/share',
+    ]);
   });
 });

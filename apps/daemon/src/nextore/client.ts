@@ -200,6 +200,14 @@ export interface NextoreArtifactClient {
     body: NextoreArtifactShareRequest,
     signal?: AbortSignal,
   ): Promise<T>;
+  /** Current folder share link, without creating one. */
+  projectShare<T>(accessToken: string, projectId: string, signal?: AbortSignal): Promise<T>;
+  /** Revoke the folder ShareObject; answers { revoked } so a repeat delete is harmless. */
+  unshareProject<T>(
+    accessToken: string,
+    projectId: string,
+    signal?: AbortSignal,
+  ): Promise<T>;
 }
 
 function parseJson(text: string): unknown {
@@ -640,6 +648,20 @@ export function createNextoreClient(
       return request<T>(
         'api/designer/projects/' + encodeURIComponent(projectId) + '/share',
         { accessToken, method: 'POST', body, ...(signal ? { signal } : {}) },
+      );
+    },
+
+    projectShare<T>(accessToken: string, projectId: string, signal?: AbortSignal) {
+      return request<T>(
+        'api/designer/projects/' + encodeURIComponent(projectId) + '/share',
+        { accessToken, ...(signal ? { signal } : {}) },
+      );
+    },
+
+    unshareProject<T>(accessToken: string, projectId: string, signal?: AbortSignal) {
+      return request<T>(
+        'api/designer/projects/' + encodeURIComponent(projectId) + '/share',
+        { accessToken, method: 'DELETE', ...(signal ? { signal } : {}) },
       );
     },
 

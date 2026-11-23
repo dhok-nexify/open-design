@@ -7705,6 +7705,11 @@ async function runNextore(args) {
                     [--password <value>] [--no-preview] [--json]
   od nextore artifact unshare <projectId> <artifactId>
                     [--representation snapshot|source] [--json]
+  od nextore project status <projectId> [--json]
+  od nextore project share <projectId> [--expires-at <iso>] [--json]
+  od nextore project unshare <projectId> [--json]
+                    The project's folder link is a NexTore ShareObject; status
+                    never creates one, and unshare is idempotent.
                     Artifact authority that used to live in Designer now runs
                     through NexTore; every command needs the browser session
                     (NXD-P10).`);
@@ -7724,6 +7729,65 @@ async function runNextore(args) {
   if (sub === 'backfill') {
     await runNextoreBackfill(rest, flags, base, NEXTORE_STRING_FLAGS);
     return;
+  }
+
+  if (sub === 'project') {
+    const action = positionalArgs(rest, NEXTORE_STRING_FLAGS)[0];
+    const projectId = positionalArgs(rest, NEXTORE_STRING_FLAGS)[1];
+    if (!action || !projectId) {
+      console.error('Usage: od nextore project <status|share|unshare> <projectId> [--expires-at <iso>] [--json]');
+      process.exit(2);
+    }
+    const path = base + '/api/nextore/projects/' + encodeURIComponent(projectId) + '/share';
+    const readJson = async (resp: Response): Promise<any> => {
+      const text = await resp.text();
+      if (!text) return {};
+      try {
+        return JSON.parse(text);
+      } catch {
+        return { raw: text };
+      }
+    };
+    const failShare = (resp: Response, data: any): never => {
+      const code = data?.error?.code ?? data?.error;
+      if (code === 'SESSION_REQUIRED') {
+        console.error('This daemon runs the NexTore edition: /api needs a signed-in NexTore session (NXD-P10).');
+      }
+      console.error(action + ' failed: ' + resp.status + ' ' + JSON.stringify(data));
+      process.exit(1);
+    };
+    if (action === 'status') {
+      const resp = await fetch(path);
+      const data = await readJson(resp);
+      if (!resp.ok) failShare(resp, data);
+      if (flags.json) return process.stdout.write(JSON.stringify(data, null, 2) + '\n');
+      console.log(data.shared ? data.url : '[nextore] project is not shared');
+      return;
+    }
+    if (action === 'share') {
+      const body: Record<string, unknown> = {};
+      if (typeof flags['expires-at'] === 'string') body.expiresAt = flags['expires-at'];
+      const resp = await fetch(path, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const data = await readJson(resp);
+      if (!resp.ok) failShare(resp, data);
+      if (flags.json) return process.stdout.write(JSON.stringify(data, null, 2) + '\n');
+      console.log(data.url || '');
+      return;
+    }
+    if (action === 'unshare') {
+      const resp = await fetch(path, { method: 'DELETE' });
+      const data = await readJson(resp);
+      if (!resp.ok) failShare(resp, data);
+      if (flags.json) return process.stdout.write(JSON.stringify(data, null, 2) + '\n');
+      console.log(data.revoked ? '[nextore] revoked the project share link' : '[nextore] project was not shared');
+      return;
+    }
+    console.error('Unknown nextore project action. Try: od nextore project status|share|unshare <projectId>');
+    process.exit(2);
   }
 
   if (sub !== 'workspace') {
