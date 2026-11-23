@@ -25,6 +25,9 @@ export interface NextoreDict {
 
   /** NexTore edition: header entry that opens the folder share dialog. */
   'nextore.project.share.action': string;
+
+  /** NexTore edition: file row menu entry that shares that exact file. */
+  'nextore.artifact.share.rowAction': string;
   'nextorePermissions.title': string;
   'nextorePermissions.description': string;
   'nextorePermissions.inherit': string;

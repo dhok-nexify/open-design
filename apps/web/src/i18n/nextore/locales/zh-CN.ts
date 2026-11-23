@@ -122,6 +122,7 @@ export const zhCNOverlay: LocaleOverlay = {
   "nextore.artifact.reason.nextore_unavailable": "NexTore 当前无法连接，下次会自动重试。",
   "nextore.artifact.reason.pin_version_unsupported": "暂不支持固定版本的分享链接。",
   "nextore.artifact.share.title": "通过 NexTore 分享",
+  "nextore.artifact.share.rowAction": "分享此文件",
   "nextore.artifact.share.representation": "分享的版本",
   "nextore.artifact.share.snapshot": "快照（PDF／图片预览）",
   "nextore.artifact.share.source": "源文件（可下载）",

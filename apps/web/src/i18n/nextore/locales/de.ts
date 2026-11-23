@@ -122,6 +122,7 @@ export const deOverlay: LocaleOverlay = {
   "nextore.artifact.reason.nextore_unavailable": "NexTore is unreachable; the next attempt will retry.",
   "nextore.artifact.reason.pin_version_unsupported": "Pinned share links are not available yet.",
   "nextore.artifact.share.title": "Share through NexTore",
+  "nextore.artifact.share.rowAction": "Diese Datei teilen",
   "nextore.artifact.share.representation": "Version to share",
   "nextore.artifact.share.snapshot": "Snapshot (PDF/image preview)",
   "nextore.artifact.share.source": "Source file (download)",

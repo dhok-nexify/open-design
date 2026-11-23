@@ -38,14 +38,14 @@ export function artifactShareEntryMode(
 
 export function NextoreProjectActions({
   access,
-  onOpenShareLinks,
   onOpenProjectShare,
   onOpenPermissions,
 }: {
   access: NextoreProjectAccessView | null;
-  /** Single-file share: the artifact dialog. */
-  onOpenShareLinks: () => void;
-  /** Whole-project (folder) share: its own dialog. */
+  /**
+   * Whole-project (folder) share only. File links are created from the file row
+   * that names the file: a header entry cannot say which page it would share.
+   */
   onOpenProjectShare: () => void;
   onOpenPermissions: () => void;
 }): ReactElement {
@@ -59,29 +59,15 @@ export function NextoreProjectActions({
   return (
     <>
       {shareMode === 'dialog' ? (
-        <>
-          <button
-            type="button"
-            className="chrome-action chrome-action-secondary chrome-action-with-label chrome-action-text-only"
-            data-testid="nextore-share-link"
-            onClick={onOpenShareLinks}
-          >
-            <Icon name="link" size={14} />
-            {t('fileViewer.publishSingleFileTitle')}
-          </button>
-          {/* A folder link is a different scope from a file link, so it gets its
-              own entry and its own dialog instead of a second button inside the
-              artifact dialog. */}
-          <button
-            type="button"
-            className="chrome-action chrome-action-secondary chrome-action-with-label chrome-action-text-only"
-            data-testid="nextore-project-share"
-            onClick={onOpenProjectShare}
-          >
-            <Icon name="folder" size={14} />
-            {t('nextore.project.share.action')}
-          </button>
-        </>
+        <button
+          type="button"
+          className="chrome-action chrome-action-secondary chrome-action-with-label chrome-action-text-only"
+          data-testid="nextore-project-share"
+          onClick={onOpenProjectShare}
+        >
+          <Icon name="folder" size={14} />
+          {t('nextore.project.share.action')}
+        </button>
       ) : null}
       {/* The ACL editor is a management surface, not a viewer: the module
           refuses every read for a member without CanManage, so offering the

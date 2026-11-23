@@ -27,9 +27,12 @@ import styles from './NextoreArtifactDialog.module.css';
  */
 export function NextoreArtifactDialog({
   projectId,
+  artifactId,
   onClose,
 }: {
   projectId: string;
+  /** Omitted only by the project-level legacy entry; a file row always names its file. */
+  artifactId?: string;
   onClose: () => void;
 }) {
   const t = useT();
@@ -39,11 +42,19 @@ export function NextoreArtifactDialog({
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const returnFocusRef = useRef<Element | null>(null);
 
-  const primary = useMemo(() => primaryArtifact(records), [records]);
+  // One dialog, one file: a project with several pages must never make the
+  // caller guess which artifact a link belongs to.
+  const primary = useMemo(
+    () => (artifactId
+      ? records.find((row) => row.artifactId === artifactId) ?? null
+      : primaryArtifact(records)),
+    [artifactId, records],
+  );
   const published = useMemo(
     () => records.filter((row) => row.status === 'published'
+      && row.artifactId === (primary?.artifactId ?? '')
       && (row.representation === 'source' || row.representation === 'snapshot')),
-    [records],
+    [primary?.artifactId, records],
   );
 
   useEffect(() => {

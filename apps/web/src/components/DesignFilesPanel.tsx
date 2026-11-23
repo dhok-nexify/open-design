@@ -108,6 +108,8 @@ interface Props {
   onOpenFile: (name: string) => void;
   onOpenLiveArtifact: (tabId: LiveArtifactWorkspaceEntry['tabId']) => void;
   onRenameFile: (from: string, to: string) => Promise<ProjectFile | null> | ProjectFile | null;
+  /** NexTore edition only: opens the share dialog for this exact file. */
+  onShareFile?: (fileName: string) => void;
   onDeleteFile: (name: string) => void;
   onDeleteFiles: (names: string[]) => Promise<void> | void;
   onUpload: () => void;
@@ -501,6 +503,7 @@ export function DesignFilesPanel({
   onOpenFile,
   onOpenLiveArtifact,
   onRenameFile,
+  onShareFile,
   onDeleteFile,
   onDeleteFiles,
   onUpload,
@@ -1959,6 +1962,20 @@ export function DesignFilesPanel({
               ? t('designFiles.copiedLocalPath')
               : t('designFiles.copyLocalPath')}
           </button>
+          {onShareFile ? (
+            <button
+              type="button"
+              data-testid={`design-file-share-${menuPos.name}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                const name = menuPos.name;
+                setMenuPos(null);
+                onShareFile(name);
+              }}
+            >
+              {t('nextore.artifact.share.rowAction')}
+            </button>
+          ) : null}
           <a
             href={projectFileUrl(projectId, menuPos.name, workspaceContext)}
             download={menuPos.name}

@@ -2577,6 +2577,9 @@ export function ProjectView({
   const [nextoreProjectAccess, setNextoreProjectAccess] =
     useState<NextoreProjectAccessView | null>(null);
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
+  // NexTore file links are opened from the file row, so the dialog always knows
+  // which artifact it speaks for (multi-page projects have no "the file").
+  const [shareArtifactId, setShareArtifactId] = useState<string | null>(null);
   const [projectShareOpen, setProjectShareOpen] = useState(false);
   const [permissionsOpen, setPermissionsOpen] = useState(false);
   useEffect(() => {
@@ -15347,6 +15350,9 @@ export function ProjectView({
           />
         ) : null}
         <FileWorkspace
+          onShareFile={NEXTORE_WEB_EDITION === 'nextore' && nextoreProjectAccess?.canManage === true
+            ? (fileName) => setShareArtifactId(fileName)
+            : undefined}
           headerActions={(projectCollab.enabled && projectCollab.isOwner && projectCollab.requestContentUpdate)
             || NEXTORE_WEB_EDITION === 'nextore' ? (<>
             {projectCollab.enabled && projectCollab.isOwner && projectCollab.requestContentUpdate ? (
@@ -15358,7 +15364,6 @@ export function ProjectView({
             {NEXTORE_WEB_EDITION === 'nextore' ? (
               <NextoreProjectActions
                 access={nextoreProjectAccess}
-                onOpenShareLinks={() => setShareDialogOpen(true)}
                 onOpenProjectShare={() => setProjectShareOpen(true)}
                 onOpenPermissions={() => { void openNextorePermissions(); }}
               />
@@ -15639,6 +15644,13 @@ export function ProjectView({
         <ProjectShareDialog
           projectId={project.id}
           onClose={() => setProjectShareOpen(false)}
+        />
+      ) : null}
+      {shareArtifactId && project ? (
+        <NextoreArtifactDialog
+          projectId={project.id}
+          artifactId={shareArtifactId}
+          onClose={() => setShareArtifactId(null)}
         />
       ) : null}
       {shareDialogOpen && project ? (

@@ -122,6 +122,7 @@ export const zhTWOverlay: LocaleOverlay = {
   "nextore.artifact.reason.nextore_unavailable": "NexTore 目前無法連線，下次會自動重試。",
   "nextore.artifact.reason.pin_version_unsupported": "目前不支援固定版本的分享連結。",
   "nextore.artifact.share.title": "透過 NexTore 分享",
+  "nextore.artifact.share.rowAction": "分享此檔案",
   "nextore.artifact.share.representation": "分享的版本",
   "nextore.artifact.share.snapshot": "快照（PDF／圖片預覽）",
   "nextore.artifact.share.source": "原始檔（可下載）",

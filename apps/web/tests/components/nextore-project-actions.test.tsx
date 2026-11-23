@@ -35,31 +35,28 @@ const fileViewerSource = readFileSync(
 afterEach(() => cleanup());
 
 function renderActions(access: NextoreProjectAccessView | null) {
-  const onOpenShareLinks = vi.fn();
   const onOpenProjectShare = vi.fn();
   const onOpenPermissions = vi.fn();
   render(
     <I18nProvider initial="en">
       <NextoreProjectActions
         access={access}
-        onOpenShareLinks={onOpenShareLinks}
         onOpenProjectShare={onOpenProjectShare}
         onOpenPermissions={onOpenPermissions}
       />
     </I18nProvider>,
   );
-  return { onOpenShareLinks, onOpenProjectShare, onOpenPermissions };
+  return { onOpenProjectShare, onOpenPermissions };
 }
 
 describe('NexTore project entries', () => {
-  it('offers the share link to a manager and opens the dialog', () => {
-    const { onOpenShareLinks } = renderActions(LOCAL_PROJECT_ACCESS);
+  it('no longer offers a header file-share entry with an unknown target', () => {
+    renderActions(LOCAL_PROJECT_ACCESS);
 
-    const share = screen.getByTestId('nextore-share-link');
-    expect(share).toHaveTextContent('Get a share link');
-    expect(share).toHaveAttribute('type', 'button');
-    fireEvent.click(share);
-    expect(onOpenShareLinks).toHaveBeenCalledTimes(1);
+    // A project can hold several pages, so a header entry cannot say which file
+    // it would share; file links are created from the file row instead.
+    expect(screen.queryByTestId('nextore-share-link')).toBeNull();
+    expect(screen.getByTestId('nextore-project-share')).toBeTruthy();
   });
 
   it('offers the whole-project share as its own entry', () => {
@@ -71,10 +68,10 @@ describe('NexTore project entries', () => {
     expect(onOpenProjectShare).toHaveBeenCalledTimes(1);
   });
 
-  it('hides the share link when the module disables it or the member cannot manage', () => {
+  it('hides the project share when the module disables it or the member cannot manage', () => {
     cleanup();
     renderActions({ ...LOCAL_PROJECT_ACCESS, shareLinksEnabled: false });
-    expect(screen.queryByTestId('nextore-share-link')).toBeNull();
+    expect(screen.queryByTestId('nextore-project-share')).toBeNull();
     expect(screen.getByTestId('nextore-manage-permissions')).toBeTruthy();
 
     cleanup();
@@ -117,7 +114,7 @@ describe('NexTore project entries', () => {
     // The regression was a missing call site, not a missing component.
     expect(projectViewSource).toContain('<NextoreProjectActions');
     expect(projectViewSource).toContain('access={nextoreProjectAccess}');
-    expect(projectViewSource).toContain('onOpenShareLinks={() => setShareDialogOpen(true)}');
+    expect(projectViewSource).toContain('onOpenProjectShare={() => setProjectShareOpen(true)}');
     expect(projectViewSource).toContain('onOpenPermissions={() => { void openNextorePermissions(); }}');
     expect(projectViewSource).toContain(
       "quarantineNotice={projectQuarantined ? t('workspace.projectQuarantined') : undefined}",

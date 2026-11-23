@@ -402,6 +402,8 @@ interface Props {
   viewerOnly?: boolean;
   /** Project-level artifact network policy, forwarded to the preview builder. */
   artifactNetwork?: ArtifactNetworkRules;
+  /** NexTore edition: share exactly the file the row menu names. */
+  onShareFile?: (fileName: string) => void;
   /** First-open placeholder: do not mount cached/write-capable workspace tabs. */
   materializationPending?: boolean;
   /** See DesignFilesPanel's `filesAuthoritative`. */
@@ -1363,6 +1365,7 @@ export function FileWorkspace({
   projectId,
   projectKind,
   projectName,
+  onShareFile,
   rootDirName,
   reloading,
   resolvedDir,
@@ -4559,6 +4562,7 @@ export function FileWorkspace({
             }}
             onOpenLiveArtifact={(tabId) => openFile(tabId)}
             onRenameFile={handleRename}
+            {...(onShareFile ? { onShareFile } : {})}
             onDeleteFile={(name) => {
               trackFileManagerClick(analytics.track, {
                 page_name: 'file_manager',
