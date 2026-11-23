@@ -6,6 +6,8 @@ import { delimiter, dirname, join, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { randomUUID } from 'node:crypto';
 
+import { findRealTagOffset, HTML_TAG_PATTERNS } from '@open-design/contracts/runtime/html-injection-points';
+
 /**
  * Headless HTML → PDF for the artifact snapshot representation (P04-S).
  *
@@ -216,8 +218,9 @@ export async function renderHtmlToPdf(
   let sourceHtml = await readFile(htmlPath, 'utf8');
   const baseHref = pathToFileURL(dirname(htmlPath) + sep).href;
   const baseTag = '<base href="' + baseHref + '">';
-  sourceHtml = sourceHtml.includes('</head>')
-    ? sourceHtml.replace('</head>', baseTag + printCss + '</head>')
+  const headClose = findRealTagOffset(sourceHtml, HTML_TAG_PATTERNS.headClose);
+  sourceHtml = headClose >= 0
+    ? sourceHtml.slice(0, headClose) + baseTag + printCss + sourceHtml.slice(headClose)
     : baseTag + printCss + sourceHtml;
   const printPath = join(workDir, 'print-' + randomUUID() + '.html');
   await writeFile(printPath, sourceHtml, 'utf8');

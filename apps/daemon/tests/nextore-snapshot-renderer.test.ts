@@ -1,7 +1,8 @@
-import { mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import {
@@ -107,6 +108,30 @@ describe('snapshot renderer', () => {
       else process.env.OD_CHROMIUM_PATH = previous;
       await rm(dir, { recursive: true, force: true });
     }
+  });
+
+  it('injects print rules at the real head close, not a script string', async () => {
+    dir = await mkdtemp(join(tmpdir(), 'od-snapshot-head-'));
+    const file = join(dir, 'artifact.html');
+    await writeFile(
+      file,
+      '<html><head><script>const marker = "</head>";</script></head><body>QA</body></html>',
+      'utf8',
+    );
+    let printed = '';
+    await renderHtmlToPdf(file, {
+      executable: process.execPath,
+      run: async (_executable, args) => {
+        const pdfTarget = args.find((arg) => arg.startsWith('--print-to-pdf='))!.slice('--print-to-pdf='.length);
+        const printUrl = args.find((arg) => arg.startsWith('file://') && arg.endsWith('.html'))!;
+        printed = await readFile(fileURLToPath(printUrl), 'utf8');
+        await writeFile(pdfTarget, '%PDF-1.7\n%fake\n', 'latin1');
+      },
+    });
+
+    const injected = printed.indexOf('<base ');
+    expect(injected).toBeGreaterThan(printed.indexOf('</script>'));
+    expect(injected).toBeLessThan(printed.lastIndexOf('</head>'));
   });
 
   it('resolves an explicit existing binary and rejects a missing one', () => {
