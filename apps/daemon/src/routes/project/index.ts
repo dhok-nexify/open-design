@@ -24,6 +24,7 @@ import { registerNextoreProject } from '../../nextore/projects/register-project.
 import { listNextoreProjects } from '../../nextore/projects/list-projects.js';
 import { hasValidShareGrant } from '../../nextore/share/service.js';
 import { normalizeAccess, normalizePermissionUrl } from '../../nextore/wire.js';
+import { invalidateAllProjectAccess } from '../../nextore/acl/invalidation.js';
 import { applySameOriginPreviewFrameHeaders } from '../../nextore-frame-guard.js';
 import { resolveNextorePermissionUrl } from '../../nextore/authorization.js';
 import { resolveProductBrandName } from '../../nextore/branding-state.js';
@@ -6225,6 +6226,9 @@ export function registerProjectRoutes(app: Express, ctx: RegisterProjectRoutesDe
         target.nextoreProjectId,
         body,
       );
+      // This request just changed the ACL. Do not make the next read wait for
+      // the asynchronous P03 event round trip before it sees the new rights.
+      invalidateAllProjectAccess();
       return res.json(result);
     } catch (error) {
       return sendNextorePermissionError(res, error);
