@@ -14,6 +14,7 @@ export const zhCNOverlay: LocaleOverlay = {
   "chat.lockedTitle": "共享项目中的对话已锁定",
   "home.noCreateBody": "您可以打开与您共享的项目。如需创建自己的项目，请联系 NexTore 管理员授予 DesignerCreateProject 权限。",
   "home.noCreateTitle": "您的账号没有创建项目的权限",
+  "nextore.comments.followedRename": "已重命名为 {name}，{count} 条留言已跟随此文件。",
   "nextore.share.confirmRevoke": "确定要撤销此分享链接？正在使用的人将失去访问权限。",
   "nextore.share.days": "{count} 天",
   "nextore.share.empty": "当前没有有效的分享链接。",

@@ -1583,6 +1583,10 @@ export function FileWorkspace({
   // Transient feedback when a launcher "create" action (e.g. New Terminal)
   // fails on the daemon side, so the click is never a silent no-op.
   const [launcherToast, setLauncherToast] = useState<{ message: string; tone: 'success' | 'error' } | null>(null);
+  // A NexTore rename can carry the file's comment thread with it; the toast is
+  // the only place the user learns that, so it is separate from launcher
+  // feedback and dismisses on its own.
+  const [renameCommentToast, setRenameCommentToast] = useState<string | null>(null);
   const [browserSnapshotToast, setBrowserSnapshotToast] = useState<WorkspaceActionToast | null>(null);
   const [tabsOverflowing, setTabsOverflowing] = useState(false);
   const [draggedTabName, setDraggedTabName] = useState<string | null>(null);
@@ -2784,6 +2788,13 @@ export function FileWorkspace({
 
     const result = await renameProjectFile(projectId, oldName, nextName, workspaceContext);
     const renamed = result.file;
+    const commentsMigrated = typeof result.commentsMigrated === 'number' ? result.commentsMigrated : 0;
+    if (commentsMigrated > 0) {
+      setRenameCommentToast(t('nextore.comments.followedRename', {
+        name: renamed.name,
+        count: commentsMigrated,
+      }));
+    }
     await onRefreshFiles();
     await refreshProjectFolders();
 
@@ -4369,6 +4380,16 @@ export function FileWorkspace({
             tone={browserSnapshotToast.tone}
             ttlMs={browserSnapshotToast.ttlMs}
             onDismiss={() => setBrowserSnapshotToast(null)}
+          />
+        </div>
+      ) : renameCommentToast ? (
+        <div className="workspace-toast-anchor">
+          <Toast
+            message={renameCommentToast}
+            tone="success"
+            role="status"
+            ttlMs={6000}
+            onDismiss={() => setRenameCommentToast(null)}
           />
         </div>
       ) : launcherToast ? (

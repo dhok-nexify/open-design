@@ -14,6 +14,7 @@ export const arOverlay: LocaleOverlay = {
   "chat.lockedTitle": "الدردشة مقفلة في هذا المشروع المشترك",
   "home.noCreateBody": "You can open projects shared with you. Ask a NexTore administrator for the DesignerCreateProject right if you need to create your own.",
   "home.noCreateTitle": "Creating projects is not enabled for your account",
+  "nextore.comments.followedRename": "أُعيدت التسمية إلى {name}. أصبح {count} من التعليقات مرتبطة بهذا الملف.",
   "nextore.share.confirmRevoke": "Revoke this share link? People using it will lose access.",
   "nextore.share.days": "{count} days",
   "nextore.share.empty": "No active share links.",

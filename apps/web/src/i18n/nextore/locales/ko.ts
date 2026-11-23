@@ -14,6 +14,7 @@ export const koOverlay: LocaleOverlay = {
   "chat.lockedTitle": "이 공유 프로젝트에서는 채팅이 잠겨 있습니다",
   "home.noCreateBody": "You can open projects shared with you. Ask a NexTore administrator for the DesignerCreateProject right if you need to create your own.",
   "home.noCreateTitle": "Creating projects is not enabled for your account",
+  "nextore.comments.followedRename": "{name}(으)로 이름을 변경했습니다. {count}개의 댓글이 이 파일을 따라 이동했습니다.",
   "nextore.share.confirmRevoke": "Revoke this share link? People using it will lose access.",
   "nextore.share.days": "{count} days",
   "nextore.share.empty": "No active share links.",

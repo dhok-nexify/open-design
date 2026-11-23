@@ -14,6 +14,7 @@ export const thOverlay: LocaleOverlay = {
   "chat.lockedTitle": "แชทถูกล็อกในโปรเจกต์ที่แชร์นี้",
   "home.noCreateBody": "You can open projects shared with you. Ask a NexTore administrator for the DesignerCreateProject right if you need to create your own.",
   "home.noCreateTitle": "Creating projects is not enabled for your account",
+  "nextore.comments.followedRename": "เปลี่ยนชื่อเป็น {name} แล้ว ขณะนี้มีความคิดเห็น {count} รายการติดตามไฟล์นี้",
   "nextore.share.confirmRevoke": "Revoke this share link? People using it will lose access.",
   "nextore.share.days": "{count} days",
   "nextore.share.empty": "No active share links.",

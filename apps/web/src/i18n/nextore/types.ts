@@ -13,6 +13,9 @@ export interface NextoreDict {
   'nextoreAccount.signOut': string;
   
   'nextoreAccount.signOutFailed': string;
+
+  /** NexTore edition: a rename moved the file's comment thread with it. */
+  'nextore.comments.followedRename': string;
   'nextorePermissions.title': string;
   'nextorePermissions.description': string;
   'nextorePermissions.inherit': string;
