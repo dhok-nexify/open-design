@@ -17,6 +17,7 @@ import {
   findPublishMember,
   listNextoreArtifacts,
   listProjectMembers,
+  listWatchableArtifactProjectIds,
   listPublishProjectMembers,
   rememberProjectMember,
   retryNextorePublish,
@@ -182,6 +183,29 @@ export class NextoreArtifactRuntime {
     this.watchers.set(projectId, dispose);
   }
 
+  /**
+   * Start an out-of-run watcher for every project that already has artifact rows.
+   *
+   * Watching is per project tree, so the cost is bounded by the number of
+   * projects that actually publish, not by the number of projects on disk. A
+   * project whose tree cannot be watched is skipped; the next publish for it
+   * starts a watcher again.
+   */
+  restoreWatchers(): number {
+    if (!isNextoreArtifactPublishEnabled(this.deps.mode) || !this.deps.watchProjectFiles) return 0;
+    let restored = 0;
+    for (const projectId of listWatchableArtifactProjectIds(this.deps.db)) {
+      if (!this.projectMembers.get(projectId)) continue;
+      try {
+        this.watchProject(projectId);
+        restored += 1;
+      } catch {
+        // Leave the project unwatched rather than failing startup.
+      }
+    }
+    return restored;
+  }
+
   /** Stop every out-of-run watcher (shutdown and tests). */
   unwatchAll(): void {
     for (const dispose of this.watchers.values()) {
@@ -296,6 +320,15 @@ export class NextoreArtifactRuntime {
             version: outcome?.version ?? null,
             error: outcome ? outcome.errorCode : 'job_payload_missing',
           });
+          // A project that just published must keep tracking later edits, even
+          // when the publish came from reconcile/adoption rather than a run.
+          if (outcome?.status === 'published') {
+            try {
+              this.watchProject(tick.claimed.projectId);
+            } catch {
+              // Publishing stays successful; the next start() retries watching.
+            }
+          }
         },
       });
       return result.processed;
@@ -306,6 +339,10 @@ export class NextoreArtifactRuntime {
 
   start(intervalMs = 5_000): void {
     if (!isNextoreArtifactPublishEnabled(this.deps.mode) || this.timer) return;
+    // A restart used to forget every out-of-run watcher until the next run
+    // finished, so edits made in between were never republished. Resume them
+    // from the durable mapping rows before the first drain.
+    this.restoreWatchers();
     this.timer = setInterval(() => {
       void this.drainOnce();
     }, intervalMs);

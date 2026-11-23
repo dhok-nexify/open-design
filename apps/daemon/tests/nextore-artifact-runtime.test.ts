@@ -15,8 +15,10 @@ import type {
 } from '../src/nextore/auth/session-store.js';
 import { migrateNextoreDatabase } from '../src/nextore/db.js';
 import {
+  enqueueNextorePublish,
   getNextoreArtifact,
   listNextorePublishQueue,
+  rememberProjectMember,
   upsertNextoreArtifact,
 } from '../src/nextore/artifacts/store.js';
 import { NextoreArtifactRuntime, type NextoreArtifactStatusEvent } from '../src/nextore/artifacts/runtime.js';
@@ -543,6 +545,64 @@ describe('NextoreArtifactRuntime out-of-run trigger', () => {
         memberId: 7,
         runId: null,
       }),
+    ]);
+    worker.unwatchAll();
+  });
+
+  it('restores out-of-run watchers for projects known only from the database', async () => {
+    // A restart clears the in-memory watcher map and the run history. The
+    // durable artifact row plus the remembered member must be enough to keep
+    // republishing edits made before the next run.
+    seedPublishedRecord();
+    rememberProjectMember(db, 'project-1', 7, 1_000);
+    const { worker, fire, publish } = watchedRuntime();
+
+    expect(worker.restoreWatchers()).toBe(1);
+
+    fire();
+    await new Promise((resolve) => setTimeout(resolve, 60));
+
+    expect(publish).not.toHaveBeenCalled();
+    expect(listNextorePublishQueue(db, 'project-1')).toEqual([
+      expect.objectContaining({
+        artifactId: 'artifact-1',
+        representation: 'source',
+        reason: 'file-change',
+        memberId: 7,
+        runId: null,
+      }),
+    ]);
+    worker.unwatchAll();
+  });
+
+  it('starts watching a project that publishes without a run', async () => {
+    seedPublishedRecord();
+    rememberProjectMember(db, 'project-1', 7, 1_000);
+    const { worker, fire, publish } = watchedRuntime();
+    // Simulate a reconcile/adoption publish: a queued job with no enqueueRun.
+    enqueueNextorePublish(db, {
+      projectId: 'project-1',
+      artifactId: 'artifact-1',
+      representation: 'source',
+      memberId: 7,
+      runId: null,
+      tier: null,
+      relativePath: 'index.html',
+      sourcePath: join(projectRoot, 'index.html'),
+      name: 'index.html',
+      mimeType: 'text/html',
+      reason: 'reconcile',
+      now: 1_000,
+    });
+
+    await worker.drainOnce();
+    expect(publish).toHaveBeenCalledTimes(1);
+
+    fire();
+    await new Promise((resolve) => setTimeout(resolve, 60));
+
+    expect(listNextorePublishQueue(db, 'project-1')).toEqual([
+      expect.objectContaining({ reason: 'file-change', memberId: 7 }),
     ]);
     worker.unwatchAll();
   });

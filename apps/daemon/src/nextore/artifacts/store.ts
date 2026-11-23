@@ -522,6 +522,23 @@ export function listNextoreArtifacts(
   return rows.map(toArtifactRecord);
 }
 
+/**
+ * Projects that hold at least one live artifact row.
+ *
+ * The mapping rows are the durable answer to "this project publishes to
+ * NexTore", so they - not this process's history - decide which project trees
+ * get an out-of-run watcher after a restart.
+ */
+export function listWatchableArtifactProjectIds(db: SqliteDb): string[] {
+  ensureNextoreArtifactSchema(db);
+  const rows = db.prepare(`
+    SELECT DISTINCT project_id FROM nextore_artifacts
+     WHERE status <> 'orphaned'
+     ORDER BY project_id ASC
+  `).all() as Array<{ project_id: string }>;
+  return rows.map((row) => row.project_id);
+}
+
 export interface UpdateNextoreArtifactStatusInput {
   projectId: string;
   artifactId: string;
