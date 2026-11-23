@@ -259,6 +259,8 @@ export interface RenameProjectFileResponse {
   file: ProjectFile;
   oldName: string;
   newName: string;
+  /** Comment rows whose file path moved with the file. Omitted when zero. */
+  commentsMigrated?: number;
 }
 
 export function buildProjectRawFileUrl(

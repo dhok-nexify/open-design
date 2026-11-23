@@ -1,7 +1,8 @@
 import { withCommentFileDeletion, type CommentFileDeletion } from '../../collab/comment-file-deletion.js';
 import { injectMotionSourcePlayer, isMotionVideoComposition, markMotionHostedPreview, MOTION_PREVIEW_OUTPUT_HEADER } from '@open-design/contracts/runtime/motion-source-player';
 import { createHash, randomUUID } from 'node:crypto';
-import { trackedCommentFilePaths } from '../../collab/local-comment-files.js';
+import { migrateCommentPathsForRename } from '../../collab/comment-path-migration.js';
+import { assertCommentFileNotPending } from '../../collab/comment-file-retirements.js';
 import { CommentPreparationError, prepareCommentIdentity } from '../../services/comment-preparation.js';
 import { ProjectPublicFileStopPendingError } from '../../collab/project-public-file-stop.js';
 import type { ProjectDeleteResponse, SaveNextoreProjectPermissionsRequest } from '@open-design/contracts';
@@ -8815,9 +8816,20 @@ export function registerProjectFileRoutes(app: Express, ctx: RegisterProjectFile
       // filesystem, version-store, artifact or alias mutation.
       const oldName = validateProjectPath(from);
       const newName = sanitizePath(to);
-      const tracked = trackedCommentFilePaths(db, projectId).some(filePath =>
-        [oldName, newName].some(name => filePath === name || filePath.startsWith(name + '/')));
-      if (tracked) return sendApiError(res, 409, 'CONFLICT', 'COMMENT_FILE_TRACKED_RENAME_UNSUPPORTED');
+      // Comment threads follow the file (see decisions/p04-rename-with-comments.md).
+      // Only a lifetime whose retirement receipt is still in flight has to wait:
+      // its receipt names the old path, so it cannot be moved underneath it.
+      try {
+        assertCommentFileNotPending(db, projectId, { filePath: oldName });
+        if (newName !== oldName) assertCommentFileNotPending(db, projectId, { filePath: newName });
+      } catch {
+        return sendApiError(
+          res,
+          409,
+          'COMMENT_FILE_PUBLICATION_PENDING',
+          'A comment file change is still being finalised. Retry the rename once it completes.',
+        );
+      }
       const result = await renameProjectFile(
         PROJECTS_DIR,
         projectId,
@@ -8832,6 +8844,29 @@ export function registerProjectFileRoutes(app: Express, ctx: RegisterProjectFile
         result.newName,
         project?.metadata,
       );
+      // The file moved; everything that names its path moves with it. A failure
+      // here puts the bytes back rather than leaving comments pointing at a path
+      // that no longer exists.
+      let commentsMigrated = 0;
+      try {
+        commentsMigrated = migrateCommentPathsForRename(
+          db, projectId, result.oldName, result.newName,
+        ).comments;
+      } catch (error) {
+        try {
+          await renameProjectFile(PROJECTS_DIR, projectId, result.newName, result.oldName, project?.metadata);
+          await renameProjectFileVersionStore(PROJECTS_DIR, projectId, result.newName, result.oldName, project?.metadata);
+        } catch {
+          // The rollback is best-effort; the 500 below still names the problem.
+        }
+        console.error('[comments] rename path migration failed', error);
+        return sendApiError(
+          res,
+          500,
+          'COMMENT_PATH_MIGRATION_FAILED',
+          'The file was not renamed because its comments could not be moved.',
+        );
+      }
       // The project's declared entry follows the file it names. Leaving the old
       // path behind makes the project look entry-less, and the automatic
       // republish then refuses to publish the rename at all.
@@ -8856,7 +8891,13 @@ export function registerProjectFileRoutes(app: Express, ctx: RegisterProjectFile
         console.warn('[chat-artifacts] rename bookkeeping failed', error);
       }
       /** @type {import('@open-design/contracts').RenameProjectFileResponse} */
-      const body = result;
+      const body = { ...result, commentsMigrated };
+      if (commentsMigrated > 0) {
+        console.info(
+          '[comments] rename project=' + projectId + ' from=' + result.oldName
+            + ' to=' + result.newName + ' comments=' + commentsMigrated,
+        );
+      }
       res.json(body);
     } catch (err: any) {
       if (err?.code === 'EEXIST') {

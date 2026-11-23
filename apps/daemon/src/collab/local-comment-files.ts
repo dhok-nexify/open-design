@@ -33,9 +33,13 @@ export function prepareLocalProjectCommentFile(input: {
   return createLocalCommentFiles(db).identity(projectId, filePath);
 }
 
-/** Paths whose current new-protocol lifetime must not be moved by managed rename.
- * Local pre-share comments carry a durable artifact UUID before catalog admission.
- * Join that exact UUID AND original path; never infer identities for historical rows.
+/**
+ * Paths that carry a comment-file lifetime (admitted fact or live comments).
+ *
+ * A managed rename moves these lifetimes with the file — see
+ * `migrateCommentPathsForRename`; this helper exists so callers can count or
+ * audit them, not to forbid the rename. Join the exact UUID AND path; never
+ * infer identities for historical rows.
  */
 export function trackedCommentFilePaths(db: Database.Database, projectId: string): string[] {
   const facts = parseCommentFileState(getProject(db, projectId)?.metadata?._commentFiles)?.files ?? [];

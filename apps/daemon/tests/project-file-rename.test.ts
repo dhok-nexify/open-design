@@ -131,6 +131,49 @@ describe('project file rename route', () => {
     expect(filesBody.files.some((file) => file.name === 'paste-1.txt')).toBe(false);
   });
 
+  it('keeps a comment thread on the renamed file', async () => {
+    const projectId = await createProject();
+    await writeText(projectId, 'index.html', '<html><h1 id="headline">Hi</h1></html>');
+
+    const conversationResp = await fetch(`${baseUrl}/api/projects/${projectId}/conversations`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: 'Rename thread' }),
+    });
+    expect(conversationResp.status).toBe(200);
+    const conversation = (await conversationResp.json()) as { conversation: { id: string } };
+
+    const create = await fetch(`${baseUrl}/api/projects/${projectId}/conversations/${conversation.conversation.id}/comments`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        target: {
+          filePath: 'index.html',
+          elementId: 'headline',
+          selector: '#headline',
+          label: 'Headline',
+          text: 'Hi',
+          position: { x: 1, y: 2, width: 3, height: 4 },
+          htmlHint: '<h1>',
+        },
+        note: 'rename me',
+      }),
+    });
+    expect(create.status, await create.clone().text()).toBe(200);
+
+    const resp = await renameFile(projectId, 'index.html', 'landing.html');
+    expect(resp.status).toBe(200);
+    const body = (await resp.json()) as { commentsMigrated?: number };
+    expect(body.commentsMigrated).toBe(1);
+
+    const listed = (await (await fetch(`${baseUrl}/api/projects/${projectId}/comments`)).json()) as {
+      comments: Array<{ filePath: string; note: string }>;
+    };
+    expect(listed.comments).toEqual([
+      expect.objectContaining({ filePath: 'landing.html', note: 'rename me' }),
+    ]);
+  });
+
   it('rejects target file conflicts without overwriting', async () => {
     const projectId = await createProject();
     await writeText(projectId, 'a.txt', 'first');
