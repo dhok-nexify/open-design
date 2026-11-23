@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import { useT } from '../../i18n';
+import { Icon } from '../Icon';
 import styles from './NextoreArtifactDialog.module.css';
 
 interface FolderShareState {
@@ -106,11 +107,25 @@ export function ProjectShareForm({ projectId }: { projectId: string }) {
   };
 
   return (
-    <section className={styles.projectShare} aria-label={t('nextore.project.share.title')}>
-      <h3 className={styles.shareTitle}>{t('nextore.project.share.title')}</h3>
-      <p className={styles.shareHint}>{t('nextore.share.subtitle')}</p>
+    <section
+      className={styles.projectShare}
+      aria-labelledby="nextore-project-share-title"
+      data-testid="nextore-project-share"
+    >
+      <div className={styles.projectShareHead}>
+        <span className={styles.projectShareIcon} aria-hidden="true">
+          <Icon name="folder" size={16} />
+        </span>
+        <div className={styles.projectShareText}>
+          <h3 id="nextore-project-share-title" className={styles.projectShareTitle}>
+            {t('nextore.project.share.title')}
+          </h3>
+          <p className={styles.projectShareHint}>{t('nextore.share.subtitle')}</p>
+        </div>
+      </div>
+
       {state.shared && state.url ? (
-        <div className={styles.projectShareRow}>
+        <div className={styles.projectShareBody}>
           <input
             className={styles.projectShareUrl}
             value={state.url}
@@ -118,18 +133,23 @@ export function ProjectShareForm({ projectId }: { projectId: string }) {
             onFocus={(event) => event.currentTarget.select()}
             aria-label={t('fileViewer.copyShareLink')}
           />
-          <button type="button" className={styles.projectShareButton} onClick={() => { void copy(); }} disabled={busy}>
-            {copied ? t('promptTemplates.copyDone') : t('fileViewer.copyShareLink')}
-          </button>
-          <button type="button" className={styles.projectShareDanger} onClick={() => { void revoke(); }} disabled={busy}>
-            {t('common.delete')}
-          </button>
+          <div className={styles.projectShareActions}>
+            <button type="button" className={styles.projectShareButton} onClick={() => { void copy(); }} disabled={busy}>
+              {copied ? t('promptTemplates.copyDone') : t('fileViewer.copyShareLink')}
+            </button>
+            <button type="button" className={styles.projectShareDanger} onClick={() => { void revoke(); }} disabled={busy}>
+              {t('common.delete')}
+            </button>
+          </div>
         </div>
       ) : (
-        <div className={styles.projectShareRow}>
-          <button type="button" className={styles.projectShareButton} onClick={() => { void create(); }} disabled={busy}>
-            {t('common.create')}
-          </button>
+        <div className={styles.projectShareBody}>
+          <div className={styles.projectShareActions}>
+            <button type="button" className={styles.projectShareCreate} onClick={() => { void create(); }} disabled={busy}>
+              <Icon name="link" size={14} aria-hidden="true" />
+              <span>{busy ? t('nextore.artifact.share.creating') : t('nextore.project.share.create')}</span>
+            </button>
+          </div>
         </div>
       )}
       {error ? <p role="alert" className={styles.projectShareError}>{error}</p> : null}

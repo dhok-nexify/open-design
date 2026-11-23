@@ -19,6 +19,9 @@ export interface NextoreDict {
 
   /** NexTore edition: folder-level share section in the artifact dialog. */
   'nextore.project.share.title': string;
+
+  /** NexTore edition: creates the folder ShareObject (distinct from a file link). */
+  'nextore.project.share.create': string;
   'nextorePermissions.title': string;
   'nextorePermissions.description': string;
   'nextorePermissions.inherit': string;

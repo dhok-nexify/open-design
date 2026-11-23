@@ -163,59 +163,125 @@
 .projectShare {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin-top: 16px;
-  padding-top: 12px;
-  border-top: 1px solid var(--border-subtle, rgba(0, 0, 0, 0.1));
+  gap: 12px;
+  margin-top: 20px;
+  padding: 14px 16px;
+  border: 1px solid var(--border-subtle, rgba(0, 0, 0, 0.12));
+  border-radius: var(--radius-md, 10px);
+  background: var(--surface-muted, rgba(0, 0, 0, 0.02));
 }
 
-.shareHint {
+.projectShareHead {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.projectShareIcon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  inline-size: 28px;
+  block-size: 28px;
+  margin-top: 1px;
+  border-radius: var(--radius-sm, 8px);
+  background: var(--surface, #fff);
+  border: 1px solid var(--border-subtle, rgba(0, 0, 0, 0.12));
+  color: var(--text-muted, inherit);
+}
+
+.projectShareText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.projectShareTitle {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1.35;
+}
+
+.projectShareHint {
   margin: 0;
   font-size: 12px;
   line-height: 1.5;
   color: var(--text-muted, inherit);
 }
 
-.projectShareRow {
+.projectShareBody {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+  align-items: center;
 }
 
 .projectShareUrl {
   flex: 1 1 220px;
   min-width: 0;
-  padding: 6px 8px;
+  min-height: 36px;
+  padding: 6px 10px;
   border: 1px solid var(--border-subtle, rgba(0, 0, 0, 0.15));
-  border-radius: var(--radius-md, 8px);
-  background: var(--bg-sunken, rgba(0, 0, 0, 0.03));
+  border-radius: var(--radius-sm, 8px);
+  background: var(--surface, #fff);
   font: inherit;
   font-size: 12px;
 }
 
+.projectShareActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-inline-start: auto;
+}
+
 .projectShareButton,
-.projectShareDanger {
-  padding: 6px 12px;
-  border-radius: var(--radius-md, 8px);
-  border: 1px solid var(--border-subtle, rgba(0, 0, 0, 0.15));
-  background: transparent;
+.projectShareDanger,
+.projectShareCreate {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 6px 14px;
+  border-radius: var(--radius-sm, 8px);
   font: inherit;
+  font-size: 13px;
+  font-weight: 600;
   cursor: pointer;
 }
 
+/* The folder link is the secondary scope: outlined, never competing with the
+   filled file-link action above it. */
+.projectShareCreate,
+.projectShareButton {
+  border: 1px solid var(--border-strong, rgba(0, 0, 0, 0.22));
+  background: var(--surface, #fff);
+  color: var(--text-strong, inherit);
+}
+
+.projectShareCreate:hover,
+.projectShareButton:hover {
+  background: var(--surface-hover, rgba(0, 0, 0, 0.04));
+}
+
+.projectShareDanger {
+  border: 1px solid var(--status-danger-border, #b4342b);
+  background: transparent;
+  color: var(--status-danger-text, #b4342b);
+}
+
 .projectShareButton:disabled,
-.projectShareDanger:disabled {
+.projectShareDanger:disabled,
+.projectShareCreate:disabled {
   opacity: 0.55;
   cursor: default;
 }
 
-.projectShareDanger {
-  color: var(--danger, #b42318);
-  border-color: var(--danger, #b42318);
-}
-
 .projectShareError {
   margin: 0;
-  color: var(--danger, #b42318);
   font-size: 12px;
+  color: var(--status-danger-text, #b4342b);
 }
