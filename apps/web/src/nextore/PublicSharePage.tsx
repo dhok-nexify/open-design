@@ -158,7 +158,9 @@ function viewerUrl(contentUrl: string, fileName: string | null): string {
 function thumbUrl(item: NextorePublicShareItem): string {
   const url = item.contentUrl ?? '';
   if (kindOf(item.name) !== 'pdf') return url;
-  return url + '#page=1&view=Fit&toolbar=0&navpanes=0&statusbar=0';
+  // FitH fills the thumbnail width instead of fitting the whole page, which
+  // otherwise leaves wide grey bands on both sides of the preview.
+  return url + '#page=1&view=FitH&toolbar=0&navpanes=0&statusbar=0';
 }
 
 function frameProps(fileName: string | null) {
