@@ -138,7 +138,9 @@ function viewerUrl(contentUrl: string, fileName: string | null): string {
   // Keep the browser's own PDF toolbar: readers use it for page jumps, zoom and
   // printing. Only the initial view is set, so the page fits the frame.
   if (kindOf(fileName) !== 'pdf') return contentUrl;
-  return contentUrl + '#view=Fit';
+  // Fit horizontally: a portrait page fitted whole lands at ~25% and is hard to
+  // read; fitting the width keeps the text at a normal size and scrolls.
+  return contentUrl + '#view=FitH';
 }
 
 function frameProps(fileName: string | null) {
