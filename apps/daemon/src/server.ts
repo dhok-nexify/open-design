@@ -9571,7 +9571,7 @@ export async function startServer({
       client: nextoreClient,
       authorizeProject: authorizeProjectRequest,
     });
-    registerNextorePublicShareRoutes(app, { client: nextoreClient });
+    registerNextorePublicShareRoutes(app, { client: nextoreClient, edition });
     registerNextoreSnapshotRoutes(app, {
       runtime: nextoreArtifactRuntime,
       authorizeProject: authorizeProjectRequest,

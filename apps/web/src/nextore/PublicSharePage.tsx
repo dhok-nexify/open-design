@@ -240,9 +240,13 @@ export function PublicSharePage() {
                 className={styles.frame}
                 src={view.data.contentUrl}
                 title={view.data.fileName ?? copy.brand}
-                /* Untrusted document HTML: no allow-same-origin, so it runs in an
-                   opaque origin and can never touch the Designer's storage. */
-                sandbox="allow-scripts allow-popups allow-forms"
+                /* Untrusted document HTML runs in an opaque origin so it can never
+                   touch the Designer's storage. PDFs must stay unsandboxed:
+                   Chrome's built-in viewer is a plugin frame and renders blank
+                   inside a sandbox. */
+                {...(kindOf(view.data.fileName) === 'html'
+                  ? { sandbox: 'allow-scripts allow-popups allow-forms' }
+                  : {})}
                 referrerPolicy="no-referrer"
               />
             )}

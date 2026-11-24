@@ -32,7 +32,7 @@ afterEach(async () => {
 
 async function startApp(client: NextoreArtifactClient): Promise<string> {
   const app = express();
-  registerNextorePublicShareRoutes(app, { client });
+  registerNextorePublicShareRoutes(app, { client, edition: 'nextore' });
   server = createServer(app);
   await new Promise<void>((resolve) => server!.listen(0, '127.0.0.1', () => resolve()));
   const { port } = server.address() as AddressInfo;
@@ -71,6 +71,8 @@ describe('public share routes', () => {
     const response = await fetch(base + '/api/public-share/key-3/content');
     expect(response.status).toBe(200);
     expect(response.headers.get('content-type')).toBe('application/pdf');
+    expect(response.headers.get('content-security-policy')).toContain("frame-ancestors 'self'");
+    expect(response.headers.get('x-frame-options')).toBeNull();
     expect(await response.text()).toBe('pdf-bytes');
   });
 });

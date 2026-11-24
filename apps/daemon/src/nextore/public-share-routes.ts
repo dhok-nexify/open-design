@@ -1,14 +1,17 @@
 import type { Express, Response } from 'express';
 
 import type {
+  Edition,
   NextorePublicShareDescriptor,
   NextorePublicShareFailure,
 } from '@open-design/contracts';
 
+import { applySameOriginPreviewFrameHeaders } from '../nextore-frame-guard.js';
 import { NextoreClientError, type NextoreArtifactClient } from './client.js';
 
 export interface RegisterNextorePublicShareRoutesDeps {
   client: NextoreArtifactClient;
+  edition: Edition;
 }
 
 function failure(
@@ -81,6 +84,9 @@ export function registerNextorePublicShareRoutes(
         return;
       }
       const body = Buffer.from(await upstream.arrayBuffer());
+      // The shell denies framing, but the share page frames this document on
+      // purpose: allow the same origin only, and never widen the shell itself.
+      applySameOriginPreviewFrameHeaders(deps.edition, res);
       res.setHeader('content-type', upstream.headers.get('content-type') ?? 'application/octet-stream');
       res.setHeader('content-length', String(body.length));
       res.setHeader('content-disposition', 'inline');
