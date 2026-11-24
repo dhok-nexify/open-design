@@ -42,6 +42,7 @@ function runtimeStub(state: {
 function clientStub(handlers: {
   shareArtifact?: (...args: unknown[]) => Promise<unknown>;
   revokeArtifactShare?: (...args: unknown[]) => Promise<unknown>;
+  describeArtifactShare?: (...args: unknown[]) => Promise<unknown>;
   shareProject?: (...args: unknown[]) => Promise<unknown>;
   projectShare?: (...args: unknown[]) => Promise<unknown>;
   unshareProject?: (...args: unknown[]) => Promise<unknown>;
@@ -53,6 +54,7 @@ function clientStub(handlers: {
     listArtifacts: vi.fn(),
     shareArtifact: vi.fn(handlers.shareArtifact ?? (async () => ({ url: 'https://share.test/s/abc' }))),
     revokeArtifactShare: vi.fn(handlers.revokeArtifactShare ?? (async () => ({ revoked: true }))),
+    describeArtifactShare: vi.fn(handlers.describeArtifactShare ?? (async () => ({ shared: false, url: null }))),
     shareProject: vi.fn(handlers.shareProject ?? (async () => ({ url: 'https://share.test/s/folder' }))),
     projectShare: vi.fn(handlers.projectShare ?? (async () => ({ shared: false, url: null }))),
     unshareProject: vi.fn(handlers.unshareProject ?? (async () => ({ revoked: true }))),
@@ -151,6 +153,56 @@ describe('nextore folder share routes', () => {
   });
 });
 
+describe('nextore artifact file link read route', () => {
+  it('reports an existing file link without creating one', async () => {
+    const client = clientStub({
+      describeArtifactShare: async () => ({ shared: true, url: 'https://share.test/PublicShare?key=file' }),
+    });
+    const base = await startApp({ runtime: runtimeStub({ record: null }), client });
+
+    const response = await fetch(base + '/api/nextore/projects/project-1/artifacts/artifact-1/share?representation=snapshot');
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      artifactId: 'artifact-1',
+      representation: 'snapshot',
+      shared: true,
+      url: 'https://share.test/PublicShare?key=file',
+    });
+    expect(client.shareArtifact).not.toHaveBeenCalled();
+  });
+
+  it('still asks the module when the local publish row is missing', async () => {
+    // A link outlives the daemon row that first published it, so a read
+    // must not depend on the local mapping still being present.
+    const client = clientStub({});
+    const base = await startApp({ runtime: runtimeStub({ record: null }), client });
+
+    const response = await fetch(base + '/api/nextore/projects/project-1/artifacts/artifact-1/share');
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ shared: false, url: null });
+    expect(client.describeArtifactShare).toHaveBeenCalledWith('token-1', 'nc-77', 'artifact-1', 'snapshot');
+  });
+
+  it('answers not-shared when the module has no link for the representation', async () => {
+    const client = clientStub({ describeArtifactShare: async () => ({ shared: false, url: null }) });
+    const base = await startApp({ runtime: runtimeStub(), client });
+
+    const response = await fetch(base + '/api/nextore/projects/project-1/artifacts/artifact-1/share?representation=source');
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ representation: 'source', shared: false, url: null });
+  });
+
+  it('rejects an unknown representation', async () => {
+    const base = await startApp({ runtime: runtimeStub(), client: clientStub({}) });
+
+    const response = await fetch(base + '/api/nextore/projects/project-1/artifacts/artifact-1/share?representation=cover');
+
+    expect(response.status).toBe(400);
+  });
+});
 describe('nextore artifact share routes', () => {
   it('creates a snapshot share by default', async () => {
     const client = clientStub({});

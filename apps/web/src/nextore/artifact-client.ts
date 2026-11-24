@@ -1,6 +1,7 @@
 import type {
   NextoreArtifactRecord,
   NextoreArtifactRepresentation,
+  NextoreArtifactShareDescribe,
   NextoreArtifactShareRequest,
   NextoreArtifactShareResult,
   NextoreArtifactStatusResponse,
@@ -83,6 +84,27 @@ export function artifactDownloadUrl(
 
 export function projectDownloadUrl(projectId: string): string {
   return '/api/nextore/projects/' + encodeURIComponent(projectId) + '/download';
+}
+
+/**
+ * Read the current link for one representation without creating one. Useful
+ * when a dialog reopens: a link outlives the session that minted it.
+ */
+export async function describeArtifactShare(
+  projectId: string,
+  artifactId: string,
+  representation: NextoreArtifactRepresentation,
+): Promise<NextoreArtifactShareDescribe | null> {
+  const response = await fetch(
+    '/api/nextore/projects/' + encodeURIComponent(projectId)
+      + '/artifacts/' + encodeURIComponent(artifactId) + '/share?representation='
+      + encodeURIComponent(representation),
+    { headers: { accept: 'application/json' } },
+  );
+  // No NexTore mapping means nothing can be shared from here yet.
+  if (response.status === 409) return null;
+  if (!response.ok) throw await shareError(response);
+  return await response.json() as NextoreArtifactShareDescribe;
 }
 
 export async function shareArtifact(

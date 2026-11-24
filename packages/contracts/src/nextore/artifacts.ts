@@ -152,6 +152,19 @@ export interface NextoreArtifactShareResult {
   hasPassword: boolean;
 }
 
+/**
+ * GET /api/nextore/projects/:id/artifacts/:artifactId/share response.
+ * Reads the current link without creating one, so reopening a share dialog can
+ * show what is already public and offer copy plus revoke.
+ */
+export interface NextoreArtifactShareDescribe {
+  projectId: string;
+  artifactId: string;
+  representation: NextoreArtifactShareRepresentation;
+  shared: boolean;
+  url: string | null;
+}
+
 /** Per-representation status for one artifact. */
 export interface NextoreArtifactRepresentationStatus {
   representation: NextoreArtifactRepresentation;

@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type {
   NextoreArtifactRepresentation,
@@ -7,6 +7,7 @@ import type {
 
 import { useT } from '../../i18n';
 import {
+  describeArtifactShare,
   renderSnapshot,
   revokeArtifactShare,
   shareArtifact,
@@ -48,10 +49,37 @@ export function ArtifactShareForm({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [share, setShare] = useState<NextoreArtifactShareResult | null>(null);
+  // A link outlives the dialog that minted it. Without reading it back on open,
+  // the only reachable action is "create another link" and the old one can
+  // never be copied or revoked from Designer.
+  const [existingUrl, setExistingUrl] = useState<string | null>(null);
+  const [loadingExisting, setLoadingExisting] = useState(true);
   const [copied, setCopied] = useState<'idle' | 'ok' | 'failed'>('idle');
   const firstFieldRef = useRef<HTMLSelectElement | null>(null);
 
   const normalized = representation === 'cover' ? 'snapshot' : representation;
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoadingExisting(true);
+    void (async () => {
+      try {
+        const current = await describeArtifactShare(projectId, artifactId, normalized);
+        if (cancelled) return;
+        setExistingUrl(current && current.shared && current.url ? current.url : null);
+      } catch {
+        // A read failure must not block sharing; the create call reports it.
+        if (!cancelled) setExistingUrl(null);
+      } finally {
+        if (!cancelled) setLoadingExisting(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [artifactId, normalized, projectId]);
+
+  const linkUrl = share?.url ?? existingUrl;
 
   const create = useCallback(async () => {
     setBusy(true);
@@ -92,6 +120,7 @@ export function ArtifactShareForm({
     try {
       await revokeArtifactShare(projectId, artifactId, normalized);
       setShare(null);
+      setExistingUrl(null);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'share_failed');
     } finally {
@@ -100,14 +129,14 @@ export function ArtifactShareForm({
   }, [artifactId, normalized, projectId]);
 
   const copy = useCallback(async () => {
-    if (!share?.url) return;
+    if (!linkUrl) return;
     try {
-      await navigator.clipboard.writeText(share.url);
+      await navigator.clipboard.writeText(linkUrl);
       setCopied('ok');
     } catch {
       setCopied('failed');
     }
-  }, [share]);
+  }, [linkUrl]);
 
   return (
     <div className={styles.form}>
@@ -179,11 +208,13 @@ export function ArtifactShareForm({
         </p>
       )}
 
-      {share ? (
+      {loadingExisting && !linkUrl ? (
+        <p role="status" aria-live="polite">{t('nextore.artifact.status.loading')}</p>
+      ) : linkUrl ? (
         <div className={styles.result}>
           <label className={styles.field}>
             <span>{t('nextore.artifact.share.link')}</span>
-            <input readOnly value={share.url} onFocus={(event) => event.currentTarget.select()} />
+            <input readOnly value={linkUrl} onFocus={(event) => event.currentTarget.select()} />
           </label>
           <div className={styles.actions}>
             <button

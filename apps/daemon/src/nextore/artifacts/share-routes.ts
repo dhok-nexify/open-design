@@ -1,5 +1,6 @@
 import type { Express, Response } from 'express';
 import type {
+  NextoreArtifactShareDescribe,
   NextoreArtifactShareRequest,
   NextoreArtifactShareResult,
 } from '@open-design/contracts';
@@ -191,6 +192,53 @@ export function registerNextoreArtifactShareRoutes(
     try {
       await client.revokeArtifactShare(accessToken, nextoreProjectId, artifactId, raw);
       res.json({ projectId, artifactId, representation: raw, revoked: true });
+    } catch (error) {
+      mapClientError(res, error, 'share_failed');
+    }
+  });
+
+  /**
+   * GET .../artifacts/:artifactId/share — the current file link, if any.
+   * Reading must not depend on the local publish row: a link created earlier
+   * stays reachable (and revocable) even if this daemon never saw the publish.
+   */
+  app.get('/api/nextore/projects/:id/artifacts/:artifactId/share', async (req, res) => {
+    if (unavailable(res)) return;
+    const runtime = deps.runtime!;
+    const client = deps.client!;
+    const projectId = String(req.params.id ?? '');
+    const artifactId = String(req.params.artifactId ?? '');
+    const raw = typeof req.query.representation === 'string' ? req.query.representation : 'snapshot';
+    if (!SHARE_REPRESENTATIONS.has(raw)) {
+      fail(res, 400, 'invalid_representation', 'representation must be snapshot or source.');
+      return;
+    }
+    if (!await deps.authorizeProject(req, res, projectId, { mode: 'read', capability: 'share' })) return;
+    const memberId = sessionMemberId(res);
+    if (!memberId) {
+      fail(res, 401, 'SESSION_REQUIRED', 'A NexTore session is required.');
+      return;
+    }
+    const nextoreProjectId = runtime.nextoreProjectId(projectId);
+    if (!nextoreProjectId) {
+      fail(res, 409, 'project_not_mapped', 'The project is not linked to a NexTore project.');
+      return;
+    }
+    const accessToken = await runtime.accessTokenFor(memberId);
+    if (!accessToken) {
+      fail(res, 401, 'auth_required', 'The NexTore session has expired; sign in again.');
+      return;
+    }
+    try {
+      const result = await client.describeArtifactShare<{ url?: unknown }>(
+        accessToken, nextoreProjectId, artifactId, raw,
+      );
+      const url = typeof result?.url === 'string' ? result.url : null;
+      const payload: NextoreArtifactShareDescribe = {
+        projectId, artifactId, representation: raw as 'source' | 'snapshot',
+        shared: Boolean(url), url,
+      };
+      res.json(payload);
     } catch (error) {
       mapClientError(res, error, 'share_failed');
     }

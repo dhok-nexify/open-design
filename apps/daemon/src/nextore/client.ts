@@ -185,6 +185,14 @@ export interface NextoreArtifactClient {
     body: NextoreArtifactShareRequest,
     signal?: AbortSignal,
   ): Promise<T>;
+  /** Current file share link, without creating one. */
+  describeArtifactShare<T>(
+    accessToken: string,
+    projectId: string,
+    artifactId: string,
+    representation: string | undefined,
+    signal?: AbortSignal,
+  ): Promise<T>;
   /** Revoke the caller share link for one representation. */
   revokeArtifactShare<T>(
     accessToken: string,
@@ -621,6 +629,21 @@ export function createNextoreClient(
         'api/designer/projects/' + encodeURIComponent(projectId)
           + '/artifacts/' + encodeURIComponent(artifactId) + '/share',
         { accessToken, method: 'POST', body, ...(signal ? { signal } : {}) },
+      );
+    },
+
+    describeArtifactShare<T>(
+      accessToken: string,
+      projectId: string,
+      artifactId: string,
+      representation: string | undefined,
+      signal?: AbortSignal,
+    ) {
+      const query = representation ? '?representation=' + encodeURIComponent(representation) : '';
+      return request<T>(
+        'api/designer/projects/' + encodeURIComponent(projectId)
+          + '/artifacts/' + encodeURIComponent(artifactId) + '/share' + query,
+        { accessToken, method: 'GET', ...(signal ? { signal } : {}) },
       );
     },
 
