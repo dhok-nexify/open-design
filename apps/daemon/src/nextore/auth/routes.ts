@@ -125,6 +125,8 @@ const TOUCH_INTERVAL_MS = 60 * 1000;
 /** Everything an unauthenticated browser may still reach. */
 const PUBLIC_API_PATHS = new Set(['/health', '/ready', '/version', '/branding', '/auth/cli/token']);
 const PUBLIC_API_SELF_TEST = '/nextore/self-test';
+/** Share links are opened by recipients who have no Designer session at all. */
+const PUBLIC_API_PREFIXES = ['/public-share/'];
 
 /**
  * Client-supplied workspace identity is an upstream capability that has no
@@ -783,6 +785,14 @@ export function createNextoreAuth(options: NextoreAuthOptions): NextoreAuth {
     }
 
     if (req.baseUrl === '/api' && PUBLIC_API_PATHS.has(req.path)) {
+      next();
+      return;
+    }
+
+    if (
+      req.baseUrl === '/api'
+      && PUBLIC_API_PREFIXES.some((prefix) => req.path.startsWith(prefix))
+    ) {
       next();
       return;
     }
