@@ -36,6 +36,22 @@ function sessionMemberId(res: Response): number | null {
   return typeof id === 'number' && Number.isInteger(id) && id > 0 ? id : null;
 }
 
+// The copy button must hand out the branded page, not the platform URL, while
+// keeping the platform link one step away for password and restricted shares.
+function brandedShareUrl(
+  req: { protocol: string; get(name: string): string | undefined },
+  url: string,
+): string {
+  try {
+    const key = new URL(url).searchParams.get('key');
+    const host = req.get('host');
+    if (!key || !host) return url;
+    return req.protocol + '://' + host + '/share?key=' + encodeURIComponent(key);
+  } catch {
+    return url;
+  }
+}
+
 function readBody(value: unknown): NextoreArtifactShareRequest {
   return value && typeof value === 'object' ? value as NextoreArtifactShareRequest : {};
 }
@@ -149,7 +165,7 @@ export function registerNextoreArtifactShareRoutes(
         return;
       }
       const payload: NextoreArtifactShareResult = {
-        url,
+        url: brandedShareUrl(req, url),
         representation,
         previewOnly: body.previewOnly !== false,
         pinnedVersion: null,
@@ -233,7 +249,8 @@ export function registerNextoreArtifactShareRoutes(
       const result = await client.describeArtifactShare<{ url?: unknown }>(
         accessToken, nextoreProjectId, artifactId, raw,
       );
-      const url = typeof result?.url === 'string' ? result.url : null;
+      const moduleUrl = typeof result?.url === 'string' ? result.url : null;
+      const url = moduleUrl ? brandedShareUrl(req, moduleUrl) : null;
       const payload: NextoreArtifactShareDescribe = {
         projectId, artifactId, representation: raw as 'source' | 'snapshot',
         shared: Boolean(url), url,

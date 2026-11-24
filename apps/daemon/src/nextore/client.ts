@@ -185,6 +185,12 @@ export interface NextoreArtifactClient {
     body: NextoreArtifactShareRequest,
     signal?: AbortSignal,
   ): Promise<T>;
+  /** Anonymous share descriptor for the branded page (no NexTore session). */
+  describePublicShare<T>(key: string, signal?: AbortSignal): Promise<T>;
+  /** Raw content response for the branded page. */
+  fetchPublicShareContent(key: string, signal?: AbortSignal): Promise<Response>;
+  /** NexTore PublicShare URL for a key, used as the fallback target. */
+  publicShareFallbackUrl(key: string): string;
   /** Current file share link, without creating one. */
   describeArtifactShare<T>(
     accessToken: string,
@@ -630,6 +636,23 @@ export function createNextoreClient(
           + '/artifacts/' + encodeURIComponent(artifactId) + '/share',
         { accessToken, method: 'POST', body, ...(signal ? { signal } : {}) },
       );
+    },
+
+    describePublicShare<T>(key: string, signal?: AbortSignal) {
+      return request<T>('api/designer/public-share/' + encodeURIComponent(key), {
+        ...(signal ? { signal } : {}),
+      });
+    },
+
+    fetchPublicShareContent(key: string, signal?: AbortSignal) {
+      return fetchImpl(
+        new URL('api/designer/public-share/' + encodeURIComponent(key) + '/content', configuredBase),
+        signal ? { signal } : {},
+      );
+    },
+
+    publicShareFallbackUrl(key: string) {
+      return new URL('PublicShare?key=' + encodeURIComponent(key), configuredBase).toString();
     },
 
     describeArtifactShare<T>(

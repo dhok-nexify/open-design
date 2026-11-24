@@ -76,7 +76,22 @@ const App = dynamic(() => import('../../src/App').then((m) => m.App), {
   ),
 });
 
+const PublicSharePage = dynamic(
+  () => import('../../src/nextore/PublicSharePage').then((m) => m.PublicSharePage),
+  { ssr: false },
+);
+
+const PUBLIC_SHARE_PATH = '/share';
+
+function isPublicSharePath(): boolean {
+  if (typeof window === 'undefined') return false;
+  return window.location.pathname.replace(/\/+$/, '') === PUBLIC_SHARE_PATH;
+}
+
 export function ClientApp() {
+  // The share page is for recipients without a Designer session: it must not
+  // mount the signed-in shell or its session bootstrapping.
+  if (isPublicSharePath()) return <PublicSharePage />;
   // A deliberate sign-out ends this tab's session, and the session wrapper
   // holds off on bouncing back into OAuth while that marker stands. Mounting
   // the shell anyway would only report SESSION_REQUIRED on every call, so this

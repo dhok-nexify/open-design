@@ -163,12 +163,14 @@ describe('nextore artifact file link read route', () => {
     const response = await fetch(base + '/api/nextore/projects/project-1/artifacts/artifact-1/share?representation=snapshot');
 
     expect(response.status).toBe(200);
-    expect(await response.json()).toMatchObject({
+    const body = await response.json();
+    expect(body).toMatchObject({
       artifactId: 'artifact-1',
       representation: 'snapshot',
       shared: true,
-      url: 'https://share.test/PublicShare?key=file',
     });
+    // The lookup hands out the branded page, not the platform URL.
+    expect(body.url).toMatch(/\/share\?key=file$/);
     expect(client.shareArtifact).not.toHaveBeenCalled();
   });
 
