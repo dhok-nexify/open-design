@@ -155,6 +155,12 @@ function viewerUrl(contentUrl: string, fileName: string | null): string {
   return contentUrl + '#view=FitH';
 }
 
+function thumbUrl(item: NextorePublicShareItem): string {
+  const url = item.contentUrl ?? '';
+  if (kindOf(item.name) !== 'pdf') return url;
+  return url + '#page=1&view=Fit&toolbar=0&navpanes=0&statusbar=0';
+}
+
 function frameProps(fileName: string | null) {
   // Untrusted document HTML runs in an opaque origin so it can never touch the
   // Designer's storage. PDFs stay unsandboxed: the built-in viewer is a plugin
@@ -219,6 +225,9 @@ export function PublicSharePage() {
 
   const rootItems = view.status === 'ready' ? view.data.items : [];
   const currentItems = trail.length > 0 ? trail[trail.length - 1]!.items : rootItems;
+  // Guards against a page that opens a dozen documents at once: past eight
+  // entries the cards fall back to type + name only.
+  const showThumbs = currentItems.length <= 8 && currentItems.some((item) => item.kind === 'file');
 
   const openFolder = useCallback(async (item: NextorePublicShareItem) => {
     if (!item.childrenUrl) return;
@@ -416,30 +425,63 @@ export function PublicSharePage() {
               </div>
             ) : (
               <div className={styles.grid}>
-                {currentItems.map((item) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    className={item.kind === 'folder' ? styles.cardFolder : styles.card}
-                    onClick={() => {
-                      if (item.kind === 'folder') void openFolder(item);
-                      else setOpenItem(item);
-                    }}
-                  >
-                    <span className={styles.cardKind} data-kind={item.kind === 'folder' ? 'folder' : kindOf(item.name)} aria-hidden="true">
-                      {item.kind === 'folder' ? 'DIR' : (extensionOf(item.name).toUpperCase() || 'FILE')}
-                    </span>
-                    <span className={styles.cardTitle}>
-                      {item.kind === 'folder' ? item.name : titleOf(item.name)}
-                    </span>
-                    <span className={styles.cardMeta}>
-                      {item.kind === 'folder' ? copy.folderLabel : item.name}
-                      <span className={styles.cardAction}>
-                        {item.kind === 'folder' ? copy.openFolder : copy.openPage}
+                {currentItems.map((item) => {
+                  const isFolder = item.kind === 'folder';
+                  const open = () => {
+                    if (isFolder) void openFolder(item);
+                    else setOpenItem(item);
+                  };
+                  return (
+                    <div
+                      key={item.id}
+                      role="button"
+                      tabIndex={0}
+                      className={isFolder ? styles.cardFolder : styles.card}
+                      onClick={open}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault();
+                          open();
+                        }
+                      }}
+                    >
+                      {!isFolder && showThumbs && item.contentUrl ? (
+                        <span className={styles.cardThumb} aria-hidden="true">
+                          {kindOf(item.name) === 'image' ? (
+                            <img
+                              className={styles.cardThumbImg}
+                              src={item.contentUrl}
+                              alt=""
+                              loading="lazy"
+                            />
+                          ) : (
+                            <iframe
+                              className={styles.cardThumbFrame}
+                              src={thumbUrl(item)}
+                              tabIndex={-1}
+                              aria-hidden="true"
+                              title=""
+                              scrolling="no"
+                              {...frameProps(item.name)}
+                            />
+                          )}
+                        </span>
+                      ) : null}
+                      <span className={styles.cardKind} data-kind={isFolder ? 'folder' : kindOf(item.name)} aria-hidden="true">
+                        {isFolder ? 'DIR' : (extensionOf(item.name).toUpperCase() || 'FILE')}
                       </span>
-                    </span>
-                  </button>
-                ))}
+                      <span className={styles.cardTitle}>
+                        {isFolder ? item.name : titleOf(item.name)}
+                      </span>
+                      <span className={styles.cardMeta}>
+                        {isFolder ? copy.folderLabel : item.name}
+                        <span className={styles.cardAction}>
+                          {isFolder ? copy.openFolder : copy.openPage}
+                        </span>
+                      </span>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>

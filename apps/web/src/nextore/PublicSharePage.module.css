@@ -566,3 +566,42 @@
     padding: 0 12px;
   }
 }
+
+/* Card thumbnail: a one-third scale render of the page's top-left corner. */
+.cardThumb {
+  position: relative;
+  display: block;
+  block-size: 140px;
+  margin-block-end: 6px;
+  overflow: hidden;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: #ffffff;
+}
+
+.cardThumbFrame {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: 0;
+  inline-size: 300%;
+  block-size: 300%;
+  border: 0;
+  background: #ffffff;
+  transform: scale(0.3334);
+  transform-origin: top left;
+  pointer-events: none;
+}
+
+.cardThumbImg {
+  display: block;
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+  object-position: top center;
+}
+
+@media (max-width: 720px) {
+  .cardThumb {
+    block-size: 170px;
+  }
+}
