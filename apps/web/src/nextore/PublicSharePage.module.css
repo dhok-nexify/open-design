@@ -559,4 +559,10 @@
   .cardFolder {
     min-block-size: 104px;
   }
+
+  /* Touch targets: a 36px crumb is below the 44px minimum on phones. */
+  .crumbs .crumb {
+    min-block-size: 44px;
+    padding: 0 12px;
+  }
 }
