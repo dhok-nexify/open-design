@@ -238,9 +238,10 @@
 }
 
 .secondaryAction {
-  background: transparent;
-  border-color: var(--border);
-  color: var(--text);
+  /* States render on the paper sheet: a ghost button there needs ink. */
+  background: rgba(17, 24, 39, 0.04);
+  border-color: rgba(17, 24, 39, 0.18);
+  color: #111827;
 }
 
 .primaryAction:focus-visible,
