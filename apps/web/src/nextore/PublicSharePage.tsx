@@ -33,6 +33,7 @@ type Copy = {
   pages: string;
   openPage: string;
   openFolder: string;
+  folderLabel: string;
   allPages: string;
   close: string;
   previous: string;
@@ -63,6 +64,7 @@ const ZH: Copy = {
   pages: '個頁面',
   openPage: '開啟頁面',
   openFolder: '開啟資料夾',
+  folderLabel: '資料夾',
   allPages: '全部',
   close: '關閉',
   previous: '上一頁',
@@ -93,6 +95,7 @@ const EN: Copy = {
   pages: 'pages',
   openPage: 'Open page',
   openFolder: 'Open folder',
+  folderLabel: 'Folder',
   allPages: 'All',
   close: 'Close',
   previous: 'Previous',
@@ -430,7 +433,7 @@ export function PublicSharePage() {
                       {item.kind === 'folder' ? item.name : titleOf(item.name)}
                     </span>
                     <span className={styles.cardMeta}>
-                      {item.kind === 'folder' ? copy.openFolder : item.name}
+                      {item.kind === 'folder' ? copy.folderLabel : item.name}
                       <span className={styles.cardAction}>
                         {item.kind === 'folder' ? copy.openFolder : copy.openPage}
                       </span>
