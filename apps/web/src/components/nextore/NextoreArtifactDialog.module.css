@@ -30,6 +30,23 @@
   border-bottom: 1px solid var(--border-subtle, rgba(0, 0, 0, 0.1));
 }
 
+.heading {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-inline-size: 0;
+}
+
+.fileName {
+  margin: 0;
+  overflow: hidden;
+  color: var(--text-soft, var(--text-muted, inherit));
+  font-size: 13px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .header h2 {
   margin: 0;
   font-size: 18px;

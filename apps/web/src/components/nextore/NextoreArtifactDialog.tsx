@@ -141,10 +141,21 @@ export function NextoreArtifactDialog({
         className={styles.dialog}
         role="dialog"
         aria-modal="true"
-        aria-labelledby="nextore-project-artifact-title"
+        aria-labelledby={artifactId
+          ? 'nextore-project-artifact-title nextore-project-artifact-file'
+          : 'nextore-project-artifact-title'}
       >
         <header className={styles.header}>
-          <h2 id="nextore-project-artifact-title">{t('nextore.artifact.dialog.title')}</h2>
+          <div className={styles.heading}>
+            <h2 id="nextore-project-artifact-title">{t('nextore.artifact.dialog.title')}</h2>
+            {/* The dialog is bound to one file, so it must say which one: a
+                project with several pages otherwise shows identical dialogs. */}
+            {artifactId ? (
+              <p id="nextore-project-artifact-file" className={styles.fileName} title={artifactId}>
+                {artifactId}
+              </p>
+            ) : null}
+          </div>
           <button type="button" className={styles.close} onClick={onClose} aria-label={t('common.close')}>
             <Icon name="close" size={16} aria-hidden="true" />
           </button>
