@@ -131,9 +131,17 @@
 
 .downloads {
   display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+/* The two download actions are long in every language; keep them together so
+   the label never sits alone on a wrapped first line. */
+.downloadRow {
+  display: flex;
   flex-wrap: wrap;
-  align-items: center;
-  gap: 12px;
+  gap: 8px;
 }
 
 .downloadLabel {

@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { useT } from '../../i18n';
+import { copyText } from '../../nextore/clipboard';
 import { Icon } from '../Icon';
 import styles from './ProjectShareForm.module.css';
 
@@ -97,14 +98,11 @@ export function ProjectShareForm({ projectId }: { projectId: string }) {
     }
   };
 
+  const urlInputRef = useRef<HTMLInputElement | null>(null);
+
   const copy = async () => {
     if (!state.url) return;
-    try {
-      await navigator.clipboard.writeText(state.url);
-      setCopied(true);
-    } catch {
-      setCopied(false);
-    }
+    setCopied(await copyText(state.url, urlInputRef.current));
   };
 
   return (
@@ -118,6 +116,7 @@ export function ProjectShareForm({ projectId }: { projectId: string }) {
       {state.shared && state.url ? (
         <div className={styles.body}>
           <input
+            ref={urlInputRef}
             className={styles.url}
             value={state.url}
             readOnly

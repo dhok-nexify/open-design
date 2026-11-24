@@ -13,6 +13,7 @@ import {
   shareArtifact,
   waitForSnapshot,
 } from '../../nextore/artifact-client';
+import { copyText } from '../../nextore/clipboard';
 import { Icon } from '../Icon';
 import styles from './ArtifactShareForm.module.css';
 
@@ -56,6 +57,7 @@ export function ArtifactShareForm({
   const [loadingExisting, setLoadingExisting] = useState(true);
   const [copied, setCopied] = useState<'idle' | 'ok' | 'failed'>('idle');
   const firstFieldRef = useRef<HTMLSelectElement | null>(null);
+  const linkInputRef = useRef<HTMLInputElement | null>(null);
 
   const normalized = representation === 'cover' ? 'snapshot' : representation;
   // NexTore's share page can only preview PDF-like documents. A source HTML
@@ -134,12 +136,7 @@ export function ArtifactShareForm({
 
   const copy = useCallback(async () => {
     if (!linkUrl) return;
-    try {
-      await navigator.clipboard.writeText(linkUrl);
-      setCopied('ok');
-    } catch {
-      setCopied('failed');
-    }
+    setCopied(await copyText(linkUrl, linkInputRef.current) ? 'ok' : 'failed');
   }, [linkUrl]);
 
   return (
@@ -224,7 +221,12 @@ export function ArtifactShareForm({
         <div className={styles.result}>
           <label className={styles.field}>
             <span>{t('nextore.artifact.share.link')}</span>
-            <input readOnly value={linkUrl} onFocus={(event) => event.currentTarget.select()} />
+            <input
+              ref={linkInputRef}
+              readOnly
+              value={linkUrl}
+              onFocus={(event) => event.currentTarget.select()}
+            />
           </label>
           <div className={styles.actions}>
             <button

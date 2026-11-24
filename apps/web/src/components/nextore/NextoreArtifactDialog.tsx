@@ -180,7 +180,8 @@ export function NextoreArtifactDialog({
                 {published.length === 0 ? (
                   <p role="status" aria-live="polite">{t('nextore.artifact.downloadUnavailable')}</p>
                 ) : (
-                  published.map((row) => (
+                  <div className={styles.downloadRow}>
+                  {published.map((row) => (
                     <button
                       key={row.representation}
                       type="button"
@@ -194,7 +195,8 @@ export function NextoreArtifactDialog({
                           : t('nextore.artifact.share.source')}
                       </span>
                     </button>
-                  ))
+                  ))}
+                  </div>
                 )}
               </div>
 
