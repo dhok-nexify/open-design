@@ -489,7 +489,9 @@
   color: rgba(255, 255, 255, 0.25);
 }
 
-.crumb {
+/* Scoped to .crumbs so the app's global button:disabled styling cannot paint a
+   light block behind the trail on the dark share page. */
+.crumbs .crumb {
   min-block-size: 30px;
   padding: 0 10px;
   border-radius: 7px;
@@ -501,17 +503,20 @@
   cursor: pointer;
 }
 
-.crumb:hover:not(:disabled) {
+.crumbs .crumb:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.08);
   color: var(--text);
 }
 
-.crumb:disabled {
+.crumbs .crumb:disabled {
+  background: transparent;
+  border-color: transparent;
   color: var(--text);
+  opacity: 1;
   cursor: default;
 }
 
-.crumb:focus-visible {
+.crumbs .crumb:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
