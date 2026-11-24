@@ -605,3 +605,64 @@
     block-size: 170px;
   }
 }
+
+/* Text documents (md, css, source, csv…) render as readable source. */
+.textPane {
+  margin: 0;
+  block-size: 100%;
+  overflow: auto;
+  padding: 28px clamp(20px, 4vw, 44px) 40px;
+  background: #ffffff;
+  color: #111827;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13.5px;
+  line-height: 1.75;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  tab-size: 2;
+}
+
+.imagePane {
+  display: grid;
+  place-items: center;
+  block-size: 100%;
+  padding: 24px;
+  background: #ffffff;
+  overflow: auto;
+}
+
+.imagePane img {
+  display: block;
+  max-inline-size: 100%;
+  max-block-size: 100%;
+  object-fit: contain;
+}
+
+.viewerState {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 32px 24px;
+  background: #ffffff;
+  text-align: center;
+}
+
+.cardThumbText {
+  display: grid;
+  place-items: center;
+  inline-size: 100%;
+  block-size: 100%;
+  background:
+    linear-gradient(135deg, rgba(122, 162, 255, 0.10), rgba(255, 255, 255, 0.04));
+}
+
+.cardThumbExt {
+  color: var(--accent);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}

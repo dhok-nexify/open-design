@@ -29,6 +29,7 @@ type Copy = {
   download: string;
   expires: string;
   unsupported: string;
+  previewUnavailable: string;
   empty: string;
   pages: string;
   openPage: string;
@@ -60,6 +61,7 @@ const ZH: Copy = {
   download: '下載檔案',
   expires: '有效至',
   unsupported: '此檔案格式無法在瀏覽器中預覽。',
+  previewUnavailable: '此格式沒有線上預覽，請向分享者索取可下載的版本。',
   empty: '此資料夾尚無可分享的內容。',
   pages: '個頁面',
   openPage: '開啟頁面',
@@ -91,6 +93,7 @@ const EN: Copy = {
   download: 'Download file',
   expires: 'Valid until',
   unsupported: 'This file type cannot be previewed in the browser.',
+  previewUnavailable: 'This format has no online preview. Ask the sender for a downloadable copy.',
   empty: 'This folder has nothing to show yet.',
   pages: 'pages',
   openPage: 'Open page',
@@ -140,24 +143,28 @@ function titleOf(fileName: string): string {
   return index > 0 ? fileName.slice(0, index) : fileName;
 }
 
-function kindOf(fileName: string | null): 'pdf' | 'html' | 'image' | 'other' {
+export function shareFileKind(fileName: string | null): 'pdf' | 'html' | 'image' | 'text' | 'other' {
   const extension = extensionOf(fileName ?? '');
   if (extension === 'pdf') return 'pdf';
   if (extension === 'html' || extension === 'htm') return 'html';
-  if (['png', 'jpeg', 'jpg', 'webp', 'gif', 'svg'].includes(extension)) return 'image';
+  if (['png', 'jpeg', 'jpg', 'webp', 'gif', 'svg', 'avif', 'bmp', 'ico'].includes(extension)) return 'image';
+  if (
+    ['md', 'markdown', 'txt', 'css', 'js', 'mjs', 'cjs', 'ts', 'tsx', 'jsx', 'json', 'xml', 'csv', 'yml', 'yaml', 'log']
+      .includes(extension)
+  ) return 'text';
   return 'other';
 }
 
 function viewerUrl(contentUrl: string, fileName: string | null): string {
   // Keep the browser's own PDF toolbar: readers use it for page jumps, zoom and
   // printing. Only the initial view is set, so the page fits the frame width.
-  if (kindOf(fileName) !== 'pdf') return contentUrl;
+  if (shareFileKind(fileName) !== 'pdf') return contentUrl;
   return contentUrl + '#view=FitH';
 }
 
 function thumbUrl(item: NextorePublicShareItem): string {
   const url = item.contentUrl ?? '';
-  if (kindOf(item.name) !== 'pdf') return url;
+  if (shareFileKind(item.name) !== 'pdf') return url;
   // FitH fills the thumbnail width instead of fitting the whole page, which
   // otherwise leaves wide grey bands on both sides of the preview.
   return url + '#page=1&view=FitH&toolbar=0&navpanes=0&statusbar=0';
@@ -167,9 +174,43 @@ function frameProps(fileName: string | null) {
   // Untrusted document HTML runs in an opaque origin so it can never touch the
   // Designer's storage. PDFs stay unsandboxed: the built-in viewer is a plugin
   // frame and will not render inside a sandbox.
-  return kindOf(fileName) === 'html'
+  return shareFileKind(fileName) === 'html'
     ? { sandbox: 'allow-scripts allow-popups allow-forms' }
     : {};
+}
+
+function TextPane({ url, name, copy }: { url: string; name: string; copy: Copy }) {
+  const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
+  const [text, setText] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const response = await fetch(url, { headers: { accept: 'text/plain' } });
+        if (!response.ok) throw new Error('text_unavailable');
+        const raw = await response.text();
+        if (cancelled) return;
+        // A shared document is read, not downloaded: cap the render so a 5 MB
+        // log cannot freeze the tab.
+        setText(raw.length > 200_000 ? raw.slice(0, 200_000) + '\n\n…' : raw);
+        setState('ready');
+      } catch {
+        if (!cancelled) setState('error');
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [url]);
+
+  if (state === 'loading') {
+    return <div className={styles.state} role="status" aria-live="polite"><p className={styles.stateBody}>{copy.loading}</p></div>;
+  }
+  if (state === 'error') {
+    return <div className={styles.state} role="alert"><p className={styles.stateBody}>{copy.openFailedBody}</p></div>;
+  }
+  return <pre className={styles.textPane} aria-label={name}>{text}</pre>;
 }
 
 export function PublicSharePage() {
@@ -289,6 +330,7 @@ export function PublicSharePage() {
   }, [openItem, step]);
 
   const expiryLabel = view.status === 'ready' ? formatDate(view.data.expiresAt, locale) : null;
+  const previewOnly = view.status === 'ready' ? view.data.previewOnly : true;
   const isFolder = view.status === 'ready' && view.data.kind === 'folder';
   const openIndex = openItem ? currentItems.findIndex((entry) => entry.id === openItem.id) : -1;
 
@@ -449,13 +491,19 @@ export function PublicSharePage() {
                     >
                       {!isFolder && showThumbs && item.contentUrl ? (
                         <span className={styles.cardThumb} aria-hidden="true">
-                          {kindOf(item.name) === 'image' ? (
+                          {shareFileKind(item.name) === 'image' ? (
                             <img
                               className={styles.cardThumbImg}
                               src={item.contentUrl}
                               alt=""
                               loading="lazy"
                             />
+                          ) : shareFileKind(item.name) === 'text' || shareFileKind(item.name) === 'other' ? (
+                            <span className={styles.cardThumbText}>
+                              <span className={styles.cardThumbExt}>
+                                {extensionOf(item.name).toUpperCase() || 'FILE'}
+                              </span>
+                            </span>
                           ) : (
                             <iframe
                               className={styles.cardThumbFrame}
@@ -469,7 +517,7 @@ export function PublicSharePage() {
                           )}
                         </span>
                       ) : null}
-                      <span className={styles.cardKind} data-kind={isFolder ? 'folder' : kindOf(item.name)} aria-hidden="true">
+                      <span className={styles.cardKind} data-kind={isFolder ? 'folder' : shareFileKind(item.name)} aria-hidden="true">
                         {isFolder ? 'DIR' : (extensionOf(item.name).toUpperCase() || 'FILE')}
                       </span>
                       <span className={styles.cardTitle}>
@@ -491,10 +539,32 @@ export function PublicSharePage() {
 
         {view.status === 'ready' && !isFolder ? (
           <div className={styles.sheet}>
-            {kindOf(view.data.fileName) === 'other' || !view.data.contentUrl ? (
+            {!view.data.contentUrl ? (
               <div className={styles.state}>
                 <p className={styles.stateTitle}>{copy.unsupported}</p>
                 <p className={styles.stateBody}>{view.data.fileName}</p>
+              </div>
+            ) : shareFileKind(view.data.fileName) === 'other' ? (
+              <div className={styles.state}>
+                <p className={styles.stateTitle}>{copy.unsupported}</p>
+                <p className={styles.stateBody}>{view.data.fileName}</p>
+                {!view.data.previewOnly ? (
+                  <a
+                    className={styles.primaryAction}
+                    href={view.data.contentUrl}
+                    download={view.data.fileName ?? undefined}
+                  >
+                    {copy.download}
+                  </a>
+                ) : (
+                  <p className={styles.stateBody}>{copy.previewUnavailable}</p>
+                )}
+              </div>
+            ) : shareFileKind(view.data.fileName) === 'text' ? (
+              <TextPane url={view.data.contentUrl} name={view.data.fileName ?? copy.brand} copy={copy} />
+            ) : shareFileKind(view.data.fileName) === 'image' ? (
+              <div className={styles.imagePane}>
+                <img src={view.data.contentUrl} alt={view.data.fileName ?? copy.brand} />
               </div>
             ) : (
               <iframe
@@ -540,13 +610,33 @@ export function PublicSharePage() {
               </button>
             </div>
           </div>
-          <iframe
-            className={styles.viewerFrame}
-            src={viewerUrl(openItem.contentUrl ?? '', openItem.name)}
-            title={openItem.name}
-            {...frameProps(openItem.name)}
-            referrerPolicy="no-referrer"
-          />
+          {shareFileKind(openItem.name) === 'other' || !openItem.contentUrl ? (
+            <div className={styles.viewerState}>
+              <p className={styles.stateTitle}>{copy.unsupported}</p>
+              <p className={styles.stateBody}>{openItem.name}</p>
+              {!previewOnly && openItem.contentUrl ? (
+                <a className={styles.primaryAction} href={openItem.contentUrl} download={openItem.name}>
+                  {copy.download}
+                </a>
+              ) : (
+                <p className={styles.stateBody}>{copy.previewUnavailable}</p>
+              )}
+            </div>
+          ) : shareFileKind(openItem.name) === 'text' ? (
+            <TextPane url={openItem.contentUrl} name={openItem.name} copy={copy} />
+          ) : shareFileKind(openItem.name) === 'image' ? (
+            <div className={styles.imagePane}>
+              <img src={openItem.contentUrl} alt={openItem.name} />
+            </div>
+          ) : (
+            <iframe
+              className={styles.viewerFrame}
+              src={viewerUrl(openItem.contentUrl, openItem.name)}
+              title={openItem.name}
+              {...frameProps(openItem.name)}
+              referrerPolicy="no-referrer"
+            />
+          )}
         </div>
       ) : null}
     </div>
