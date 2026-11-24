@@ -414,17 +414,27 @@
   min-inline-size: 36px;
   padding: 0 12px;
   border-radius: 8px;
-  border: 1px solid var(--border);
-  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.08);
   color: var(--text);
   font: inherit;
   font-size: 12.5px;
+  font-weight: 600;
   cursor: pointer;
+  transition: background-color 150ms ease, border-color 150ms ease;
 }
 
+.navButton:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+/* A disabled step has to look inert next to a filled, clickable one. */
 .navButton:disabled {
-  opacity: 0.4;
-  cursor: default;
+  opacity: 1;
+  color: rgba(237, 241, 247, 0.28);
+  background: transparent;
+  border-color: rgba(255, 255, 255, 0.06);
+  cursor: not-allowed;
 }
 
 .navButton:focus-visible {
