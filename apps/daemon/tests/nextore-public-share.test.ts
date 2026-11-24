@@ -9,6 +9,7 @@ import { registerNextorePublicShareRoutes } from '../src/nextore/public-share-ro
 function clientStub(handlers: {
   describePublicShare?: (key: string) => Promise<unknown>;
   fetchPublicShareContent?: (key: string) => Promise<Response>;
+  fetchPublicShareItemContent?: (key: string, itemId: number) => Promise<Response>;
 }): NextoreArtifactClient {
   return {
     describePublicShare: vi.fn(handlers.describePublicShare ?? (async () => ({
@@ -18,6 +19,8 @@ function clientStub(handlers: {
     }))),
     fetchPublicShareContent: vi.fn(handlers.fetchPublicShareContent ?? (async () =>
       new Response('pdf-bytes', { status: 200, headers: { 'content-type': 'application/pdf' } }))),
+    fetchPublicShareItemContent: vi.fn(handlers.fetchPublicShareItemContent ?? (async () =>
+      new Response('item-bytes', { status: 200, headers: { 'content-type': 'text/html' } }))),
     publicShareFallbackUrl: (key: string) => 'https://v4.nexify.hk/PublicShare?key=' + key,
   } as unknown as NextoreArtifactClient;
 }
@@ -45,11 +48,49 @@ describe('public share routes', () => {
     const response = await fetch(base + '/api/public-share/key-1');
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({
+      kind: 'file',
       fileName: 'blog-post.pdf',
       previewOnly: true,
       expiresAt: '2026-12-01T02:37:00.927',
       contentUrl: '/api/public-share/key-1/content',
+      items: [],
     });
+  });
+
+  it('maps a folder share to its child pages', async () => {
+    const base = await startApp(clientStub({
+      describePublicShare: async () => ({
+        kind: 'folder',
+        fileName: 'Project One',
+        previewOnly: true,
+        expiresAt: null,
+        items: [
+          { id: 11, name: 'index.html' },
+          { id: 12, name: 'blog-post.pdf' },
+        ],
+      }),
+    }));
+    const response = await fetch(base + '/api/public-share/key-folder');
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      kind: 'folder',
+      fileName: 'Project One',
+      previewOnly: true,
+      expiresAt: null,
+      contentUrl: null,
+      items: [
+        { id: 11, name: 'index.html', contentUrl: '/api/public-share/key-folder/item/11/content' },
+        { id: 12, name: 'blog-post.pdf', contentUrl: '/api/public-share/key-folder/item/12/content' },
+      ],
+    });
+  });
+
+  it('streams one child of a folder share', async () => {
+    const client = clientStub({});
+    const base = await startApp(client);
+    const response = await fetch(base + '/api/public-share/key-folder/item/12/content');
+    expect(response.status).toBe(200);
+    expect(client.fetchPublicShareItemContent).toHaveBeenCalledWith('key-folder', 12);
   });
 
   it('answers 410 with the NexTore fallback when the key is gone', async () => {

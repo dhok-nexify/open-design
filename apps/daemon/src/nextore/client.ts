@@ -189,6 +189,8 @@ export interface NextoreArtifactClient {
   describePublicShare<T>(key: string, signal?: AbortSignal): Promise<T>;
   /** Raw content response for the branded page. */
   fetchPublicShareContent(key: string, signal?: AbortSignal): Promise<Response>;
+  /** Raw content response for one entry of a shared folder. */
+  fetchPublicShareItemContent(key: string, itemId: number, signal?: AbortSignal): Promise<Response>;
   /** NexTore PublicShare URL for a key, used as the fallback target. */
   publicShareFallbackUrl(key: string): string;
   /** Current file share link, without creating one. */
@@ -647,6 +649,16 @@ export function createNextoreClient(
     fetchPublicShareContent(key: string, signal?: AbortSignal) {
       return fetchImpl(
         new URL('api/designer/public-share/' + encodeURIComponent(key) + '/content', configuredBase),
+        signal ? { signal } : {},
+      );
+    },
+
+    fetchPublicShareItemContent(key: string, itemId: number, signal?: AbortSignal) {
+      return fetchImpl(
+        new URL(
+          'api/designer/public-share/' + encodeURIComponent(key) + '/item/' + itemId + '/content',
+          configuredBase,
+        ),
         signal ? { signal } : {},
       );
     },

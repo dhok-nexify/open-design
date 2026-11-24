@@ -281,3 +281,162 @@
 @media (prefers-reduced-motion: reduce) {
   .sheetSkeleton { animation: none; }
 }
+
+/* Project share: an index of pages, not a folder listing. */
+.index {
+  flex: 1 1 auto;
+  min-block-size: 0;
+  overflow: auto;
+  padding: 4px 2px 12px;
+  scrollbar-gutter: stable;
+}
+
+.grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  align-content: start;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-block-size: 132px;
+  padding: 16px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.035);
+  color: var(--text);
+  text-align: start;
+  font: inherit;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: background-color 160ms ease, border-color 160ms ease, transform 160ms ease;
+}
+
+.card:hover {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(122, 162, 255, 0.4);
+}
+
+.card:active {
+  transform: translateY(1px);
+}
+
+.card:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.cardKind {
+  align-self: flex-start;
+  padding: 3px 7px;
+  border-radius: 6px;
+  background: rgba(122, 162, 255, 0.16);
+  color: var(--accent);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.cardTitle {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.cardMeta {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cardAction {
+  flex: 0 0 auto;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* Overlay viewer for one page of a project share. */
+.viewer {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  background: rgba(8, 10, 14, 0.96);
+}
+
+.viewerBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px clamp(12px, 2vw, 20px);
+  border-block-end: 1px solid var(--border);
+}
+
+.viewerTitle {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.viewerNav {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 8px;
+}
+
+.navButton {
+  min-block-size: 36px;
+  min-inline-size: 36px;
+  padding: 0 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.navButton:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.navButton:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.viewerFrame {
+  flex: 1 1 auto;
+  inline-size: 100%;
+  min-block-size: 0;
+  border: 0;
+  background: var(--surface);
+}
+
+@media (max-width: 720px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+  .card {
+    min-block-size: 104px;
+  }
+}

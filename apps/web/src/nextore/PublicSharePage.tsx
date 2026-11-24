@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import type { NextorePublicShareDescriptor } from '@open-design/contracts';
 
@@ -26,6 +26,12 @@ type Copy = {
   download: string;
   expires: string;
   unsupported: string;
+  empty: string;
+  pages: string;
+  openPage: string;
+  close: string;
+  previous: string;
+  next: string;
 };
 
 const ZH: Copy = {
@@ -48,6 +54,12 @@ const ZH: Copy = {
   download: '下載檔案',
   expires: '有效至',
   unsupported: '此檔案格式無法在瀏覽器中預覽。',
+  empty: '此專案尚無可分享的頁面。',
+  pages: '個頁面',
+  openPage: '開啟頁面',
+  close: '關閉',
+  previous: '上一頁',
+  next: '下一頁',
 };
 
 const EN: Copy = {
@@ -70,6 +82,12 @@ const EN: Copy = {
   download: 'Download file',
   expires: 'Valid until',
   unsupported: 'This file type cannot be previewed in the browser.',
+  empty: 'This project has no shareable pages yet.',
+  pages: 'pages',
+  openPage: 'Open page',
+  close: 'Close',
+  previous: 'Previous',
+  next: 'Next',
 };
 
 type View =
@@ -98,20 +116,39 @@ function formatDate(value: string | null, locale: string): string | null {
   }
 }
 
+function extensionOf(fileName: string): string {
+  const index = fileName.lastIndexOf('.');
+  return index > 0 ? fileName.slice(index + 1).toLowerCase() : '';
+}
+
+function titleOf(fileName: string): string {
+  const index = fileName.lastIndexOf('.');
+  return index > 0 ? fileName.slice(0, index) : fileName;
+}
+
 function kindOf(fileName: string | null): 'pdf' | 'html' | 'image' | 'other' {
-  const name = (fileName ?? '').toLowerCase();
-  if (name.endsWith('.pdf')) return 'pdf';
-  if (name.endsWith('.html') || name.endsWith('.htm')) return 'html';
-  if (/\.(png|jpe?g|webp|gif|svg)$/.test(name)) return 'image';
+  const extension = extensionOf(fileName ?? '');
+  if (extension === 'pdf') return 'pdf';
+  if (extension === 'html' || extension === 'htm') return 'html';
+  if (['png', 'jpeg', 'jpg', 'webp', 'gif', 'svg'].includes(extension)) return 'image';
   return 'other';
 }
 
 function viewerUrl(contentUrl: string, fileName: string | null): string {
-  // Preview-only documents hide the browser's own PDF toolbar: this page already
-  // owns a header, and a second bar over the document is exactly the extra chrome
-  // the gallery layout is meant to remove. The page fits the frame instead.
+  // Preview documents hide the browser's own PDF toolbar: this page already owns
+  // a header, and a second bar over the document is exactly the extra chrome the
+  // gallery layout is meant to remove. The page fits the frame instead.
   if (kindOf(fileName) !== 'pdf') return contentUrl;
   return contentUrl + '#toolbar=0&navpanes=0&statusbar=0&view=Fit';
+}
+
+function frameProps(fileName: string | null) {
+  // Untrusted document HTML runs in an opaque origin so it can never touch the
+  // Designer's storage. PDFs stay unsandboxed: the built-in viewer is a plugin
+  // frame and will not render inside a sandbox.
+  return kindOf(fileName) === 'html'
+    ? { sandbox: 'allow-scripts allow-popups allow-forms' }
+    : {};
 }
 
 export function PublicSharePage() {
@@ -119,6 +156,7 @@ export function PublicSharePage() {
   const locale = typeof navigator === 'undefined' ? 'zh-Hant' : navigator.language;
   const key = useMemo(readKey, []);
   const [view, setView] = useState<View>({ status: 'loading' });
+  const [openIndex, setOpenIndex] = useState<number | null>(null);
 
   useEffect(() => {
     if (!key) {
@@ -135,14 +173,17 @@ export function PublicSharePage() {
           | (Partial<NextorePublicShareDescriptor> & { error?: string; fallbackUrl?: string })
           | null;
         if (cancelled) return;
-        if (response.ok && payload && typeof payload.contentUrl === 'string') {
+        if (response.ok && payload) {
+          const kind = payload.kind === 'folder' ? 'folder' : 'file';
           setView({
             status: 'ready',
             data: {
+              kind,
               fileName: typeof payload.fileName === 'string' ? payload.fileName : null,
               previewOnly: payload.previewOnly !== false,
               expiresAt: typeof payload.expiresAt === 'string' ? payload.expiresAt : null,
-              contentUrl: payload.contentUrl,
+              contentUrl: typeof payload.contentUrl === 'string' ? payload.contentUrl : null,
+              items: Array.isArray(payload.items) ? payload.items : [],
             },
           });
           return;
@@ -161,7 +202,41 @@ export function PublicSharePage() {
     };
   }, [key]);
 
+  const items = view.status === 'ready' ? view.data.items : [];
+  const openItem = openIndex === null ? null : items[openIndex] ?? null;
+
+  const step = useCallback((delta: number) => {
+    setOpenIndex((current) => {
+      if (current === null) return current;
+      const next = current + delta;
+      return next < 0 || next >= items.length ? current : next;
+    });
+  }, [items.length]);
+
+  useEffect(() => {
+    if (!openItem) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        setOpenIndex(null);
+        return;
+      }
+      if (event.key === 'ArrowRight') {
+        event.preventDefault();
+        step(1);
+        return;
+      }
+      if (event.key === 'ArrowLeft') {
+        event.preventDefault();
+        step(-1);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [openItem, step]);
+
   const expiryLabel = view.status === 'ready' ? formatDate(view.data.expiresAt, locale) : null;
+  const isFolder = view.status === 'ready' && view.data.kind === 'folder';
 
   return (
     <div className={styles.shell}>
@@ -186,13 +261,19 @@ export function PublicSharePage() {
             <span className={styles.fileName} title={view.data.fileName ?? undefined}>
               {view.data.fileName ?? ''}
             </span>
+            {isFolder ? (
+              <>
+                <span aria-hidden="true">·</span>
+                <span className={styles.expiry}>{items.length} {copy.pages}</span>
+              </>
+            ) : null}
             {expiryLabel ? (
               <>
                 <span aria-hidden="true">·</span>
                 <span className={styles.expiry}>{copy.expires} {expiryLabel}</span>
               </>
             ) : null}
-            {!view.data.previewOnly ? (
+            {!view.data.previewOnly && !isFolder && view.data.contentUrl ? (
               <a
                 className={styles.downloadAction}
                 href={view.data.contentUrl}
@@ -210,8 +291,8 @@ export function PublicSharePage() {
 
       <main className={styles.main} id="share-document">
         {view.status === 'loading' ? (
-          <div className={styles.sheet} role="status" aria-live="polite">
-            <div className={styles.state}>
+          <div className={styles.sheet}>
+            <div className={styles.state} role="status" aria-live="polite">
               <div className={styles.sheetSkeleton} aria-hidden="true" />
               <p className={styles.stateTitle}>{copy.loading}</p>
               <p className={styles.stateBody}>{copy.loadingHint}</p>
@@ -255,9 +336,40 @@ export function PublicSharePage() {
           </div>
         ) : null}
 
-        {view.status === 'ready' ? (
+        {view.status === 'ready' && isFolder ? (
+          <div className={styles.index}>
+            {items.length === 0 ? (
+              <div className={styles.state}>
+                <p className={styles.stateTitle}>{copy.empty}</p>
+                <p className={styles.stateBody}>{view.data.fileName}</p>
+              </div>
+            ) : (
+              <div className={styles.grid}>
+                {items.map((item, index) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    className={styles.card}
+                    onClick={() => setOpenIndex(index)}
+                  >
+                    <span className={styles.cardKind} data-kind={kindOf(item.name)} aria-hidden="true">
+                      {extensionOf(item.name).toUpperCase() || 'FILE'}
+                    </span>
+                    <span className={styles.cardTitle}>{titleOf(item.name)}</span>
+                    <span className={styles.cardMeta}>
+                      {item.name}
+                      <span className={styles.cardAction}>{copy.openPage}</span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : null}
+
+        {view.status === 'ready' && !isFolder ? (
           <div className={styles.sheet}>
-            {kindOf(view.data.fileName) === 'other' ? (
+            {kindOf(view.data.fileName) === 'other' || !view.data.contentUrl ? (
               <div className={styles.state}>
                 <p className={styles.stateTitle}>{copy.unsupported}</p>
                 <p className={styles.stateBody}>{view.data.fileName}</p>
@@ -267,18 +379,54 @@ export function PublicSharePage() {
                 className={styles.frame}
                 src={viewerUrl(view.data.contentUrl, view.data.fileName)}
                 title={view.data.fileName ?? copy.brand}
-                /* Untrusted document HTML runs in an opaque origin so it can never
-                   touch the Designer's storage. PDFs stay unsandboxed: the built-in
-                   viewer is a plugin frame and will not render inside a sandbox. */
-                {...(kindOf(view.data.fileName) === 'html'
-                  ? { sandbox: 'allow-scripts allow-popups allow-forms' }
-                  : {})}
+                {...frameProps(view.data.fileName)}
                 referrerPolicy="no-referrer"
               />
             )}
           </div>
         ) : null}
       </main>
+
+      {openItem ? (
+        <div className={styles.viewer} role="dialog" aria-modal="true" aria-label={openItem.name}>
+          <div className={styles.viewerBar}>
+            <span className={styles.viewerTitle}>{openItem.name}</span>
+            <div className={styles.viewerNav}>
+              <button
+                type="button"
+                className={styles.navButton}
+                onClick={() => step(-1)}
+                disabled={openIndex === 0}
+              >
+                {copy.previous}
+              </button>
+              <button
+                type="button"
+                className={styles.navButton}
+                onClick={() => step(1)}
+                disabled={openIndex === items.length - 1}
+              >
+                {copy.next}
+              </button>
+              <button
+                type="button"
+                className={styles.navButton}
+                onClick={() => setOpenIndex(null)}
+                aria-label={copy.close}
+              >
+                ×
+              </button>
+            </div>
+          </div>
+          <iframe
+            className={styles.viewerFrame}
+            src={viewerUrl(openItem.contentUrl, openItem.name)}
+            title={openItem.name}
+            {...frameProps(openItem.name)}
+            referrerPolicy="no-referrer"
+          />
+        </div>
+      ) : null}
     </div>
   );
 }
