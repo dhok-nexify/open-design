@@ -1,7 +1,10 @@
 /* Branded share surface: one slim bar, then the document. Nothing else. */
 .shell {
   --bg: #0b0e14;
-  --surface: #23262b;
+  /* Reading surfaces are paper, not chrome: an artifact that brings no page
+     background of its own must still read as a page, never as empty darkness. */
+  --surface: #ffffff;
+  --surface-edge: rgba(255, 255, 255, 0.14);
   --text: #edf1f7;
   --muted: #9aa4b2;
   --accent: #7aa2ff;
@@ -150,6 +153,7 @@
   overflow: hidden;
   border-radius: 12px;
   background: var(--surface);
+  border: 1px solid var(--surface-edge);
   box-shadow: 0 18px 48px rgba(0, 0, 0, 0.45);
 }
 
@@ -159,6 +163,7 @@
   block-size: 100%;
   border: 0;
   background: var(--surface);
+  color-scheme: light;
 }
 
 .state {
@@ -187,15 +192,17 @@
 
 .stateTitle {
   margin: 0;
+  /* States live on the paper sheet, so text has to be ink. */
   font-size: 17px;
   font-weight: 650;
   line-height: 1.35;
+  color: #111827;
 }
 
 .stateBody {
   margin: 0;
   max-inline-size: 420px;
-  color: var(--muted);
+  color: #4b5563;
   font-size: 14px;
   line-height: 1.6;
 }
@@ -248,7 +255,7 @@
   inline-size: 100%;
   block-size: 100%;
   border-radius: 12px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.03));
+  background: linear-gradient(180deg, rgba(15, 17, 22, 0.07), rgba(15, 17, 22, 0.03));
   animation: pulse 1.6s ease-in-out infinite;
 }
 
@@ -430,6 +437,7 @@
   min-block-size: 0;
   border: 0;
   background: var(--surface);
+  color-scheme: light;
 }
 
 @media (max-width: 720px) {
@@ -439,4 +447,13 @@
   .card {
     min-block-size: 104px;
   }
+}
+
+/* The project index is chrome, not paper: its empty state stays light on dark. */
+.index .stateTitle {
+  color: var(--text);
+}
+
+.index .stateBody {
+  color: var(--muted);
 }
