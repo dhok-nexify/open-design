@@ -54,8 +54,14 @@ export function registerNextorePublicShareRoutes(
   app: Express,
   deps: RegisterNextorePublicShareRoutesDeps,
 ): void {
-  function payload(key: string, node: ModuleNode | null): NextorePublicShareDescriptor {
+  function payload(
+    key: string,
+    node: ModuleNode | null,
+    itemId?: number,
+  ): NextorePublicShareDescriptor {
     const root = '/api/public-share/' + encodeURIComponent(key);
+    // An item descriptor must stream that item, not the shared root.
+    const selfContent = itemId === undefined ? root + '/content' : root + '/item/' + itemId + '/content';
     const kind = node?.kind === 'folder' ? 'folder' : 'file';
     const rawItems = Array.isArray(node?.items) ? node.items : [];
     const items: NextorePublicShareItem[] = rawItems
@@ -76,7 +82,7 @@ export function registerNextorePublicShareRoutes(
       fileName: typeof node?.fileName === 'string' ? node.fileName : null,
       previewOnly: node?.previewOnly === true,
       expiresAt: typeof node?.expiresAt === 'string' ? node.expiresAt : null,
-      contentUrl: kind === 'file' ? root + '/content' : null,
+      contentUrl: kind === 'file' ? selfContent : null,
       items: kind === 'folder' ? items : [],
     };
   }
@@ -106,7 +112,7 @@ export function registerNextorePublicShareRoutes(
     }
     try {
       const node = await deps.client.describePublicShareItem<ModuleNode>(key, itemId);
-      res.json(payload(key, node));
+      res.json(payload(key, node, itemId));
     } catch (error) {
       res.status(statusFor(error)).json(failure(deps.client, key, error));
     }
