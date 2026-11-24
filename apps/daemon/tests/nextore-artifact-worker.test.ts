@@ -200,4 +200,27 @@ describe('runNextorePublishWorkerOnce', () => {
       lastError: 'boom',
     });
   });
+  it('writes one structured line per publish transition', async () => {
+    enqueue();
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      await runNextorePublishWorkerOnce({
+        db,
+        workerId: 'worker-a',
+        resolveJob: async () => job(),
+        publish: async () => outcome(),
+        now: () => 1_000,
+      });
+      const lines = log.mock.calls.map((call) => String(call[0]));
+      expect(lines.some((line) => line.startsWith('[nextore-artifact] publish start project=project-1 artifact=artifact-1 rep=source'))).toBe(true);
+      expect(lines.some((line) => line.startsWith('[nextore-artifact] publish ok project=project-1 artifact=artifact-1 rep=source'))).toBe(true);
+      expect(lines.some((line) => line.includes('version=1'))).toBe(true);
+      expect(warn).not.toHaveBeenCalled();
+    } finally {
+      log.mockRestore();
+      warn.mockRestore();
+    }
+  });
+
 });

@@ -71,11 +71,32 @@ function retryOutcome(errorCode: string, message: string): PublishOutcome {
 }
 
 /**
+ * One structured line per publish transition, so journalctl can be filtered with
+ * "nextore-artifact" and the fields read directly instead of reconstructed from
+ * timestamps. Upstream messages are never logged.
+ */
+/**
  * One worker tick: claim at most one due item, publish it, and settle the queue row.
  *
  * The caller owns the loop and the per-project serialization; this function is intentionally
  * deterministic so tests can drive it with an injected clock.
  */
+function logPublish(
+  event: string,
+  item: { projectId: string; artifactId: string; representation: string },
+  extra: Record<string, string | number | boolean | null | undefined> = {},
+): void {
+  const fields = Object.entries(extra)
+    .filter(([, value]) => value !== undefined && value !== null && value !== '')
+    .map(([key, value]) => key + '=' + String(value))
+    .join(' ');
+  const line = '[nextore-artifact] ' + event + ' project=' + item.projectId
+    + ' artifact=' + item.artifactId + ' rep=' + item.representation
+    + (fields ? ' ' + fields : '');
+  if (event === 'publish retry' || event === 'publish dead-letter') console.warn(line);
+  else console.log(line);
+}
+
 export async function runNextorePublishWorkerOnce(
   deps: NextorePublishWorkerDeps,
 ): Promise<NextorePublishWorkerTick> {
@@ -91,10 +112,19 @@ export async function runNextorePublishWorkerOnce(
   try {
     const job = await deps.resolveJob(item);
     if (!job) {
+      logPublish('publish skip', item, { reason: 'job_incomplete' });
       completeNextorePublish(deps.db, item.id, deps.workerId);
       return { claimed: item, outcome: null };
     }
+    const startedAt = now();
+    logPublish('publish start', item, { attempt: item.attempts, worker: deps.workerId });
     outcome = await deps.publish(job);
+    logPublish(outcome.status === 'published' ? 'publish ok' : 'publish result', item, {
+      status: outcome.status,
+      code: outcome.errorCode ?? undefined,
+      version: outcome.version ?? undefined,
+      ms: now() - startedAt,
+    });
   } catch (error) {
     outcome = retryOutcome(
       'publish_failed',
@@ -133,6 +163,10 @@ export async function runNextorePublishWorkerOnce(
       lastError: `dead_letter:${outcome.errorCode ?? 'publish_failed'}`,
       updatedAt: at,
     });
+    logPublish('publish dead-letter', item, {
+      attempts: item.attempts,
+      code: outcome.errorCode ?? 'publish_failed',
+    });
     return { claimed: item, outcome };
   }
 
@@ -144,6 +178,11 @@ export async function runNextorePublishWorkerOnce(
     error: outcome.message ?? outcome.errorCode ?? 'retry',
     retryAt: now() + delay,
     contentHash: outcome.contentHash ?? null,
+  });
+  logPublish('publish retry', item, {
+    attempt: item.attempts,
+    code: outcome.errorCode ?? 'publish_failed',
+    nextMs: delay,
   });
   return { claimed: item, outcome };
 }

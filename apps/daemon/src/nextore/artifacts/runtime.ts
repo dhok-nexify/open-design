@@ -361,6 +361,12 @@ export class NextoreArtifactRuntime {
         now: now(),
         contentHash: await hashQuietly(sourcePath),
       });
+      console.log(
+        '[nextore-artifact] publish enqueue project=' + artifact.projectId
+          + ' artifact=' + artifact.artifactId
+          + ' rep=' + artifact.representation
+          + ' reason=file-change member=' + memberId,
+      );
     }
     if (this.deps.autoDrain !== false) void this.wake();
   }
