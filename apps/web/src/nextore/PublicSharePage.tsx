@@ -135,11 +135,10 @@ function kindOf(fileName: string | null): 'pdf' | 'html' | 'image' | 'other' {
 }
 
 function viewerUrl(contentUrl: string, fileName: string | null): string {
-  // Preview documents hide the browser's own PDF toolbar: this page already owns
-  // a header, and a second bar over the document is exactly the extra chrome the
-  // gallery layout is meant to remove. The page fits the frame instead.
+  // Keep the browser's own PDF toolbar: readers use it for page jumps, zoom and
+  // printing. Only the initial view is set, so the page fits the frame.
   if (kindOf(fileName) !== 'pdf') return contentUrl;
-  return contentUrl + '#toolbar=0&navpanes=0&statusbar=0&view=Fit';
+  return contentUrl + '#view=Fit';
 }
 
 function frameProps(fileName: string | null) {
