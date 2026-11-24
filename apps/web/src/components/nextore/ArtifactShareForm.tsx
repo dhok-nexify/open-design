@@ -43,7 +43,7 @@ export function ArtifactShareForm({
   const [representation, setRepresentation] = useState<NextoreArtifactRepresentation>(
     initialRepresentation === 'cover' ? 'snapshot' : initialRepresentation,
   );
-  const [previewOnly, setPreviewOnly] = useState(true);
+  const [previewOnly, setPreviewOnly] = useState(initialRepresentation !== 'source');
   const [expiryDays, setExpiryDays] = useState<number>(7);
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
@@ -58,6 +58,10 @@ export function ArtifactShareForm({
   const firstFieldRef = useRef<HTMLSelectElement | null>(null);
 
   const normalized = representation === 'cover' ? 'snapshot' : representation;
+  // NexTore's share page can only preview PDF-like documents. A source HTML
+  // link with preview-only on renders an empty page, so source links are
+  // always download links.
+  const previewOnlyApplies = normalized !== 'source';
 
   useEffect(() => {
     let cancelled = false;
@@ -88,7 +92,7 @@ export function ArtifactShareForm({
     const expiry = isoAfterDays(expiryDays);
     const request = {
       representation: normalized,
-      previewOnly,
+      previewOnly: previewOnlyApplies ? previewOnly : false,
       ...(expiry ? { expiresAt: expiry } : {}),
       ...(password.trim() ? { password: password.trim() } : {}),
     };
@@ -112,7 +116,7 @@ export function ArtifactShareForm({
     } finally {
       setBusy(false);
     }
-  }, [artifactId, expiryDays, normalized, password, previewOnly, projectId]);
+  }, [artifactId, expiryDays, normalized, password, previewOnly, previewOnlyApplies, projectId]);
 
   const revoke = useCallback(async () => {
     setBusy(true);
@@ -149,7 +153,13 @@ export function ArtifactShareForm({
               if (autoFocus) node?.focus();
             }}
             value={normalized}
-            onChange={(event) => setRepresentation(event.target.value as NextoreArtifactRepresentation)}
+            onChange={(event) => {
+              const next = event.target.value as NextoreArtifactRepresentation;
+              setRepresentation(next);
+              // A source link cannot be previewed by NexTore, so it is always a
+              // download link; keep the checkbox out of a state that lies.
+              if (next === 'source') setPreviewOnly(false);
+            }}
             disabled={busy}
           >
             <option value="snapshot">{t('nextore.artifact.share.snapshot')}</option>
@@ -178,9 +188,9 @@ export function ArtifactShareForm({
       <label className={styles.checkbox}>
         <input
           type="checkbox"
-          checked={previewOnly}
+          checked={previewOnlyApplies ? previewOnly : false}
           onChange={(event) => setPreviewOnly(event.target.checked)}
-          disabled={busy}
+          disabled={busy || !previewOnlyApplies}
         />
         <span>{t('nextore.artifact.share.previewOnly')}</span>
       </label>
