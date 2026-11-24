@@ -2,7 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
-import type { NextorePublicShareDescriptor } from '@open-design/contracts';
+import type {
+  NextorePublicShareDescriptor,
+  NextorePublicShareItem,
+} from '@open-design/contracts';
 
 import styles from './PublicSharePage.module.css';
 
@@ -29,6 +32,8 @@ type Copy = {
   empty: string;
   pages: string;
   openPage: string;
+  openFolder: string;
+  allPages: string;
   close: string;
   previous: string;
   next: string;
@@ -54,9 +59,11 @@ const ZH: Copy = {
   download: '下載檔案',
   expires: '有效至',
   unsupported: '此檔案格式無法在瀏覽器中預覽。',
-  empty: '此專案尚無可分享的頁面。',
+  empty: '此資料夾尚無可分享的內容。',
   pages: '個頁面',
   openPage: '開啟頁面',
+  openFolder: '開啟資料夾',
+  allPages: '全部',
   close: '關閉',
   previous: '上一頁',
   next: '下一頁',
@@ -82,9 +89,11 @@ const EN: Copy = {
   download: 'Download file',
   expires: 'Valid until',
   unsupported: 'This file type cannot be previewed in the browser.',
-  empty: 'This project has no shareable pages yet.',
+  empty: 'This folder has nothing to show yet.',
   pages: 'pages',
   openPage: 'Open page',
+  openFolder: 'Open folder',
+  allPages: 'All',
   close: 'Close',
   previous: 'Previous',
   next: 'Next',
@@ -94,6 +103,8 @@ type View =
   | { status: 'loading' }
   | { status: 'ready'; data: NextorePublicShareDescriptor }
   | { status: 'error'; code: string; fallbackUrl: string | null };
+
+type TrailEntry = { id: number; name: string; items: NextorePublicShareItem[] };
 
 function readKey(): string {
   if (typeof window === 'undefined') return '';
@@ -136,10 +147,8 @@ function kindOf(fileName: string | null): 'pdf' | 'html' | 'image' | 'other' {
 
 function viewerUrl(contentUrl: string, fileName: string | null): string {
   // Keep the browser's own PDF toolbar: readers use it for page jumps, zoom and
-  // printing. Only the initial view is set, so the page fits the frame.
+  // printing. Only the initial view is set, so the page fits the frame width.
   if (kindOf(fileName) !== 'pdf') return contentUrl;
-  // Fit horizontally: a portrait page fitted whole lands at ~25% and is hard to
-  // read; fitting the width keeps the text at a normal size and scrolls.
   return contentUrl + '#view=FitH';
 }
 
@@ -157,7 +166,9 @@ export function PublicSharePage() {
   const locale = typeof navigator === 'undefined' ? 'zh-Hant' : navigator.language;
   const key = useMemo(readKey, []);
   const [view, setView] = useState<View>({ status: 'loading' });
-  const [openIndex, setOpenIndex] = useState<number | null>(null);
+  const [trail, setTrail] = useState<TrailEntry[]>([]);
+  const [openItem, setOpenItem] = useState<NextorePublicShareItem | null>(null);
+  const [folderError, setFolderError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!key) {
@@ -203,23 +214,50 @@ export function PublicSharePage() {
     };
   }, [key]);
 
-  const items = view.status === 'ready' ? view.data.items : [];
-  const openItem = openIndex === null ? null : items[openIndex] ?? null;
+  const rootItems = view.status === 'ready' ? view.data.items : [];
+  const currentItems = trail.length > 0 ? trail[trail.length - 1]!.items : rootItems;
+
+  const openFolder = useCallback(async (item: NextorePublicShareItem) => {
+    if (!item.childrenUrl) return;
+    setFolderError(null);
+    try {
+      const response = await fetch(item.childrenUrl, { headers: { accept: 'application/json' } });
+      const payload = await response.json().catch(() => null) as
+        | Partial<NextorePublicShareDescriptor>
+        | null;
+      if (!response.ok || !payload) {
+        setFolderError('folder_unavailable');
+        return;
+      }
+      setTrail((current) => [
+        ...current,
+        {
+          id: item.id,
+          name: item.name,
+          items: Array.isArray(payload.items) ? payload.items : [],
+        },
+      ]);
+    } catch {
+      setFolderError('folder_unavailable');
+    }
+  }, []);
 
   const step = useCallback((delta: number) => {
-    setOpenIndex((current) => {
-      if (current === null) return current;
-      const next = current + delta;
-      return next < 0 || next >= items.length ? current : next;
+    setOpenItem((current) => {
+      if (!current) return current;
+      const index = currentItems.findIndex((entry) => entry.id === current.id);
+      if (index < 0) return current;
+      const next = index + delta;
+      return next < 0 || next >= currentItems.length ? current : currentItems[next]!;
     });
-  }, [items.length]);
+  }, [currentItems]);
 
   useEffect(() => {
     if (!openItem) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.preventDefault();
-        setOpenIndex(null);
+        setOpenItem(null);
         return;
       }
       if (event.key === 'ArrowRight') {
@@ -238,6 +276,7 @@ export function PublicSharePage() {
 
   const expiryLabel = view.status === 'ready' ? formatDate(view.data.expiresAt, locale) : null;
   const isFolder = view.status === 'ready' && view.data.kind === 'folder';
+  const openIndex = openItem ? currentItems.findIndex((entry) => entry.id === openItem.id) : -1;
 
   return (
     <div className={styles.shell}>
@@ -265,7 +304,7 @@ export function PublicSharePage() {
             {isFolder ? (
               <>
                 <span aria-hidden="true">·</span>
-                <span className={styles.expiry}>{items.length} {copy.pages}</span>
+                <span className={styles.expiry}>{currentItems.length} {copy.pages}</span>
               </>
             ) : null}
             {expiryLabel ? (
@@ -339,27 +378,62 @@ export function PublicSharePage() {
 
         {view.status === 'ready' && isFolder ? (
           <div className={styles.index}>
-            {items.length === 0 ? (
+            <div className={styles.crumbs}>
+              <button
+                type="button"
+                className={styles.crumb}
+                onClick={() => setTrail([])}
+                disabled={trail.length === 0}
+              >
+                {copy.allPages}
+              </button>
+              {trail.map((entry, index) => (
+                <span key={entry.id} className={styles.crumbGroup}>
+                  <span className={styles.crumbSep} aria-hidden="true">/</span>
+                  <button
+                    type="button"
+                    className={styles.crumb}
+                    onClick={() => setTrail((current) => current.slice(0, index + 1))}
+                    disabled={index === trail.length - 1}
+                  >
+                    {entry.name}
+                  </button>
+                </span>
+              ))}
+            </div>
+
+            {folderError ? (
+              <p className={styles.folderError} role="alert">{copy.openFailedBody}</p>
+            ) : null}
+
+            {currentItems.length === 0 ? (
               <div className={styles.state}>
                 <p className={styles.stateTitle}>{copy.empty}</p>
-                <p className={styles.stateBody}>{view.data.fileName}</p>
+                <p className={styles.stateBody}>{trail.length ? trail[trail.length - 1]!.name : view.data.fileName}</p>
               </div>
             ) : (
               <div className={styles.grid}>
-                {items.map((item, index) => (
+                {currentItems.map((item) => (
                   <button
                     key={item.id}
                     type="button"
-                    className={styles.card}
-                    onClick={() => setOpenIndex(index)}
+                    className={item.kind === 'folder' ? styles.cardFolder : styles.card}
+                    onClick={() => {
+                      if (item.kind === 'folder') void openFolder(item);
+                      else setOpenItem(item);
+                    }}
                   >
-                    <span className={styles.cardKind} data-kind={kindOf(item.name)} aria-hidden="true">
-                      {extensionOf(item.name).toUpperCase() || 'FILE'}
+                    <span className={styles.cardKind} data-kind={item.kind === 'folder' ? 'folder' : kindOf(item.name)} aria-hidden="true">
+                      {item.kind === 'folder' ? 'DIR' : (extensionOf(item.name).toUpperCase() || 'FILE')}
                     </span>
-                    <span className={styles.cardTitle}>{titleOf(item.name)}</span>
+                    <span className={styles.cardTitle}>
+                      {item.kind === 'folder' ? item.name : titleOf(item.name)}
+                    </span>
                     <span className={styles.cardMeta}>
-                      {item.name}
-                      <span className={styles.cardAction}>{copy.openPage}</span>
+                      {item.kind === 'folder' ? copy.openFolder : item.name}
+                      <span className={styles.cardAction}>
+                        {item.kind === 'folder' ? copy.openFolder : copy.openPage}
+                      </span>
                     </span>
                   </button>
                 ))}
@@ -397,7 +471,7 @@ export function PublicSharePage() {
                 type="button"
                 className={styles.navButton}
                 onClick={() => step(-1)}
-                disabled={openIndex === 0}
+                disabled={openIndex <= 0}
               >
                 {copy.previous}
               </button>
@@ -405,14 +479,14 @@ export function PublicSharePage() {
                 type="button"
                 className={styles.navButton}
                 onClick={() => step(1)}
-                disabled={openIndex === items.length - 1}
+                disabled={openIndex < 0 || openIndex >= currentItems.length - 1}
               >
                 {copy.next}
               </button>
               <button
                 type="button"
                 className={styles.navButton}
-                onClick={() => setOpenIndex(null)}
+                onClick={() => setOpenItem(null)}
                 aria-label={copy.close}
               >
                 ×
@@ -421,7 +495,7 @@ export function PublicSharePage() {
           </div>
           <iframe
             className={styles.viewerFrame}
-            src={viewerUrl(openItem.contentUrl, openItem.name)}
+            src={viewerUrl(openItem.contentUrl ?? '', openItem.name)}
             title={openItem.name}
             {...frameProps(openItem.name)}
             referrerPolicy="no-referrer"

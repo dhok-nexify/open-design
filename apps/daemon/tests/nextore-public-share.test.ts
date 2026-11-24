@@ -9,6 +9,7 @@ import { registerNextorePublicShareRoutes } from '../src/nextore/public-share-ro
 function clientStub(handlers: {
   describePublicShare?: (key: string) => Promise<unknown>;
   fetchPublicShareContent?: (key: string) => Promise<Response>;
+  describePublicShareItem?: (key: string, itemId: number) => Promise<unknown>;
   fetchPublicShareItemContent?: (key: string, itemId: number) => Promise<Response>;
 }): NextoreArtifactClient {
   return {
@@ -19,6 +20,7 @@ function clientStub(handlers: {
     }))),
     fetchPublicShareContent: vi.fn(handlers.fetchPublicShareContent ?? (async () =>
       new Response('pdf-bytes', { status: 200, headers: { 'content-type': 'application/pdf' } }))),
+    describePublicShareItem: vi.fn(handlers.describePublicShareItem ?? (async () => ({ kind: 'file', fileName: 'x', previewOnly: true, expiresAt: null, items: [] }))),
     fetchPublicShareItemContent: vi.fn(handlers.fetchPublicShareItemContent ?? (async () =>
       new Response('item-bytes', { status: 200, headers: { 'content-type': 'text/html' } }))),
     publicShareFallbackUrl: (key: string) => 'https://v4.nexify.hk/PublicShare?key=' + key,
@@ -79,9 +81,67 @@ describe('public share routes', () => {
       expiresAt: null,
       contentUrl: null,
       items: [
-        { id: 11, name: 'index.html', contentUrl: '/api/public-share/key-folder/item/11/content' },
-        { id: 12, name: 'blog-post.pdf', contentUrl: '/api/public-share/key-folder/item/12/content' },
+        {
+          id: 11,
+          name: 'index.html',
+          kind: 'file',
+          contentUrl: '/api/public-share/key-folder/item/11/content',
+          childrenUrl: null,
+        },
+        {
+          id: 12,
+          name: 'blog-post.pdf',
+          kind: 'file',
+          contentUrl: '/api/public-share/key-folder/item/12/content',
+          childrenUrl: null,
+        },
       ],
+    });
+  });
+
+  it('exposes a subfolder as a navigable item', async () => {
+    const base = await startApp(clientStub({
+      describePublicShare: async () => ({
+        kind: 'folder',
+        fileName: 'Project One',
+        previewOnly: true,
+        expiresAt: null,
+        items: [{ id: 20, name: 'chapters', kind: 'folder' }],
+      }),
+    }));
+    const response = await fetch(base + '/api/public-share/key-folder');
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      items: [
+        {
+          id: 20,
+          name: 'chapters',
+          kind: 'folder',
+          contentUrl: null,
+          childrenUrl: '/api/public-share/key-folder/item/20',
+        },
+      ],
+    });
+  });
+
+  it('describes one node inside a shared folder', async () => {
+    const client = clientStub({
+      describePublicShareItem: async () => ({
+        kind: 'folder',
+        fileName: 'chapters',
+        previewOnly: true,
+        expiresAt: null,
+        items: [{ id: 21, name: 'intro.html', kind: 'file' }],
+      }),
+    });
+    const base = await startApp(client);
+    const response = await fetch(base + '/api/public-share/key-folder/item/20');
+    expect(response.status).toBe(200);
+    expect(client.describePublicShareItem).toHaveBeenCalledWith('key-folder', 20);
+    expect(await response.json()).toMatchObject({
+      kind: 'folder',
+      fileName: 'chapters',
+      items: [{ id: 21, name: 'intro.html', kind: 'file' }],
     });
   });
 

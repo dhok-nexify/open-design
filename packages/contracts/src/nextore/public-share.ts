@@ -2,7 +2,12 @@
 export interface NextorePublicShareItem {
   id: number;
   name: string;
-  contentUrl: string;
+  /** A file streams its bytes; a folder opens its own children. */
+  kind: 'file' | 'folder';
+  /** Present for files only. */
+  contentUrl: string | null;
+  /** Present for folders only. */
+  childrenUrl: string | null;
 }
 
 /** Descriptor returned to the branded share page. */

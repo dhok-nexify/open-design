@@ -469,3 +469,89 @@
 .index .stateBody {
   color: var(--muted);
 }
+
+/* Breadcrumb trail for nested folders. */
+.crumbs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 2px 10px;
+}
+
+.crumbGroup {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.crumbSep {
+  color: rgba(255, 255, 255, 0.25);
+}
+
+.crumb {
+  min-block-size: 30px;
+  padding: 0 10px;
+  border-radius: 7px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.crumb:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text);
+}
+
+.crumb:disabled {
+  color: var(--text);
+  cursor: default;
+}
+
+.crumb:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.folderError {
+  margin: 0 2px 10px;
+  color: #ffb4a8;
+  font-size: 13px;
+}
+
+/* Folder cards read as containers, not pages: dashed edge, no type glyph chrome. */
+.cardFolder {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-block-size: 132px;
+  padding: 16px;
+  border-radius: 12px;
+  border: 1px dashed rgba(122, 162, 255, 0.45);
+  background: rgba(122, 162, 255, 0.06);
+  color: var(--text);
+  text-align: start;
+  font: inherit;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: background-color 160ms ease, border-color 160ms ease;
+}
+
+.cardFolder:hover {
+  background: rgba(122, 162, 255, 0.12);
+  border-color: rgba(122, 162, 255, 0.7);
+}
+
+.cardFolder:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+@media (max-width: 720px) {
+  .cardFolder {
+    min-block-size: 104px;
+  }
+}
