@@ -382,7 +382,8 @@
   z-index: 20;
   display: flex;
   flex-direction: column;
-  background: rgba(8, 10, 14, 0.96);
+  /* Fully opaque: the page header behind it must not show through the bar. */
+  background: #0b0e14;
 }
 
 .viewerBar {
