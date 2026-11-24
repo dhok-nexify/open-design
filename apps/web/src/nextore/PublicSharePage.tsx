@@ -25,7 +25,6 @@ type Copy = {
   retry: string;
   download: string;
   expires: string;
-  neverExpires: string;
   unsupported: string;
 };
 
@@ -48,7 +47,6 @@ const ZH: Copy = {
   retry: '重新整理',
   download: '下載檔案',
   expires: '有效至',
-  neverExpires: '無到期日',
   unsupported: '此檔案格式無法在瀏覽器中預覽。',
 };
 
@@ -71,7 +69,6 @@ const EN: Copy = {
   retry: 'Reload',
   download: 'Download file',
   expires: 'Valid until',
-  neverExpires: 'No expiry',
   unsupported: 'This file type cannot be previewed in the browser.',
 };
 
@@ -105,8 +102,16 @@ function kindOf(fileName: string | null): 'pdf' | 'html' | 'image' | 'other' {
   const name = (fileName ?? '').toLowerCase();
   if (name.endsWith('.pdf')) return 'pdf';
   if (name.endsWith('.html') || name.endsWith('.htm')) return 'html';
-  if (/.(png|jpe?g|webp|gif|svg)$/.test(name)) return 'image';
+  if (/\.(png|jpe?g|webp|gif|svg)$/.test(name)) return 'image';
   return 'other';
+}
+
+function viewerUrl(contentUrl: string, fileName: string | null): string {
+  // Preview-only documents hide the browser's own PDF toolbar: this page already
+  // owns a header, and a second bar over the document is exactly the extra chrome
+  // the gallery layout is meant to remove. The page fits the frame instead.
+  if (kindOf(fileName) !== 'pdf') return contentUrl;
+  return contentUrl + '#toolbar=0&navpanes=0&statusbar=0&view=Fit';
 }
 
 export function PublicSharePage() {
@@ -156,10 +161,7 @@ export function PublicSharePage() {
     };
   }, [key]);
 
-  const title = copy.brand;
-  const expiryLabel = view.status === 'ready'
-    ? formatDate(view.data.expiresAt, locale) ?? copy.neverExpires
-    : null;
+  const expiryLabel = view.status === 'ready' ? formatDate(view.data.expiresAt, locale) : null;
 
   return (
     <div className={styles.shell}>
@@ -174,56 +176,81 @@ export function PublicSharePage() {
             </svg>
           </span>
           <span className={styles.brandText}>
-            <span className={styles.brandName}>{title}</span>
+            <span className={styles.brandName}>{copy.brand}</span>
             <span className={styles.brandSub}>{copy.brandSub}</span>
           </span>
         </div>
+
         {view.status === 'ready' ? (
-          <span className={view.data.previewOnly ? styles.chip : styles.chipStrong}>
-            {view.data.previewOnly ? copy.previewOnly : copy.downloadable}
-          </span>
+          <div className={styles.headMeta}>
+            <span className={styles.fileName} title={view.data.fileName ?? undefined}>
+              {view.data.fileName ?? ''}
+            </span>
+            {expiryLabel ? (
+              <>
+                <span aria-hidden="true">·</span>
+                <span className={styles.expiry}>{copy.expires} {expiryLabel}</span>
+              </>
+            ) : null}
+            {!view.data.previewOnly ? (
+              <a
+                className={styles.downloadAction}
+                href={view.data.contentUrl}
+                download={view.data.fileName ?? undefined}
+              >
+                {copy.download}
+              </a>
+            ) : null}
+            <span className={view.data.previewOnly ? styles.chip : styles.chipStrong}>
+              {view.data.previewOnly ? copy.previewOnly : copy.downloadable}
+            </span>
+          </div>
         ) : null}
       </header>
 
       <main className={styles.main} id="share-document">
         {view.status === 'loading' ? (
-          <div className={styles.state} role="status" aria-live="polite">
-            <div className={styles.sheetSkeleton} aria-hidden="true" />
-            <p className={styles.stateTitle}>{copy.loading}</p>
-            <p className={styles.stateBody}>{copy.loadingHint}</p>
+          <div className={styles.sheet} role="status" aria-live="polite">
+            <div className={styles.state}>
+              <div className={styles.sheetSkeleton} aria-hidden="true" />
+              <p className={styles.stateTitle}>{copy.loading}</p>
+              <p className={styles.stateBody}>{copy.loadingHint}</p>
+            </div>
           </div>
         ) : null}
 
         {view.status === 'error' ? (
-          <div className={styles.state} role="alert">
-            <span className={styles.stateIcon} aria-hidden="true">!</span>
-            <h1 className={styles.stateTitle}>
-              {view.code === 'share_expired'
-                ? copy.expiredTitle
-                : view.code === 'share_needs_password' || view.code === 'share_restricted'
-                  ? copy.restrictedTitle
-                  : view.code === 'network' || view.code === 'share_unavailable'
-                    ? copy.openFailedTitle
-                    : copy.invalidTitle}
-            </h1>
-            <p className={styles.stateBody}>
-              {view.code === 'share_expired'
-                ? copy.expiredBody
-                : view.code === 'share_needs_password' || view.code === 'share_restricted'
-                  ? copy.restrictedBody
-                  : view.code === 'network' || view.code === 'share_unavailable'
-                    ? copy.openFailedBody
-                    : copy.invalidBody}
-            </p>
-            <div className={styles.stateActions}>
-              {view.fallbackUrl ? (
-                <a className={styles.primaryAction} href={view.fallbackUrl} rel="noreferrer noopener">
-                  {copy.openInNextore}
-                </a>
-              ) : null}
-              <button type="button" className={styles.secondaryAction} onClick={() => window.location.reload()}>
-                {copy.retry}
-              </button>
+          <div className={styles.sheet}>
+            <div className={styles.state} role="alert">
+              <span className={styles.stateIcon} aria-hidden="true">!</span>
+              <h1 className={styles.stateTitle}>
+                {view.code === 'share_expired'
+                  ? copy.expiredTitle
+                  : view.code === 'share_needs_password' || view.code === 'share_restricted'
+                    ? copy.restrictedTitle
+                    : view.code === 'network' || view.code === 'share_unavailable'
+                      ? copy.openFailedTitle
+                      : copy.invalidTitle}
+              </h1>
+              <p className={styles.stateBody}>
+                {view.code === 'share_expired'
+                  ? copy.expiredBody
+                  : view.code === 'share_needs_password' || view.code === 'share_restricted'
+                    ? copy.restrictedBody
+                    : view.code === 'network' || view.code === 'share_unavailable'
+                      ? copy.openFailedBody
+                      : copy.invalidBody}
+              </p>
+              <div className={styles.stateActions}>
+                {view.fallbackUrl ? (
+                  <a className={styles.primaryAction} href={view.fallbackUrl} rel="noreferrer noopener">
+                    {copy.openInNextore}
+                  </a>
+                ) : null}
+                <button type="button" className={styles.secondaryAction} onClick={() => window.location.reload()}>
+                  {copy.retry}
+                </button>
+              </div>
             </div>
           </div>
         ) : null}
@@ -238,12 +265,11 @@ export function PublicSharePage() {
             ) : (
               <iframe
                 className={styles.frame}
-                src={view.data.contentUrl}
+                src={viewerUrl(view.data.contentUrl, view.data.fileName)}
                 title={view.data.fileName ?? copy.brand}
                 /* Untrusted document HTML runs in an opaque origin so it can never
-                   touch the Designer's storage. PDFs must stay unsandboxed:
-                   Chrome's built-in viewer is a plugin frame and renders blank
-                   inside a sandbox. */
+                   touch the Designer's storage. PDFs stay unsandboxed: the built-in
+                   viewer is a plugin frame and will not render inside a sandbox. */
                 {...(kindOf(view.data.fileName) === 'html'
                   ? { sandbox: 'allow-scripts allow-popups allow-forms' }
                   : {})}
@@ -253,23 +279,6 @@ export function PublicSharePage() {
           </div>
         ) : null}
       </main>
-
-      {view.status === 'ready' ? (
-        <footer className={styles.footer}>
-          <div className={styles.meta}>
-            <span className={styles.fileName}>{view.data.fileName ?? ''}</span>
-            <span className={styles.dot} aria-hidden="true">·</span>
-            <span className={styles.expiry}>
-              {view.data.expiresAt ? copy.expires + ' ' + expiryLabel : copy.neverExpires}
-            </span>
-          </div>
-          {!view.data.previewOnly ? (
-            <a className={styles.primaryAction} href={view.data.contentUrl} download={view.data.fileName ?? undefined}>
-              {copy.download}
-            </a>
-          ) : null}
-        </footer>
-      ) : null}
     </div>
   );
 }
