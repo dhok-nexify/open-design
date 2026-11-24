@@ -387,7 +387,9 @@ export function registerNextoreArtifactShareRoutes(
         return;
       }
       res.json({
-        url,
+        // Folder links must land on the branded page too: the platform page
+        // renders documents only, so a folder shows an empty viewer there.
+        url: brandedShareUrl(req, url),
         scope: 'project',
         previewOnly: body.previewOnly !== false,
         expiresAt: typeof body.expiresAt === 'string' ? body.expiresAt : null,
