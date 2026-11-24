@@ -29,7 +29,6 @@ import { createHtmlArtifactManifest, inferLegacyManifest } from '../artifacts/ma
 import { NEXTORE_WEB_EDITION, isFeatureEnabled } from '../nextore/features';
 import { TierToggle } from '../nextore/TierToggle';
 import { ProjectPermissionsDialog } from '../nextore/ProjectPermissionsDialog';
-import { ShareLinkDialog } from './ShareLinkDialog';
 import { ProjectShareDialog } from './nextore/ProjectShareDialog';
 import { NextoreArtifactDialog } from './nextore/NextoreArtifactDialog';
 import {
@@ -2576,7 +2575,6 @@ export function ProjectView({
   // unmapped lookup keeps the local (writable) default.
   const [nextoreProjectAccess, setNextoreProjectAccess] =
     useState<NextoreProjectAccessView | null>(null);
-  const [shareDialogOpen, setShareDialogOpen] = useState(false);
   // NexTore file links are opened from the file row, so the dialog always knows
   // which artifact it speaks for (multi-page projects have no "the file").
   const [shareArtifactId, setShareArtifactId] = useState<string | null>(null);
@@ -13552,8 +13550,9 @@ export function ProjectView({
     (fileName: string, anchorId?: string) => {
       requestOpenFile(fileName);
       if (NEXTORE_WEB_EDITION === 'nextore') {
-        // One share surface in this edition: the same dialog the header opens.
-        setShareDialogOpen(true);
+        // One share surface in this edition, and it always names the file: a
+        // project with several pages must not fall back to "the" artifact.
+        setShareArtifactId(fileName);
         return;
       }
       setShareRequest((previous) => ({
@@ -15652,20 +15651,6 @@ export function ProjectView({
           artifactId={shareArtifactId}
           onClose={() => setShareArtifactId(null)}
         />
-      ) : null}
-      {shareDialogOpen && project ? (
-        NEXTORE_WEB_EDITION === 'nextore' ? (
-          <NextoreArtifactDialog
-            projectId={project.id}
-            onClose={() => setShareDialogOpen(false)}
-          />
-        ) : (
-          <ShareLinkDialog
-            projectId={project.id}
-            locale={locale}
-            onClose={() => setShareDialogOpen(false)}
-          />
-        )
       ) : null}
     </CollabProvider>
   );
