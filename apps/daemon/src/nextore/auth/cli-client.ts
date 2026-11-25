@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
-import { homedir } from 'node:os';
+import { homedir, userInfo } from 'node:os';
 import { join } from 'node:path';
 import { execFile, spawnSync } from 'node:child_process';
 
@@ -44,6 +44,26 @@ export interface TokenFilePermissionDeps {
 }
 
 /**
+ * The account the ACL should name.
+ *
+ * USERNAME is the interactive user's environment variable, which is not
+ * necessarily the identity the process runs as: a service, an elevated helper,
+ * or a sandboxed shell can carry a different one, or none at all. Naming the
+ * wrong account locks the app out of its own token file; naming none leaves the
+ * inherited ACL in place. The process principal therefore wins when known.
+ */
+function windowsPrincipalName(): string | undefined {
+  try {
+    const name = userInfo().username;
+    if (typeof name === 'string' && name.length > 0) return name;
+  } catch {
+    // No OS account entry: fall back to the environment below.
+  }
+  const fromEnv = process.env.USERNAME;
+  return typeof fromEnv === 'string' && fromEnv.length > 0 ? fromEnv : undefined;
+}
+
+/**
  * Restrict a token file to the current principal.
  *
  * POSIX: 0600. Windows: drop inheritance and grant only the current user - a
@@ -56,8 +76,8 @@ export function applyTokenFilePermissions(
   deps: TokenFilePermissionDeps = {},
 ): void {
   if (platform === 'win32') {
-    const user = deps.user ?? process.env.USERNAME;
-    if (!user) throw new Error('token_file_permissions_failed: no USERNAME');
+    const user = deps.user ?? windowsPrincipalName();
+    if (!user) throw new Error('token_file_permissions_failed: no principal');
     const spawn = deps.spawnSync ?? spawnSync;
     const result = spawn(
       'icacls',

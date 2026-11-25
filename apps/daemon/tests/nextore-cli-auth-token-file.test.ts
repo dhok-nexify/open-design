@@ -44,6 +44,9 @@ describe('P10 token file permissions', () => {
       applyTokenFilePermissions(file);
       const listed = spawnSync('icacls', [file], { encoding: 'utf8', timeout: 5_000 });
       const output = String(listed.stdout ?? '');
+      // /inheritance:r must leave no inherited entries at all, not merely
+      // without the two most obvious ones.
+      expect(output).not.toMatch(/\(I\)/);
       expect(output).not.toMatch(/BUILTIN\\Users/i);
       expect(output).not.toMatch(/Everyone/i);
     } finally {
