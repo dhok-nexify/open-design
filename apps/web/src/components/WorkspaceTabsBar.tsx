@@ -1062,7 +1062,7 @@ export function WorkspaceTabsBar({
   // the state and broadcasts changes as a window event because it renders in a
   // sibling React tree; the localStorage seed covers the frames before the
   // first broadcast arrives.
-  const [entryRailOpen, setEntryRailOpen] = useState<boolean>(readStoredRailOpen);
+  const [entryRailOpen, setEntryRailOpen] = useState<boolean>(() => readStoredRailOpen() ?? false);
   useEffect(() => {
     const onRailState = (event: Event) => {
       const open = (event as CustomEvent<{ open?: unknown }>).detail?.open;

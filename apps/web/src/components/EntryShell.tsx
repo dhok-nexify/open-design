@@ -1496,7 +1496,9 @@ export function EntryShell({
   // Its open/collapsed state is persisted (localStorage) so it survives a
   // home -> project -> home round trip (EntryShell unmounts on the project
   // route) and a reload, instead of snapping back to collapsed.
-  const [railOpen, setRailOpen] = useState<boolean>(readStoredRailOpen);
+  const [storedRailOpen] = useState<boolean | null>(readStoredRailOpen);
+  const [railOpen, setRailOpen] = useState<boolean>(storedRailOpen ?? false);
+  const readerRailDefaulted = useRef(false);
   const [projectSearchOpen, setProjectSearchOpen] = useState(false);
 
   // ⌘K / Ctrl+K opens the project search palette — same as clicking the rail
@@ -1537,6 +1539,19 @@ export function EntryShell({
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
   }, []);
+  // An account that may not create projects gets no composer on the entry home,
+  // and OPEND-2683 moved recent projects into the rail, so a collapsed rail
+  // leaves that home as an empty page with no route to the projects shared with
+  // them. Open it once for that case — never for an account that can create,
+  // and never over a state the person chose themselves.
+  useEffect(() => {
+    if (storedRailOpen !== null) return;
+    if (canCreateNextoreProject) return;
+    if (readerRailDefaulted.current) return;
+    readerRailDefaulted.current = true;
+    setRailOpen(true);
+  }, [canCreateNextoreProject, storedRailOpen]);
+
   useEffect(() => {
     writeStoredRailOpen(railOpen);
     // Broadcast the state so chrome outside this tree (the pinned Home tab's

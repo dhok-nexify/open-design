@@ -22,11 +22,18 @@ export const ENTRY_SEARCH_OPEN_EVENT = 'od:entry-search-open';
 // (the pinned toggle's `aria-expanded`).
 export const ENTRY_RAIL_STATE_EVENT = 'od:entry-rail-state';
 
-export function readStoredRailOpen(): boolean {
-  if (typeof window === 'undefined') return false;
+/**
+ * The persisted rail state, or `null` when this person has never chosen one.
+ * The distinction matters: a collapsed rail is the intended default for a
+ * clean, full-width entry, but it must not be confused with someone who
+ * deliberately collapsed it — only the never-chosen case may be re-defaulted.
+ */
+export function readStoredRailOpen(): boolean | null {
+  if (typeof window === 'undefined') return null;
   try {
-    return window.localStorage.getItem(RAIL_OPEN_STORAGE_KEY) === 'true';
+    const stored = window.localStorage.getItem(RAIL_OPEN_STORAGE_KEY);
+    return stored === null ? null : stored === 'true';
   } catch {
-    return false;
+    return null;
   }
 }
