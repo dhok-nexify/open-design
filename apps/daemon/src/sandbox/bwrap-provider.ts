@@ -1,9 +1,22 @@
 import { scrubSandboxEnv } from './env-scrub.js';
 import type { SandboxCheck, SandboxCommand, SandboxProvider, SandboxRequest } from './provider.js';
 
+export interface SandboxEgressOptions {
+  /** UNIX socket the host bridge listens on; the sandbox reaches nothing else. */
+  socketPath: string;
+  /** Port the sandbox-local relay listens on, matching OD_DAEMON_URL's port. */
+  port: number;
+  /** Absolute path of the compiled relay entry (dist/sandbox/egress-relay.js). */
+  relayScript: string;
+  /** Node binary inside the sandbox (the host path; / is bind-mounted). */
+  nodeBin: string;
+}
+
 export interface BwrapProviderOptions {
   bwrapPath: string;
   check: SandboxCheck;
+  /** NXD-P01: when set the run gets its own netns and only the relay socket. */
+  egress?: SandboxEgressOptions | null;
 }
 
 /** Where the sandboxed process sees its home. Lives in a tmpfs, so it is gone after the run. */
@@ -23,15 +36,33 @@ export const SANDBOX_HOME = '/tmp/od-sandbox-home';
  * handling intact while guaranteeing the sandbox dies with the daemon, which is
  * what makes run cancellation kill the whole tree.
  */
-export function buildBwrapArgs(request: SandboxRequest): string[] {
+export function buildBwrapArgs(
+  request: SandboxRequest,
+  egress?: SandboxEgressOptions | null,
+): string[] {
   const cwd = request.cwd;
+  // NXD-P01: without egress the sandbox shares the host network (the historical
+  // behaviour). With it the run gets a namespace with no route at all and the
+  // only reachable thing is the relay on loopback, fed by a UNIX socket.
+  const network = egress ? ['--unshare-net'] : ['--share-net'];
+  const relay = egress
+    ? [
+        egress.nodeBin,
+        egress.relayScript,
+        '--listen',
+        String(egress.port),
+        '--socket',
+        egress.socketPath,
+        '--',
+      ]
+    : [];
   return [
     '--die-with-parent',
     '--new-session',
     '--unshare-pid',
     '--unshare-uts',
     '--unshare-ipc',
-    '--share-net',
+    ...network,
     '--ro-bind',
     '/',
     '/',
@@ -56,6 +87,7 @@ export function buildBwrapArgs(request: SandboxRequest): string[] {
     '--chdir',
     cwd,
     '--',
+    ...relay,
     request.command,
     ...request.args,
   ];
@@ -68,7 +100,7 @@ export function createBwrapSandboxProvider(options: BwrapProviderOptions): Sandb
     wrap(request: SandboxRequest): SandboxCommand {
       return {
         command: options.bwrapPath,
-        args: buildBwrapArgs(request),
+        args: buildBwrapArgs(request, options.egress ?? null),
         env: { ...scrubSandboxEnv(request.env), HOME: SANDBOX_HOME },
       };
     },

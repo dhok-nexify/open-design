@@ -1,6 +1,6 @@
 import type { Edition } from '@open-design/contracts';
 
-import { createBwrapSandboxProvider } from './bwrap-provider.js';
+import { createBwrapSandboxProvider, type SandboxEgressOptions } from './bwrap-provider.js';
 import { createNoopSandboxProvider } from './noop-provider.js';
 import type { SandboxCheck, SandboxProvider } from './provider.js';
 import { checkBwrap } from './self-check.js';
@@ -8,6 +8,7 @@ import { checkBwrap } from './self-check.js';
 export { SandboxUnavailableError } from './provider.js';
 export type { SandboxCommand, SandboxProvider, SandboxRequest, SandboxCheck } from './provider.js';
 export { buildBwrapArgs } from './bwrap-provider.js';
+export type { SandboxEgressOptions } from './bwrap-provider.js';
 export { checkBwrap } from './self-check.js';
 export { scrubSandboxEnv, isScrubbedSandboxEnvKey } from './env-scrub.js';
 
@@ -17,6 +18,11 @@ export interface ResolveSandboxOptions {
   env?: NodeJS.ProcessEnv;
   /** Injected probe, so tests do not need a real bubblewrap install. */
   check?: () => SandboxCheck;
+  /**
+   * NXD-P01. When supplied, agent runs get their own network namespace and can
+   * reach only the relay socket; when omitted they keep the host network.
+   */
+  egress?: SandboxEgressOptions | null;
 }
 
 /**
@@ -50,5 +56,5 @@ export function resolveSandboxProvider(options: ResolveSandboxOptions): SandboxP
   if (!check.ok && !production) {
     return createNoopSandboxProvider();
   }
-  return createBwrapSandboxProvider({ bwrapPath, check });
+  return createBwrapSandboxProvider({ bwrapPath, check, egress: options.egress ?? null });
 }

@@ -420,6 +420,7 @@ import { prepareDesignTokenContractRebuild } from './design-systems/token-contra
 import { registerBrandRoutes } from './brand-routes.js';
 import { resolveEdition } from './edition/index.js';
 import { resolveSandboxProvider, SandboxUnavailableError } from './sandbox/index.js';
+import { resolveSandboxEgress } from './sandbox/egress.js';
 import { createNextoreClient } from './nextore/client.js';
 import { mountNextoreAccess, registerNextoreApiRoutes } from './nextore/host-access.js';
 import { readSandboxHealth } from './nextore/health-sandbox.js';
@@ -3351,7 +3352,20 @@ export async function startServer({
   // NEXTORE: agent subprocesses run inside bubblewrap. A host that cannot
   // provide it fails the run closed instead of degrading silently; upstream
   // keeps the direct spawn. OD_SANDBOX=noop is the documented dev escape.
-  const sandboxProvider = resolveSandboxProvider({ edition });
+  // NXD-P01: opt-in egress relay. Off means the historical shared network.
+  const sandboxEgress = resolveSandboxEgress({
+    env: process.env,
+    dataDir: RUNTIME_DATA_DIR,
+    port: resolvedPort,
+  });
+  if (sandboxEgress.warning) console.warn('[sandbox] ' + sandboxEgress.warning);
+  if (sandboxEgress.bridge) {
+    void sandboxEgress.bridge.start().catch((error: unknown) => {
+      console.warn('[sandbox] egress bridge failed to start: '
+        + (error instanceof Error ? error.message : String(error)));
+    });
+  }
+  const sandboxProvider = resolveSandboxProvider({ edition, egress: sandboxEgress.options });
   if (edition === 'nextore' && sandboxProvider.id === 'noop') {
     console.warn('[sandbox] OD_SANDBOX=noop — agent runs are NOT isolated on this host');
   }
