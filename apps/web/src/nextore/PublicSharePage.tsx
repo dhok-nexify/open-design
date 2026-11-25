@@ -7,6 +7,7 @@ import type {
   NextorePublicShareItem,
 } from '@open-design/contracts';
 
+import { ShareRichDocumentView } from './ShareRichDocumentView';
 import styles from './PublicSharePage.module.css';
 
 type Copy = {
@@ -143,13 +144,15 @@ function titleOf(fileName: string): string {
   return index > 0 ? fileName.slice(0, index) : fileName;
 }
 
-export function shareFileKind(fileName: string | null): 'pdf' | 'html' | 'image' | 'text' | 'other' {
+export function shareFileKind(fileName: string | null): 'pdf' | 'html' | 'image' | 'markdown' | 'docx' | 'text' | 'other' {
   const extension = extensionOf(fileName ?? '');
   if (extension === 'pdf') return 'pdf';
   if (extension === 'html' || extension === 'htm') return 'html';
+  if (extension === 'md' || extension === 'markdown') return 'markdown';
+  if (extension === 'docx') return 'docx';
   if (['png', 'jpeg', 'jpg', 'webp', 'gif', 'svg', 'avif', 'bmp', 'ico'].includes(extension)) return 'image';
   if (
-    ['md', 'markdown', 'txt', 'css', 'js', 'mjs', 'cjs', 'ts', 'tsx', 'jsx', 'json', 'xml', 'csv', 'yml', 'yaml', 'log']
+    ['txt', 'css', 'js', 'mjs', 'cjs', 'ts', 'tsx', 'jsx', 'json', 'xml', 'csv', 'yml', 'yaml', 'log']
       .includes(extension)
   ) return 'text';
   return 'other';
@@ -498,7 +501,7 @@ export function PublicSharePage() {
                               alt=""
                               loading="lazy"
                             />
-                          ) : shareFileKind(item.name) === 'text' || shareFileKind(item.name) === 'other' ? (
+                          ) : shareFileKind(item.name) === 'text' || shareFileKind(item.name) === 'markdown' || shareFileKind(item.name) === 'docx' || shareFileKind(item.name) === 'other' ? (
                             <span className={styles.cardThumbText}>
                               <span className={styles.cardThumbExt}>
                                 {extensionOf(item.name).toUpperCase() || 'FILE'}
@@ -560,6 +563,12 @@ export function PublicSharePage() {
                   <p className={styles.stateBody}>{copy.previewUnavailable}</p>
                 )}
               </div>
+            ) : shareFileKind(view.data.fileName) === 'markdown' || shareFileKind(view.data.fileName) === 'docx' ? (
+              <ShareRichDocumentView
+                url={view.data.contentUrl}
+                format={shareFileKind(view.data.fileName) as 'markdown' | 'docx'}
+                labels={{ loading: copy.loading, failed: copy.openFailedBody }}
+              />
             ) : shareFileKind(view.data.fileName) === 'text' ? (
               <TextPane url={view.data.contentUrl} name={view.data.fileName ?? copy.brand} copy={copy} />
             ) : shareFileKind(view.data.fileName) === 'image' ? (
@@ -622,6 +631,12 @@ export function PublicSharePage() {
                 <p className={styles.stateBody}>{copy.previewUnavailable}</p>
               )}
             </div>
+          ) : shareFileKind(openItem.name) === 'markdown' || shareFileKind(openItem.name) === 'docx' ? (
+            <ShareRichDocumentView
+              url={openItem.contentUrl}
+              format={shareFileKind(openItem.name) as 'markdown' | 'docx'}
+              labels={{ loading: copy.loading, failed: copy.openFailedBody }}
+            />
           ) : shareFileKind(openItem.name) === 'text' ? (
             <TextPane url={openItem.contentUrl} name={openItem.name} copy={copy} />
           ) : shareFileKind(openItem.name) === 'image' ? (
