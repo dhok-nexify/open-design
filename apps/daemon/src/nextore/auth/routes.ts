@@ -263,6 +263,12 @@ export interface NextoreAuthOptions {
    * a browser session. Returning true lets that one request through.
    */
   allowRequest?: (req: Request) => boolean;
+  /**
+   * The browser session was replaced by a fresh one for the same member (the
+   * cookie is re-issued on every OAuth round trip). Anything bound to the old
+   * sid - a CLI token, for instance - has to follow it.
+   */
+  onSessionRotated?: (input: { previousSid: string; sid: string; memberId: number }) => void;
 }
 
 export interface NextoreAuth {
@@ -466,7 +472,7 @@ function escapeHtml(value: string): string {
 }
 
 export function createNextoreAuth(options: NextoreAuthOptions): NextoreAuth {
-  const { config, client, store, secrets, allowRequest } = options;
+  const { config, client, store, secrets, allowRequest, onSessionRotated } = options;
   const hintRetryDelaysMs = options.hintRetryDelaysMs ?? [2_000, 6_000];
   const now = options.now ?? (() => Date.now());
 
@@ -987,6 +993,13 @@ export function createNextoreAuth(options: NextoreAuthOptions): NextoreAuth {
       tokenExpiresAt: tokens.expiresAt,
     });
 
+    if (previous && onSessionRotated) {
+      try {
+        onSessionRotated({ previousSid: previous.sid, sid: session.sid, memberId: member.member.id });
+      } catch {
+        // A failure here must not fail the sign-in itself.
+      }
+    }
     setSessionCookie(res, session.sid, at);
     // A share-link sign-in returns to the link, not to an arbitrary return path:
     // the landing page redeems the token and writes the grant.

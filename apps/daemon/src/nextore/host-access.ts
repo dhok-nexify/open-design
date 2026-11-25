@@ -10,6 +10,7 @@ import type { Express, NextFunction, Request, Response } from 'express';
 
 import { createEditionRouteKillSwitch, type Edition } from '../edition/index.js';
 import { createNextoreAuth, type NextoreAuth } from './auth/routes.js';
+import { rebindApiTokenSessions } from './auth/api-tokens.js';
 import { createApiTokenGate } from './auth/api-token-gate.js';
 import { lazyNextoreSecrets, type NextoreSecrets } from './auth/secrets.js';
 import { createNextoreSessionStore } from './auth/session-store.js';
@@ -71,6 +72,13 @@ export function mountNextoreAccess(options: NextoreAccessOptions): NextoreAccess
         secrets,
         store: createNextoreSessionStore(getDb, secrets),
         allowRequest: (req) => isRunScopedExportRequest(req) || isNextoreEventPushRequest(req),
+        // A re-issued browser session is the same authorization for the same
+        // member, so CLI tokens bound to the old sid move with it. Without this
+        // a silent re-auth would cut every CLI token off from NexTore.
+        onSessionRotated: ({ previousSid, sid, memberId }) => {
+          const db = getDb();
+          if (db) rebindApiTokenSessions(db, { fromSid: previousSid, toSid: sid, memberId });
+        },
       })
     : null;
 

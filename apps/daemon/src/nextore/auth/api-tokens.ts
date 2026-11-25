@@ -144,6 +144,28 @@ export function verifyApiToken(
   };
 }
 
+/**
+ * Re-point CLI tokens from a browser session that was just replaced.
+ *
+ * The daemon re-issues the session cookie on every OAuth round trip and deletes
+ * the previous row, so a token bound to that sid would otherwise lose its
+ * NexTore authority on the next sign-in. Rotation is an implementation detail
+ * of the browser session, not a new authorization: the same member keeps the
+ * same CLI grants, still bound to exactly one live session.
+ */
+export function rebindApiTokenSessions(
+  db: SqliteDb,
+  input: { fromSid: string; toSid: string; memberId: number },
+): number {
+  ensureApiTokenSchema(db);
+  if (!input.fromSid || !input.toSid || input.fromSid === input.toSid) return 0;
+  const result = db.prepare(`
+    UPDATE nextore_api_tokens SET session_sid = ?
+     WHERE session_sid = ? AND member_id = ?
+  `).run(input.toSid, input.fromSid, input.memberId);
+  return result.changes;
+}
+
 export function revokeApiToken(db: SqliteDb, memberId: number, id: string, now = Date.now()): boolean {
   ensureApiTokenSchema(db);
   const result = db.prepare(`

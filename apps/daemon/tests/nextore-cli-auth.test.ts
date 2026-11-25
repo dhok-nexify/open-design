@@ -9,6 +9,7 @@ import {
   apiTokenAllowsRequest,
   createApiToken,
   listApiTokens,
+  rebindApiTokenSessions,
   revokeApiToken,
   verifyApiToken,
 } from '../src/nextore/auth/api-tokens.js';
@@ -79,6 +80,29 @@ describe('P10 api tokens', () => {
 
     const issued = createApiToken(db, { memberId: 7, scopes: ['project:read'], sessionSid: 'sid-legacy', now: 1_000 });
     expect(verifyApiToken(db, issued.token, 1_001)?.sessionSid).toBe('sid-legacy');
+  });
+
+  it('moves a bound token when the browser session rotates', () => {
+    // Re-issuing the session cookie is the same authorization for the same
+    // member; the CLI token must follow it instead of losing NexTore access.
+    const issued = createApiToken(db, { memberId: 7, scopes: ['project:read'], sessionSid: 'sid-old', now: 1_000 });
+
+    expect(rebindApiTokenSessions(db, { fromSid: 'sid-old', toSid: 'sid-new', memberId: 7 })).toBe(1);
+    expect(verifyApiToken(db, issued.token, 1_001)?.sessionSid).toBe('sid-new');
+  });
+
+  it('never moves another member\'s token during a rotation', () => {
+    const mine = createApiToken(db, { memberId: 7, scopes: ['project:read'], sessionSid: 'sid-old', now: 1_000 });
+    const other = createApiToken(db, { memberId: 8, scopes: ['project:read'], sessionSid: 'sid-old', now: 1_000 });
+
+    expect(rebindApiTokenSessions(db, { fromSid: 'sid-old', toSid: 'sid-new', memberId: 7 })).toBe(1);
+    expect(verifyApiToken(db, mine.token, 1_001)?.sessionSid).toBe('sid-new');
+    expect(verifyApiToken(db, other.token, 1_001)?.sessionSid).toBe('sid-old');
+  });
+
+  it('ignores a rotation onto the same sid', () => {
+    createApiToken(db, { memberId: 7, scopes: ['project:read'], sessionSid: 'sid-old', now: 1_000 });
+    expect(rebindApiTokenSessions(db, { fromSid: 'sid-old', toSid: 'sid-old', memberId: 7 })).toBe(0);
   });
 
   it('rejects an expired token', () => {
