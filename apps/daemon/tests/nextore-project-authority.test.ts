@@ -150,6 +150,21 @@ const localAllow: AuthorizeProjectRequest = vi.fn(async () => true);
     expect(deny).toHaveBeenCalledWith(res, 401, 'SESSION_REQUIRED', expect.any(String));
   });
 
+  it('treats a session without a NexTore credential as signed out', async () => {
+    // A CLI token whose approving browser session is gone reaches this layer
+    // with the member attached but no access token. That is a sign-in problem,
+    // not an outage: "try again" would send the person in circles.
+    const load = vi.fn();
+    const { authorizer: run, deny } = authorizer({
+      readSession: () => ({ accessToken: '', memberId: 1 }),
+      load,
+    });
+
+    await expect(run(req, res, 'local-1', { mode: 'read' })).resolves.toBe(false);
+    expect(deny).toHaveBeenCalledWith(res, 401, 'SESSION_REQUIRED', expect.any(String));
+    expect(load).not.toHaveBeenCalled();
+  });
+
   it('fails closed when the module cannot answer', async () => {
     const { authorizer: run, deny } = authorizer({
       load: vi.fn().mockRejectedValue(new Error('down')),

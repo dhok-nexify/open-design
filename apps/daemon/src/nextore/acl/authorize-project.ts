@@ -131,6 +131,19 @@ export function createNextoreProjectAuthorizer(
       deps.deny(res, 401, 'SESSION_REQUIRED', 'A NexTore session is required.');
       return false;
     }
+    if (!session.accessToken) {
+      // The gate attached the member but could not hydrate a NexTore
+      // credential: the browser session that approved this CLI token is gone.
+      // That is a sign-in problem, not an outage - answering 503 here told the
+      // caller to "try again" for something only a new sign-in can fix.
+      deps.deny(
+        res,
+        401,
+        'SESSION_REQUIRED',
+        'Your NexTore session has expired. Sign in again to continue.',
+      );
+      return false;
+    }
 
     // NXD-D20: a redeemed share link is the authority for read + comment on
     // exactly this project, even when the member has no NexTore ACL on it.

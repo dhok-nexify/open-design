@@ -7654,11 +7654,22 @@ async function runAuth(args) {
       return;
     }
     let valid = false;
+    // The daemon accepting the token is not the whole story: NexTore-bound
+    // commands also need the browser session that approved it. Probing one of
+    // them turns "signed in but every NexTore command fails" into a status the
+    // person can read.
+    let nexToreSession: 'ok' | 'expired' | 'unavailable' = 'unavailable';
     try {
       const response = await fetch(stored.daemonUrl + '/api/projects', {
         headers: { authorization: 'Bearer ' + stored.token },
       });
       valid = response.status !== 401;
+      if (valid) {
+        const probe = await fetch(stored.daemonUrl + '/api/nextore/projects', {
+          headers: { authorization: 'Bearer ' + stored.token },
+        });
+        nexToreSession = probe.ok ? 'ok' : probe.status === 401 ? 'expired' : 'unavailable';
+      }
     } catch {
       valid = false;
     }
@@ -7668,11 +7679,15 @@ async function runAuth(args) {
       scopes: stored.scopes,
       expiresAt: stored.expiresAt,
       daemonUrl: stored.daemonUrl,
+      nexToreSession,
     };
     if (flags.json) return process.stdout.write(JSON.stringify(view, null, 2) + '\n');
+    const nexToreNote = nexToreSession === 'ok'
+      ? 'NexTore session ok'
+      : 'NexTore session ' + nexToreSession + '; run `od auth login`';
     console.log(valid
       ? '[auth] signed in as member ' + stored.memberId + ' (expires '
-        + new Date(stored.expiresAt).toISOString() + ')'
+        + new Date(stored.expiresAt).toISOString() + '); ' + nexToreNote
       : '[auth] token is no longer valid. Run: od auth login');
     return;
   }
