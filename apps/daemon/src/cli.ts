@@ -7612,9 +7612,13 @@ async function runAuth(args) {
     return;
   }
   const flags = parseFlags(args.slice(1), { string: AUTH_STRING_FLAGS, boolean: AUTH_BOOLEAN_FLAGS });
-  const daemonBase = (await cliDaemonBaseUrl(flags)).replace(/\/$/, '');
 
   if (action === 'login') {
+    // Resolved here, not above: discovery opens sockets to the sidecar and the
+    // dev control plane. Status and logout use the stored URL, and paying for
+    // two probes (still closing at exit) made them slow and, on Windows, exit
+    // with the libuv handle assertion instead of 0.
+    const daemonBase = (await cliDaemonBaseUrl(flags)).replace(/\/$/, '');
     const openBrowser = flags['no-open'] === true ? undefined : (url) => {
       try {
         const command = process.platform === 'win32'
