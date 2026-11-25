@@ -535,7 +535,9 @@ export function PublicSharePage() {
                         {isFolder ? item.name : titleOf(item.name)}
                       </span>
                       <span className={styles.cardMeta}>
-                        {isFolder ? copy.folderLabel : item.name}
+                        <span className={styles.cardName}>
+                          {isFolder ? copy.folderLabel : item.name}
+                        </span>
                         <span className={styles.cardAction}>
                           {isFolder ? copy.openFolder : copy.openPage}
                         </span>

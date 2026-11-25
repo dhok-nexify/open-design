@@ -369,6 +369,15 @@
   color: var(--muted);
   font-size: 12px;
   overflow: hidden;
+  white-space: nowrap;
+}
+
+/* A flex item will not shrink below its content unless it is told to. Without
+   the zero min size the file name pushes the "open" action past the card edge,
+   where the card clips it. */
+.cardName {
+  min-inline-size: 0;
+  overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
