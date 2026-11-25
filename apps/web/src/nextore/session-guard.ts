@@ -45,6 +45,19 @@ const STREAM_FALLBACK_POLL_MS = 60_000;
 /** How often a broken stream may trigger one plain probe, at most. */
 const STREAM_ERROR_PROBE_COOLDOWN_MS = 10_000;
 const VISIBILITY_CHECK_COOLDOWN_MS = 5_000;
+/**
+ * The public share route is read by people who have no Designer account at all.
+ * Every session probe there answers 401, which is not a signed-out tab: an
+ * anonymous reader is the expected state, so the guard must never treat it as a
+ * reason to start OAuth.
+ */
+const PUBLIC_SHARE_PATH = '/share';
+
+function isPublicShareRoute(): boolean {
+  if (typeof window === 'undefined') return false;
+  const path = window.location.pathname.replace(/\/+$/u, '');
+  return path === PUBLIC_SHARE_PATH;
+}
 
 interface SessionErrorBody {
   error?: { code?: unknown };
@@ -133,6 +146,8 @@ export function installNextoreSessionRedirect(
   }
 
   function goToSignIn(): void {
+    // A reader on a shared link has no session to lose.
+    if (isPublicShareRoute()) return;
     // An explicit sign-out is a choice, not a failure. Bouncing straight back
     // into OAuth would re-create the session the person just ended, so this tab
     // stays on the signed-out page until they ask to sign in again.
@@ -200,6 +215,11 @@ export function installNextoreSessionRedirect(
 
     return response;
   };
+
+  // The reader route keeps the 401 wrapper above but starts no session stream,
+  // heartbeat, or visibility probe: there is no session to renew there, and one
+  // stray navigation would replace the document with the NexTore sign-in page.
+  if (isPublicShareRoute()) return;
 
   heartbeatTimer = window.setInterval(() => checkSession(true), SESSION_HEARTBEAT_MS);
 

@@ -351,6 +351,9 @@
 .cardTitle {
   display: -webkit-box;
   overflow: hidden;
+  /* File names are often one long unbreakable token; without this the clamp has
+     nothing to break at and the title runs past the card edge. */
+  overflow-wrap: anywhere;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
   font-size: 15px;
@@ -674,6 +677,9 @@
   padding: 32px clamp(20px, 5vw, 56px) 48px;
   background: #ffffff;
   color: #111827;
+  /* The app shell sets a semibold body weight for UI chrome. A document is not
+     chrome: at 600 the body text and every <strong> inside it look identical. */
+  font-weight: 400;
   font-size: 15px;
   line-height: 1.75;
 }
@@ -697,6 +703,7 @@
 .prose p,
 .prose li {
   margin: 0 0 0.85em;
+  text-wrap: pretty;
 }
 
 .prose ul,
@@ -709,14 +716,26 @@
   color: #1d4ed8;
   text-decoration: underline;
   text-underline-offset: 2px;
+  /* Shared documents quote full signatures and URLs; an unbreakable run must
+     wrap, not push the reading column sideways on a phone. */
+  overflow-wrap: anywhere;
+}
+
+.prose strong,
+.prose b {
+  font-weight: 650;
+  color: #0b0e14;
 }
 
 .prose code {
   padding: 0.12em 0.35em;
   border-radius: 4px;
+  /* Inline code sits on paper, so it takes ink, not the shell's light text. */
+  color: #0f172a;
   background: rgba(17, 24, 39, 0.07);
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 0.92em;
+  overflow-wrap: anywhere;
 }
 
 .prose pre {

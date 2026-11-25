@@ -326,3 +326,61 @@ describe('visibility session validation', () => {
     expect(navigate).not.toHaveBeenCalled();
   });
 });
+
+describe('public share reader route', () => {
+  beforeEach(() => {
+    FakeEventSource.reset();
+    vi.stubGlobal('EventSource', FakeEventSource);
+  });
+
+  afterEach(() => {
+    window.history.pushState({}, '', '/');
+  });
+
+  it('starts no session stream or probe for an anonymous reader', async () => {
+    window.history.pushState({}, '', '/share?key=reader');
+    const { guard } = await loadEditionModules();
+    const navigate = vi.fn();
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ signedIn: false }), {
+      status: 401,
+      headers: { 'content-type': 'application/json' },
+    }));
+    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'visible' });
+    guard.installNextoreSessionRedirect({
+      fetchImpl: fetchMock as unknown as typeof fetch,
+      navigate,
+      now: () => 4_000,
+    });
+
+    document.dispatchEvent(new Event('visibilitychange'));
+    window.dispatchEvent(new Event('focus'));
+
+    // A reader has no session to renew: opening one would 401 and replace the
+    // shared document with the NexTore sign-in page.
+    expect(FakeEventSource.all).toHaveLength(0);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(navigate).not.toHaveBeenCalled();
+  });
+
+  it('never redirects a reader who arrived without a reload', async () => {
+    const { guard } = await loadEditionModules();
+    const navigate = vi.fn();
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ signedIn: false }), {
+      status: 401,
+      headers: { 'content-type': 'application/json' },
+    }));
+    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'visible' });
+    guard.installNextoreSessionRedirect({
+      fetchImpl: fetchMock as unknown as typeof fetch,
+      navigate,
+      now: () => 5_000,
+    });
+
+    window.history.pushState({}, '', '/share?key=reader');
+    document.dispatchEvent(new Event('visibilitychange'));
+
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(navigate).not.toHaveBeenCalled();
+  });
+});
