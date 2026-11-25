@@ -3,6 +3,15 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { CSSProperties } from 'react';
 
+import { NEXTORE_WEB_EDITION } from '../../../src/nextore/features';
+
+/**
+ * The command the person actually typed. The daemon CLI ships as `od` upstream
+ * and as `nd` in this edition, so the consent screen has to name the same one
+ * the terminal printed.
+ */
+const CLI_NAME = NEXTORE_WEB_EDITION === 'nextore' ? 'nd' : 'od';
+
 /**
  * NXD-P10 CLI consent screen.
  *
@@ -204,7 +213,7 @@ export default function CliAuthorizePage() {
         {(phase === 'ready' || phase === 'working') && params && (
           <>
             <p style={bodyStyle}>
-              The <strong>od</strong> command line tool is asking to act as
+              The <strong>{CLI_NAME}</strong> command line tool is asking to act as
               {memberName ? <strong> {memberName}</strong> : ' you'}. It will be able to read and
               update your projects and start runs. It cannot change site settings, members, or
               permissions.
