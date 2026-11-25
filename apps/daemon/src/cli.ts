@@ -1463,6 +1463,30 @@ Options:
 // Subcommand: od collab …  (team-edition collaboration)
 // ---------------------------------------------------------------------------
 
+/**
+ * The CLI's own bearer.
+ *
+ * `od auth login` stores a scoped token, but every command used to run without
+ * it: the daemon fell back to the browser gate and answered SESSION_REQUIRED,
+ * so the whole NexTore-backed surface was unreachable from the CLI. Attaching
+ * it here covers every command that builds its headers through
+ * `workspaceHeadersFromExplicitFlags`.
+ */
+function cliAuthHeaders(): Record<string, string> {
+  const stored = readCliToken();
+  return stored && stored.token ? { authorization: 'Bearer ' + stored.token } : {};
+}
+
+/** Daemon request that always carries the CLI bearer when one is stored. */
+function daemonFetch(input: string, init: RequestInit = {}): Promise<Response> {
+  const auth = cliAuthHeaders();
+  if (Object.keys(auth).length === 0) return fetch(input, init);
+  return fetch(input, {
+    ...init,
+    headers: { ...auth, ...(init.headers as Record<string, string> | undefined) },
+  });
+}
+
 function workspaceHeadersFromExplicitFlags(flags, required = false) {
   const workspaceId =
     typeof flags?.workspace === 'string' ? flags.workspace.trim() : '';
@@ -1472,8 +1496,10 @@ function workspaceHeadersFromExplicitFlags(flags, required = false) {
       : typeof flags?.member === 'string'
         ? flags.member.trim()
         : '';
+  const auth = cliAuthHeaders();
   if (workspaceId && workspaceMemberId) {
     return {
+      ...auth,
       'x-od-workspace-id': workspaceId,
       'x-od-workspace-member-id': workspaceMemberId,
     };
@@ -1484,7 +1510,7 @@ function workspaceHeadersFromExplicitFlags(flags, required = false) {
       message: 'pass --workspace <id> and --workspace-member <id>',
     });
   }
-  return null;
+  return Object.keys(auth).length > 0 ? auth : null;
 }
 
 function printCollabHelp() {
@@ -7759,7 +7785,7 @@ async function runNextore(args) {
       process.exit(1);
     };
     if (action === 'status') {
-      const resp = await fetch(path);
+      const resp = await daemonFetch(path);
       const data = await readJson(resp);
       if (!resp.ok) failShare(resp, data);
       if (flags.json) return process.stdout.write(JSON.stringify(data, null, 2) + '\n');
@@ -7769,7 +7795,7 @@ async function runNextore(args) {
     if (action === 'share') {
       const body: Record<string, unknown> = {};
       if (typeof flags['expires-at'] === 'string') body.expiresAt = flags['expires-at'];
-      const resp = await fetch(path, {
+      const resp = await daemonFetch(path, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(body),
@@ -7781,7 +7807,7 @@ async function runNextore(args) {
       return;
     }
     if (action === 'unshare') {
-      const resp = await fetch(path, { method: 'DELETE' });
+      const resp = await daemonFetch(path, { method: 'DELETE' });
       const data = await readJson(resp);
       if (!resp.ok) failShare(resp, data);
       if (flags.json) return process.stdout.write(JSON.stringify(data, null, 2) + '\n');
@@ -7826,7 +7852,7 @@ async function runNextore(args) {
     process.exit(2);
   }
 
-  const resp = await fetch(base + '/api/nextore/workspaces', {
+  const resp = await daemonFetch(base + '/api/nextore/workspaces', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ name, grants }),
@@ -7863,10 +7889,10 @@ async function runNextoreBackfill(args, flags, base, stringFlags) {
 
   let response;
   if (action === 'status') {
-    response = await fetch(url);
+    response = await daemonFetch(url);
   } else {
     const raw = typeof flags['batch-size'] === 'string' ? Number(flags['batch-size']) : NaN;
-    response = await fetch(url, {
+    response = await daemonFetch(url, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
@@ -7941,7 +7967,7 @@ async function runNextoreArtifact(args, flags, base, stringFlags) {
   };
 
   if (action === 'status') {
-    const resp = await fetch(artifactPath + '/status');
+    const resp = await daemonFetch(artifactPath + '/status');
     const data = await readJson(resp);
     if (!resp.ok) fail(resp, data);
     if (flags.json) return process.stdout.write(JSON.stringify(data, null, 2) + '\n');
@@ -7961,7 +7987,7 @@ async function runNextoreArtifact(args, flags, base, stringFlags) {
 
   if (action === 'retry') {
     const query = representation ? '?representation=' + encodeURIComponent(representation) : '';
-    const resp = await fetch(artifactPath + '/retry' + query, { method: 'POST' });
+    const resp = await daemonFetch(artifactPath + '/retry' + query, { method: 'POST' });
     const data = await readJson(resp);
     if (!resp.ok) fail(resp, data);
     if (flags.json) return process.stdout.write(JSON.stringify(data, null, 2) + '\n');
@@ -7979,7 +8005,7 @@ async function runNextoreArtifact(args, flags, base, stringFlags) {
     if (representation) query.set('representation', representation);
     if (typeof flags.version === 'string') query.set('version', flags.version);
     const suffix = query.size > 0 ? '?' + query.toString() : '';
-    const resp = await fetch(artifactPath + '/download' + suffix);
+    const resp = await daemonFetch(artifactPath + '/download' + suffix);
     if (!resp.ok) {
       fail(resp, await readJson(resp));
       return;
@@ -8000,7 +8026,7 @@ async function runNextoreArtifact(args, flags, base, stringFlags) {
       ...(typeof flags['expires-at'] === 'string' ? { expiresAt: flags['expires-at'] } : {}),
       ...(typeof flags.password === 'string' ? { password: flags.password } : {}),
     };
-    const resp = await fetch(artifactPath + '/share', {
+    const resp = await daemonFetch(artifactPath + '/share', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(body),
@@ -8014,7 +8040,7 @@ async function runNextoreArtifact(args, flags, base, stringFlags) {
 
   if (action === 'unshare') {
     const query = representation ? '?representation=' + encodeURIComponent(representation) : '';
-    const resp = await fetch(artifactPath + '/share' + query, { method: 'DELETE' });
+    const resp = await daemonFetch(artifactPath + '/share' + query, { method: 'DELETE' });
     const data = await readJson(resp);
     if (!resp.ok) fail(resp, data);
     if (flags.json) return process.stdout.write(JSON.stringify(data, null, 2) + '\n');
@@ -8129,7 +8155,7 @@ async function runProjectShare(args) {
   const base = (await projectDaemonUrl(flags)).replace(/\/$/, '');
   let resp;
   try {
-    resp = await fetch(
+    resp = await daemonFetch(
       projectStatus ? `${base}/api/projects/${encodeURIComponent(id)}/share-state` : action === 'retry-stop' ? `${base}/api/public-file-stops/retry` : `${base}/api/projects/${encodeURIComponent(id)}/files/${encodeURIComponent(filePath)}/${action === 'preflight' ? 'share-plan' : 'publish-public'}${flags['local-only'] ? '?localOnly=true' : ''}`,
       action === 'retry-stop'
         ? { method: 'POST', headers: { ...headers, 'content-type': 'application/json' }, body: JSON.stringify({ projectId: id, filePath, slug }) }
@@ -8318,7 +8344,7 @@ Common options:
       if (explicitWorkspaceHeaders) {
         const workspaceId = String(flags.workspace).trim();
         scopeHeaders = explicitWorkspaceHeaders;
-        listResp = await fetch(
+        listResp = await daemonFetch(
           `${base}/api/workspaces/${encodeURIComponent(workspaceId)}/projects`,
           { headers: scopeHeaders },
         );
@@ -8326,14 +8352,14 @@ Common options:
         const ctx = await resolveMcpWorkspaceContext(base);
         if (ctx) {
           scopeHeaders = ctx.headers;
-          listResp = await fetch(
+          listResp = await daemonFetch(
             `${base}/api/workspaces/${encodeURIComponent(ctx.workspaceId)}/projects`,
             { headers: scopeHeaders },
           );
         }
       }
       if (!listResp) {
-        listResp = await fetch(`${base}/api/projects`, { headers: workspaceHeaders });
+        listResp = await daemonFetch(`${base}/api/projects`, { headers: workspaceHeaders });
       }
       if (!listResp.ok) return structuredHttpFailure(listResp);
       const data = await listResp.json();
@@ -8352,7 +8378,7 @@ Common options:
         console.error('Usage: od project artifact-network <id> [--policy none|same-origin-readonly --paths /a/,/b/]');
         process.exit(2);
       }
-      const infoResp = await fetch(`${base}/api/projects/${encodeURIComponent(targetId)}`, {
+      const infoResp = await daemonFetch(`${base}/api/projects/${encodeURIComponent(targetId)}`, {
         headers: workspaceHeaders,
       });
       if (!infoResp.ok) return structuredHttpFailure(infoResp);
