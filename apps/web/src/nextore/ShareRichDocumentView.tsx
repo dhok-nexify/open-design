@@ -10,6 +10,27 @@ import styles from './PublicSharePage.module.css';
 type Format = 'markdown' | 'docx';
 
 /**
+ * Word tables are sized by their content, and the reading surface is a narrow
+ * column. Markdown tables already arrive inside a scroll wrapper; mammoth's do
+ * not, so a wide table would push the whole page sideways. Wrapping keeps the
+ * overflow inside the table itself, the same way the markdown path does.
+ */
+function wrapWordTables(html: string): string {
+  if (!html.includes('<table')) return html;
+  const holder = document.createElement('div');
+  holder.innerHTML = html;
+  for (const table of Array.from(holder.querySelectorAll('table'))) {
+    // A nested table already scrolls inside its parent cell.
+    if (table.parentElement?.closest('table')) continue;
+    const scroll = document.createElement('div');
+    scroll.className = styles.tableScroll ?? '';
+    table.replaceWith(scroll);
+    scroll.append(table);
+  }
+  return holder.innerHTML;
+}
+
+/**
  * Renders a shared rich document (Markdown or Word) as sanitised HTML.
  *
  * The document arrives through a public share link, so it is untrusted: HTML is
@@ -46,7 +67,8 @@ export function ShareRichDocumentView({
           raw = result.value;
         }
         if (cancelled) return;
-        setHtml(DOMPurify.sanitize(raw, { USE_PROFILES: { html: true } }));
+        const safe = DOMPurify.sanitize(raw, { USE_PROFILES: { html: true } });
+        setHtml(format === 'docx' ? wrapWordTables(safe) : safe);
         setState('ready');
       } catch {
         if (!cancelled) setState('error');

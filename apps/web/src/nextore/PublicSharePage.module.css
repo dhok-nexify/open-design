@@ -680,6 +680,10 @@
   /* The app shell sets a semibold body weight for UI chrome. A document is not
      chrome: at 600 the body text and every <strong> inside it look identical. */
   font-weight: 400;
+  /* Headings quote identifiers like
+     "SecurityClassificationService (NexTore.Core.Service.…)", one unbreakable
+     token. Without this the reading pane still scrolls sideways on a phone. */
+  overflow-wrap: break-word;
   font-size: 15px;
   line-height: 1.75;
 }
@@ -758,6 +762,14 @@
   padding: 2px 0 2px 14px;
   border-inline-start: 3px solid rgba(29, 78, 216, 0.35);
   color: #374151;
+}
+
+.prose .tableScroll {
+  /* Word tables are as wide as their content. The reading column is a phone
+     wide, so the scroll belongs on a wrapper instead of the page. */
+  overflow-x: auto;
+  max-inline-size: 100%;
+  margin: 0 0 1em;
 }
 
 .prose table {
