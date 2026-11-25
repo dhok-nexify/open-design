@@ -20,7 +20,7 @@ export interface ApiTokenGateOptions {
    * session. Without this the caller is authenticated and then refused with
    * SESSION_REQUIRED one layer down.
    */
-  resolveAccessToken?: (memberId: number) => Promise<string | null>;
+  resolveAccessToken?: (memberId: number, sessionSid: string | null) => Promise<string | null>;
 }
 
 export function createApiTokenGate(
@@ -83,7 +83,7 @@ export function createApiTokenGate(
     }
     // A missing store row is not an auth failure: the caller stays authenticated
     // and the route that needs NexTore answers with its own SESSION_REQUIRED.
-    void options.resolveAccessToken(row.memberId).then(
+    void options.resolveAccessToken(row.memberId, row.sessionSid ?? null).then(
       (token) => attach(token ?? ''),
       () => attach(''),
     );

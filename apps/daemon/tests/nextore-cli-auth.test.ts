@@ -50,6 +50,37 @@ describe('P10 api tokens', () => {
     expect(verifyApiToken(db, issued.token, 1_001)).toMatchObject({ memberId: 7 });
   });
 
+  it('remembers the browser session that approved the token', () => {
+    const issued = createApiToken(db, {
+      memberId: 7,
+      scopes: ['project:read'],
+      sessionSid: 'sid-approver',
+      now: 1_000,
+    });
+
+    expect(verifyApiToken(db, issued.token, 1_001)?.sessionSid).toBe('sid-approver');
+    expect(listApiTokens(db, 7)[0]?.sessionSid).toBe('sid-approver');
+  });
+
+  it('adds the session column to a database created before it existed', () => {
+    // A daemon upgraded in place keeps its token table; the additive column must
+    // appear without dropping the rows.
+    db.exec(`CREATE TABLE nextore_api_tokens (
+      id TEXT PRIMARY KEY,
+      token_hash TEXT NOT NULL UNIQUE,
+      member_id INTEGER NOT NULL,
+      scopes TEXT NOT NULL,
+      label TEXT,
+      created_at INTEGER NOT NULL,
+      expires_at INTEGER NOT NULL,
+      revoked_at INTEGER,
+      last_used_at INTEGER
+    )`);
+
+    const issued = createApiToken(db, { memberId: 7, scopes: ['project:read'], sessionSid: 'sid-legacy', now: 1_000 });
+    expect(verifyApiToken(db, issued.token, 1_001)?.sessionSid).toBe('sid-legacy');
+  });
+
   it('rejects an expired token', () => {
     const issued = createApiToken(db, { memberId: 7, scopes: ['project:read'], now: 1_000, ttlMs: 10 });
     expect(verifyApiToken(db, issued.token, 1_005)).not.toBeNull();

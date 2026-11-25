@@ -86,9 +86,10 @@ export function mountNextoreAccess(options: NextoreAccessOptions): NextoreAccess
     app.use('/api', createApiTokenGate(auth.gate, getDb, {
       // A CLI token proves the member; the project routes still call NexTore as
       // that member, so hydrate the credential from the daemon's session store.
-      resolveAccessToken: (memberId) => resolveMemberAccessToken(memberId, {
+      resolveAccessToken: (memberId, sessionSid) => resolveMemberAccessToken(memberId, {
         store: createNextoreSessionStore(getDb, secrets!),
         config: config!,
+        preferredSid: sessionSid,
       }),
     }));
     app.use('/artifacts', auth.gate);

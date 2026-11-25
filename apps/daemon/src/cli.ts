@@ -3252,10 +3252,9 @@ async function structuredHttpFailure(resp, fallbackCode = 'daemon-not-running') 
       : parsed?.error;
   if (errorObj?.code === 'SESSION_REQUIRED') {
     console.error(
-      '\nThis daemon runs the NexTore edition: /api needs a signed-in NexTore '
-      + 'session, which the CLI does not hold yet.',
+      '\nThis daemon runs the NexTore edition: the command acts as you in NexTore, '
+      + 'so it needs your NexTore session. Run `od auth login` once, then retry.',
     );
-    console.error('Use the Designer web UI for now; CLI sign-in is tracked as NXD-P10.');
   }
   const errCode = normalizeRecoverableErrorCode(errorObj?.code, errorObj?.message);
   if (errCode) {
@@ -7692,8 +7691,8 @@ async function runNextore(args) {
                     DesignerAdmin right. Each --group grants that group the
                     role preset's workspace rights.
 
-                    Note: the NexTore edition gates /api by the browser
-                    session; CLI sign-in is tracked as NXD-P10.
+                    Note: the NexTore edition gates /api by your NexTore
+                    session. Run 'od auth login' once to bind this CLI to it.
 
   od nextore artifact status <projectId> <artifactId> [--json]
   od nextore artifact retry <projectId> <artifactId>
@@ -7711,8 +7710,8 @@ async function runNextore(args) {
                     The project's folder link is a NexTore ShareObject; status
                     never creates one, and unshare is idempotent.
                     Artifact authority that used to live in Designer now runs
-                    through NexTore; every command needs the browser session
-                    (NXD-P10).`);
+                    through NexTore; every command acts as your NexTore session
+                    (run 'od auth login' once).`);
     return;
   }
 
@@ -7751,7 +7750,10 @@ async function runNextore(args) {
     const failShare = (resp: Response, data: any): never => {
       const code = data?.error?.code ?? data?.error;
       if (code === 'SESSION_REQUIRED') {
-        console.error('This daemon runs the NexTore edition: /api needs a signed-in NexTore session (NXD-P10).');
+        console.error(
+      'This daemon runs the NexTore edition: the command acts as you in NexTore, '
+      + 'so it needs your NexTore session. Run `od auth login` once, then retry.',
+    );
       }
       console.error(action + ' failed: ' + resp.status + ' ' + JSON.stringify(data));
       process.exit(1);
@@ -7833,11 +7835,10 @@ async function runNextore(args) {
   if (!resp.ok) {
     if (data?.error?.code === 'SESSION_REQUIRED') {
       console.error(
-        'This daemon runs the NexTore edition: /api needs a signed-in NexTore '
-        + 'session, which the CLI does not hold yet.',
+        'This daemon runs the NexTore edition: the command acts as you in NexTore, '
+        + 'so it needs your NexTore session. Run `od auth login` once, then retry.',
       );
-      console.error('Use the Designer web UI for now; CLI sign-in is tracked as NXD-P10.');
-    }
+      }
     console.error(`POST /api/nextore/workspaces failed: ${resp.status} ${JSON.stringify(data)}`);
     process.exit(1);
   }
@@ -7884,7 +7885,10 @@ async function runNextoreBackfill(args, flags, base, stringFlags) {
   if (!response.ok) {
     const code = data && data.error && data.error.code ? data.error.code : data && data.error;
     if (code === 'SESSION_REQUIRED') {
-      console.error('This daemon runs the NexTore edition: /api needs a signed-in NexTore session (NXD-P10).');
+      console.error(
+      'This daemon runs the NexTore edition: the command acts as you in NexTore, '
+      + 'so it needs your NexTore session. Run `od auth login` once, then retry.',
+    );
     }
     console.error('backfill ' + action + ' failed: ' + response.status + ' ' + JSON.stringify(data));
     process.exit(1);
@@ -7927,8 +7931,10 @@ async function runNextoreArtifact(args, flags, base, stringFlags) {
   const fail = (resp, data) => {
     const code = data && data.error && data.error.code ? data.error.code : data && data.error;
     if (code === 'SESSION_REQUIRED') {
-      console.error('This daemon runs the NexTore edition: /api needs a signed-in NexTore session (NXD-P10).');
-      console.error('Use the Designer web UI for now.');
+      console.error(
+      'This daemon runs the NexTore edition: the command acts as you in NexTore, '
+      + 'so it needs your NexTore session. Run `od auth login` once, then retry.',
+    );
     }
     console.error(action + ' failed: ' + resp.status + ' ' + JSON.stringify(data));
     process.exit(1);

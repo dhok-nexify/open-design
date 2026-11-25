@@ -11,6 +11,8 @@ export const API_TOKEN_SCOPES = ['project:read', 'project:write', 'run:create'] 
 export type ApiTokenScope = typeof API_TOKEN_SCOPES[number];
 
 export interface ApiTokenRow {
+  /** The browser session that approved this token, when the login flow recorded one. */
+  sessionSid: string | null;
   id: string;
   memberId: number;
   scopes: ApiTokenScope[];
@@ -31,7 +33,8 @@ const SCHEMA_SQL = `
     created_at INTEGER NOT NULL,
     expires_at INTEGER NOT NULL,
     revoked_at INTEGER,
-    last_used_at INTEGER
+    last_used_at INTEGER,
+    session_sid TEXT
   );
 
   CREATE INDEX IF NOT EXISTS idx_nextore_api_tokens_member
@@ -40,6 +43,12 @@ const SCHEMA_SQL = `
 
 export function ensureApiTokenSchema(db: SqliteDb): void {
   db.exec(SCHEMA_SQL);
+  // Additive for databases created before the token recorded which browser
+  // session approved it.
+  const columns = db.prepare('PRAGMA table_info(nextore_api_tokens)').all() as Array<{ name?: string }>;
+  if (!columns.some((column) => column.name === 'session_sid')) {
+    db.exec('ALTER TABLE nextore_api_tokens ADD COLUMN session_sid TEXT');
+  }
 }
 
 export function hashApiToken(raw: string): string {
@@ -52,7 +61,14 @@ export function hashApiToken(raw: string): string {
  */
 export function createApiToken(
   db: SqliteDb,
-  input: { memberId: number; scopes: readonly string[]; label?: string | null; now?: number; ttlMs?: number },
+  input: {
+    memberId: number;
+    scopes: readonly string[];
+    label?: string | null;
+    sessionSid?: string | null;
+    now?: number;
+    ttlMs?: number;
+  },
 ): { id: string; token: string; scopes: ApiTokenScope[]; expiresAt: number } {
   ensureApiTokenSchema(db);
   if (!Number.isInteger(input.memberId) || input.memberId <= 0) {
@@ -70,9 +86,18 @@ export function createApiToken(
   const id = randomBytes(12).toString('hex');
   db.prepare(`
     INSERT INTO nextore_api_tokens
-      (id, token_hash, member_id, scopes, label, created_at, expires_at, revoked_at, last_used_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, NULL, NULL)
-  `).run(id, hashApiToken(raw), input.memberId, scopes.join(' '), input.label ?? null, now, expiresAt);
+      (id, token_hash, member_id, scopes, label, created_at, expires_at, revoked_at, last_used_at, session_sid)
+    VALUES (?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?)
+  `).run(
+    id,
+    hashApiToken(raw),
+    input.memberId,
+    scopes.join(' '),
+    input.label ?? null,
+    now,
+    expiresAt,
+    input.sessionSid ?? null,
+  );
 
   return { id, token: raw, scopes: scopes as ApiTokenScope[], expiresAt };
 }
@@ -85,7 +110,7 @@ export function verifyApiToken(
   ensureApiTokenSchema(db);
   if (typeof raw !== 'string' || !raw.startsWith(API_TOKEN_PREFIX)) return null;
   const row = db.prepare(`
-    SELECT id, member_id, scopes, label, created_at, expires_at, revoked_at, last_used_at
+    SELECT id, member_id, scopes, label, created_at, expires_at, revoked_at, last_used_at, session_sid
       FROM nextore_api_tokens
      WHERE token_hash = ?
   `).get(hashApiToken(raw)) as {
@@ -97,6 +122,7 @@ export function verifyApiToken(
     expires_at: number;
     revoked_at: number | null;
     last_used_at: number | null;
+    session_sid: string | null;
   } | undefined;
   if (!row) return null;
   if (row.revoked_at !== null) return null;
@@ -106,6 +132,7 @@ export function verifyApiToken(
     db.prepare('UPDATE nextore_api_tokens SET last_used_at = ? WHERE id = ?').run(now, row.id);
   }
   return {
+    sessionSid: row.session_sid,
     id: row.id,
     memberId: row.member_id,
     scopes: row.scopes.split(' ').filter(Boolean) as ApiTokenScope[],
@@ -129,7 +156,7 @@ export function revokeApiToken(db: SqliteDb, memberId: number, id: string, now =
 export function listApiTokens(db: SqliteDb, memberId: number): ApiTokenRow[] {
   ensureApiTokenSchema(db);
   const rows = db.prepare(`
-    SELECT id, member_id, scopes, label, created_at, expires_at, revoked_at, last_used_at
+    SELECT id, member_id, scopes, label, created_at, expires_at, revoked_at, last_used_at, session_sid
       FROM nextore_api_tokens
      WHERE member_id = ?
      ORDER BY created_at DESC
@@ -142,8 +169,10 @@ export function listApiTokens(db: SqliteDb, memberId: number): ApiTokenRow[] {
     expires_at: number;
     revoked_at: number | null;
     last_used_at: number | null;
+    session_sid: string | null;
   }>;
   return rows.map((row) => ({
+    sessionSid: row.session_sid,
     id: row.id,
     memberId: row.member_id,
     scopes: row.scopes.split(' ').filter(Boolean) as ApiTokenScope[],

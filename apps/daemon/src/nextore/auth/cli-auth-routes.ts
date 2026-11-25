@@ -87,6 +87,10 @@ export function registerCliAuthRoutes(app: Express, deps: RegisterCliAuthRoutesD
       memberId: redeemed.memberId,
       scopes: [...API_TOKEN_SCOPES],
       label: typeof body.label === 'string' ? body.label.slice(0, 120) : 'od CLI',
+      // Remember which browser session approved this token: the NexTore-bound
+      // routes act as that session, never as a shared account and never as an
+      // unrelated session of the same member.
+      sessionSid: redeemed.sessionSid,
       now: now(),
     });
     res.json({

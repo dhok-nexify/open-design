@@ -172,6 +172,36 @@ describe('resolveMemberAccessToken', () => {
     })).resolves.toBeNull();
   });
 
+  it('acts as the session a CLI token named, not the most recent one', async () => {
+    // The CLI token records the session that approved it. A newer browser
+    // session of the same member must not silently take over the CLI's
+    // authority.
+    const store = storeWith(
+      session({ sid: 'browser-newer', accessToken: 'access-browser', lastSeenAt: 9_000 }),
+      session({ sid: 'cli-bound', accessToken: 'access-cli', lastSeenAt: 1_000 }),
+    );
+
+    await expect(resolveMemberAccessToken(7, {
+      store,
+      config,
+      now: () => 1_000,
+      preferredSid: 'cli-bound',
+    })).resolves.toBe('access-cli');
+  });
+
+  it('does not borrow another session when the named one is gone', async () => {
+    // A revoked or expired login must fail closed: the member still has a
+    // healthy session, but it is not the one the CLI was granted.
+    const store = storeWith(session({ sid: 'other', accessToken: 'access-other' }));
+
+    await expect(resolveMemberAccessToken(7, {
+      store,
+      config,
+      now: () => 1_000,
+      preferredSid: 'revoked-login',
+    })).resolves.toBeNull();
+  });
+
   it('falls through to the next session when one refresh is unavailable', async () => {
     const store = storeWith(
       session({ sid: 'expired', tokenExpiresAt: 31_000, lastSeenAt: 2_000 }),

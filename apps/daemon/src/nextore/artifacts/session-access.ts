@@ -19,6 +19,12 @@ export interface SessionAccessDeps {
   isPermanentFailure?: (error: unknown) => boolean;
   /** Optional revocation check supplied by the caller (for example a worker pause set). */
   isRevoked?: (sid: string) => boolean;
+  /**
+   * The one session this caller is allowed to act as. Set for CLI tokens, which
+   * name the browser session that approved them: falling back to another
+   * session of the same member would let a revoked login keep working.
+   */
+  preferredSid?: string | null;
 }
 
 const refreshes = new Map<string, Promise<NextoreSession | null>>();
@@ -93,9 +99,11 @@ export async function resolveMemberAccessToken(
 ): Promise<string | null> {
   if (!Number.isInteger(memberId) || memberId <= 0) return null;
   const now = deps.now ?? Date.now;
+  const bound = deps.preferredSid ?? null;
   const sessions = deps.store
     .listByMember(memberId)
     .filter((session) => !deps.isRevoked?.(session.sid))
+    .filter((session) => (bound ? session.sid === bound : true))
     .sort((left, right) => right.lastSeenAt - left.lastSeenAt);
 
   for (const session of sessions) {
