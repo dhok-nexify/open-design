@@ -8,6 +8,7 @@ import type {
 } from '@open-design/contracts';
 
 import { ShareRichDocumentView } from './ShareRichDocumentView';
+import { ShareSheetView } from './ShareSheetView';
 import styles from './PublicSharePage.module.css';
 
 type Copy = {
@@ -31,6 +32,8 @@ type Copy = {
   expires: string;
   unsupported: string;
   previewUnavailable: string;
+  sheet: string;
+  sheetTruncated: string;
   empty: string;
   pages: string;
   openPage: string;
@@ -63,6 +66,8 @@ const ZH: Copy = {
   expires: '有效至',
   unsupported: '此檔案格式無法在瀏覽器中預覽。',
   previewUnavailable: '此格式沒有線上預覽，請向分享者索取可下載的版本。',
+  sheet: '工作表',
+  sheetTruncated: '僅顯示前 200 列、30 欄。',
   empty: '此資料夾尚無可分享的內容。',
   pages: '個頁面',
   openPage: '開啟頁面',
@@ -95,6 +100,8 @@ const EN: Copy = {
   expires: 'Valid until',
   unsupported: 'This file type cannot be previewed in the browser.',
   previewUnavailable: 'This format has no online preview. Ask the sender for a downloadable copy.',
+  sheet: 'Sheets',
+  sheetTruncated: 'Showing the first 200 rows and 30 columns only.',
   empty: 'This folder has nothing to show yet.',
   pages: 'pages',
   openPage: 'Open page',
@@ -144,12 +151,13 @@ function titleOf(fileName: string): string {
   return index > 0 ? fileName.slice(0, index) : fileName;
 }
 
-export function shareFileKind(fileName: string | null): 'pdf' | 'html' | 'image' | 'markdown' | 'docx' | 'text' | 'other' {
+export function shareFileKind(fileName: string | null): 'pdf' | 'html' | 'image' | 'markdown' | 'docx' | 'sheet' | 'text' | 'other' {
   const extension = extensionOf(fileName ?? '');
   if (extension === 'pdf') return 'pdf';
   if (extension === 'html' || extension === 'htm') return 'html';
   if (extension === 'md' || extension === 'markdown') return 'markdown';
   if (extension === 'docx') return 'docx';
+  if (extension === 'xlsx' || extension === 'xls') return 'sheet';
   if (['png', 'jpeg', 'jpg', 'webp', 'gif', 'svg', 'avif', 'bmp', 'ico'].includes(extension)) return 'image';
   if (
     ['txt', 'css', 'js', 'mjs', 'cjs', 'ts', 'tsx', 'jsx', 'json', 'xml', 'csv', 'yml', 'yaml', 'log']
@@ -501,7 +509,7 @@ export function PublicSharePage() {
                               alt=""
                               loading="lazy"
                             />
-                          ) : shareFileKind(item.name) === 'text' || shareFileKind(item.name) === 'markdown' || shareFileKind(item.name) === 'docx' || shareFileKind(item.name) === 'other' ? (
+                          ) : shareFileKind(item.name) === 'text' || shareFileKind(item.name) === 'markdown' || shareFileKind(item.name) === 'docx' || shareFileKind(item.name) === 'sheet' || shareFileKind(item.name) === 'other' ? (
                             <span className={styles.cardThumbText}>
                               <span className={styles.cardThumbExt}>
                                 {extensionOf(item.name).toUpperCase() || 'FILE'}
@@ -568,6 +576,16 @@ export function PublicSharePage() {
                 url={view.data.contentUrl}
                 format={shareFileKind(view.data.fileName) as 'markdown' | 'docx'}
                 labels={{ loading: copy.loading, failed: copy.openFailedBody }}
+              />
+            ) : shareFileKind(view.data.fileName) === 'sheet' ? (
+              <ShareSheetView
+                url={view.data.contentUrl}
+                labels={{
+                  loading: copy.loading,
+                  failed: copy.openFailedBody,
+                  sheet: copy.sheet,
+                  truncated: copy.sheetTruncated,
+                }}
               />
             ) : shareFileKind(view.data.fileName) === 'text' ? (
               <TextPane url={view.data.contentUrl} name={view.data.fileName ?? copy.brand} copy={copy} />
@@ -636,6 +654,16 @@ export function PublicSharePage() {
               url={openItem.contentUrl}
               format={shareFileKind(openItem.name) as 'markdown' | 'docx'}
               labels={{ loading: copy.loading, failed: copy.openFailedBody }}
+            />
+          ) : shareFileKind(openItem.name) === 'sheet' ? (
+            <ShareSheetView
+              url={openItem.contentUrl}
+              labels={{
+                loading: copy.loading,
+                failed: copy.openFailedBody,
+                sheet: copy.sheet,
+                truncated: copy.sheetTruncated,
+              }}
             />
           ) : shareFileKind(openItem.name) === 'text' ? (
             <TextPane url={openItem.contentUrl} name={openItem.name} copy={copy} />

@@ -770,3 +770,92 @@
   border: 0;
   border-block-start: 1px solid rgba(17, 24, 39, 0.12);
 }
+
+/* Spreadsheet preview. */
+.sheetPane {
+  display: flex;
+  flex-direction: column;
+  block-size: 100%;
+  min-block-size: 0;
+  background: #ffffff;
+  color: #111827;
+}
+
+.sheetTabs {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 4px;
+  overflow-x: auto;
+  padding: 10px 12px 0;
+  border-block-end: 1px solid rgba(17, 24, 39, 0.1);
+}
+
+.sheetTab,
+.sheetTabActive {
+  flex: 0 0 auto;
+  min-block-size: 34px;
+  padding: 0 12px;
+  border: 1px solid transparent;
+  border-block-end: 0;
+  border-start-start-radius: 8px;
+  border-start-end-radius: 8px;
+  background: transparent;
+  color: #4b5563;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.sheetTabActive {
+  border-color: rgba(17, 24, 39, 0.12);
+  background: #f3f4f6;
+  color: #111827;
+  font-weight: 650;
+}
+
+.sheetTab:focus-visible,
+.sheetTabActive:focus-visible {
+  outline: 2px solid #1d4ed8;
+  outline-offset: -2px;
+}
+
+.sheetTableWrap {
+  flex: 1 1 auto;
+  min-block-size: 0;
+  overflow: auto;
+}
+
+.sheetTable {
+  border-collapse: collapse;
+  font-size: 13px;
+  min-inline-size: 100%;
+}
+
+.sheetTable th,
+.sheetTable td {
+  padding: 7px 10px;
+  border: 1px solid rgba(17, 24, 39, 0.1);
+  text-align: start;
+  white-space: nowrap;
+}
+
+.sheetTable th {
+  position: sticky;
+  inset-block-start: 0;
+  background: #f3f4f6;
+  font-weight: 650;
+  z-index: 1;
+}
+
+.sheetTable tbody tr:nth-child(even) td {
+  background: rgba(17, 24, 39, 0.02);
+}
+
+.sheetNotice {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 8px 14px;
+  border-block-start: 1px solid rgba(17, 24, 39, 0.1);
+  color: #6b7280;
+  font-size: 12.5px;
+}

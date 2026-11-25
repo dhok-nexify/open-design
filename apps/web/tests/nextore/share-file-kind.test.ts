@@ -27,7 +27,8 @@ describe('shareFileKind', () => {
 
   it('routes word documents to the converter and leaves binary formats alone', () => {
     expect(shareFileKind('brief.docx')).toBe('docx');
-    expect(shareFileKind('budget.xlsx')).toBe('other');
+    expect(shareFileKind('budget.xlsx')).toBe('sheet');
+    expect(shareFileKind('legacy.xls')).toBe('sheet');
     expect(shareFileKind('deck.pptx')).toBe('other');
     expect(shareFileKind('bundle.zip')).toBe('other');
     expect(shareFileKind('no-extension')).toBe('other');
