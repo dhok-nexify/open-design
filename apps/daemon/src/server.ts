@@ -2982,7 +2982,10 @@ const upload = multer({
       );
     },
   }),
-  limits: { fileSize: 20 * 1024 * 1024 },
+  // 50 MB matches the size the publish contract is written for, so an HTML
+  // page that arrives through the normal file API can be published as-is
+  // instead of only being uploadable through the 200 MB project-upload path.
+  limits: { fileSize: 50 * 1024 * 1024 },
 });
 
 const importUpload = multer({
@@ -3739,7 +3742,7 @@ export async function startServer({
         watchProjectFiles: (projectId, onChange) => {
           const metadata = getProject(db, projectId)?.metadata;
           const sub = subscribeFileEvents(PROJECTS_DIR, projectId, (evt) => {
-            if (evt.type === 'file-changed') onChange();
+            if (evt.type === 'file-changed') onChange([{ path: evt.path, kind: evt.kind }]);
           }, metadata ? { metadata } : {});
           return () => {
             Promise.resolve(sub.unsubscribe()).catch(() => {});

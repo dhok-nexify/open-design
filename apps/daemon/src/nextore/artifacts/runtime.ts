@@ -46,6 +46,10 @@ import {
 
 type SqliteDb = Database.Database;
 
+/** The kinds a project file watcher reports, mirrored here so this module does
+ * not import the chokidar-backed watcher. */
+export type NextoreFileChangeKind = 'add' | 'change' | 'unlink';
+
 /** A hash is only an optimisation hint here: an unreadable file must still enqueue. */
 async function hashQuietly(filePath: string): Promise<string | null> {
   try {
@@ -97,7 +101,10 @@ export interface NextoreArtifactRuntimeDeps {
    * reuse this so the artifact published by the last run keeps tracking the
    * file the user actually edits.
    */
-  watchProjectFiles?: (projectId: string, onChange: () => void) => () => void;
+  watchProjectFiles?: (
+    projectId: string,
+    onChange: (changed: ReadonlyArray<{ path: string; kind: NextoreFileChangeKind }>) => void,
+  ) => () => void;
   /** Resolve the project's current deliverable and root without a run-scoped gate. */
   resolveProjectDeliverable?: (
     projectId: string,
@@ -133,6 +140,7 @@ export class NextoreArtifactRuntime {
   private wakePending = false;
   private readonly watchers = new Map<string, () => void>();
   private readonly fileTimers = new Map<string, NodeJS.Timeout>();
+  private readonly pendingFileChanges = new Map<string, Map<string, NextoreFileChangeKind>>();
   private readonly projectMembers = new Map<string, number>();
   private reconcileTimer: NodeJS.Timeout | null = null;
   private reconcileCursor = 0;
@@ -206,8 +214,8 @@ export class NextoreArtifactRuntime {
   watchProject(projectId: string): void {
     if (!isNextoreArtifactPublishEnabled(this.deps.mode)) return;
     if (!this.deps.watchProjectFiles || this.watchers.has(projectId)) return;
-    const dispose = this.deps.watchProjectFiles(projectId, () => {
-      this.scheduleFileChangePublish(projectId);
+    const dispose = this.deps.watchProjectFiles(projectId, (changed) => {
+      this.scheduleFileChangePublish(projectId, changed);
     });
     this.watchers.set(projectId, dispose);
   }
@@ -248,13 +256,36 @@ export class NextoreArtifactRuntime {
     this.fileTimers.clear();
   }
 
-  private scheduleFileChangePublish(projectId: string): void {
+  /**
+   * Debounce an out-of-run edit, remembering which files moved.
+   *
+   * The watcher fires once per burst, so the batch is the only record of what
+   * changed. Without it a publish could only ever target the project's entry
+   * file, which is why an HTML page uploaded into a project used to sit in the
+   * project folder with no artifact row and no way to download it.
+   */
+  private scheduleFileChangePublish(
+    projectId: string,
+    changed: ReadonlyArray<{ path: string; kind: NextoreFileChangeKind }> = [],
+  ): void {
+    let batch = this.pendingFileChanges.get(projectId);
+    if (!batch) {
+      batch = new Map();
+      this.pendingFileChanges.set(projectId, batch);
+    }
+    for (const change of changed) {
+      if (!change || typeof change.path !== 'string' || change.path.length === 0) continue;
+      batch.set(change.path, change.kind);
+    }
     const pending = this.fileTimers.get(projectId);
     if (pending) clearTimeout(pending);
     const delay = this.deps.fileChangeDebounceMs ?? 1_500;
     const timer = setTimeout(() => {
       this.fileTimers.delete(projectId);
-      void this.publishProjectAfterChange(projectId);
+      const settled = [...(this.pendingFileChanges.get(projectId) ?? new Map())]
+        .map(([path, kind]) => ({ path, kind }));
+      this.pendingFileChanges.delete(projectId);
+      void this.publishProjectAfterChange(projectId, settled);
     }, delay);
     timer.unref?.();
     this.fileTimers.set(projectId, timer);
@@ -268,7 +299,10 @@ export class NextoreArtifactRuntime {
    * stands in and the choice is remembered for later edits. Only when nothing
    * can be resolved is the change dropped - with a log line naming the reason.
    */
-  private async publishProjectAfterChange(projectId: string): Promise<void> {
+  private async publishProjectAfterChange(
+    projectId: string,
+    changed: ReadonlyArray<{ path: string; kind: NextoreFileChangeKind }> = [],
+  ): Promise<void> {
     let memberId: number | null = this.projectMembers.get(projectId)
       ?? findPublishMember(this.deps.db, projectId)
       ?? null;
@@ -291,7 +325,87 @@ export class NextoreArtifactRuntime {
       );
       return;
     }
+    // A batch that names its own files publishes exactly those; the entry-file
+    // path stays as the fallback for a burst that names nothing usable.
+    if (await this.publishChangedFiles(projectId, memberId, changed)) return;
     await this.publishProjectDeliverable(projectId, memberId);
+  }
+
+  /**
+   * Publish the files a watcher batch named.
+   *
+   * An existing artifact row is republished in place. A file with no row is
+   * adopted only when it first appears ('add') and only when it is an HTML page
+   * outside the daemon's own dot-directories, so a stray edit can never invent
+   * an artifact id and a bulk write cannot re-adopt the whole tree on every
+   * change.
+   */
+  private async publishChangedFiles(
+    projectId: string,
+    memberId: number,
+    changed: ReadonlyArray<{ path: string; kind: NextoreFileChangeKind }>,
+  ): Promise<number> {
+    if (changed.length === 0) return 0;
+    const resolveRoot = this.deps.resolveProjectRoot;
+    if (!resolveRoot) return 0;
+    const projectRoot = resolveRoot(projectId);
+    if (!projectRoot) return 0;
+
+    const sourceRows = listNextoreArtifacts(this.deps.db, projectId)
+      .filter((row) => row.representation === 'source');
+    const now = this.deps.now ?? Date.now;
+    let enqueued = 0;
+
+    for (const change of changed) {
+      const relativePath = change.path.replaceAll('\\', '/');
+      if (change.kind === 'unlink') continue;
+      if (!/\.html?$/iu.test(relativePath)) continue;
+      if (relativePath.split('/').some((segment) => segment.startsWith('.'))) continue;
+      const row = sourceRows.find((candidate) => candidate.relativePath === relativePath);
+      if (!row && change.kind !== 'add') continue;
+      const reason = row ? 'file-change' : 'file-adopted';
+
+      const artifacts = resolvePublishableArtifacts({
+        projectId,
+        artifactId: row?.artifactId ?? relativePath,
+        runId: null,
+        tier: null,
+        deliverable: {
+          valid: true,
+          entryFile: relativePath,
+          artifactKind: 'html',
+          linkedPage: null,
+        },
+      });
+      for (const artifact of artifacts) {
+        const sourcePath = path.resolve(projectRoot, artifact.sourcePath);
+        enqueueNextorePublish(this.deps.db, {
+          projectId: artifact.projectId,
+          artifactId: artifact.artifactId,
+          representation: artifact.representation,
+          memberId,
+          runId: null,
+          tier: null,
+          relativePath: artifact.relativePath,
+          sourcePath,
+          name: artifact.name,
+          mimeType: artifact.mimeType,
+          reason,
+          now: now(),
+          contentHash: await hashQuietly(sourcePath),
+        });
+        enqueued += 1;
+        console.log(
+          '[nextore-artifact] publish enqueue project=' + artifact.projectId
+            + ' artifact=' + artifact.artifactId
+            + ' rep=' + artifact.representation
+            + ' reason=' + reason
+            + ' member=' + memberId,
+        );
+      }
+    }
+    if (enqueued > 0 && this.deps.autoDrain !== false) void this.wake();
+    return enqueued;
   }
 
   private async publishProjectDeliverable(projectId: string, memberId: number): Promise<void> {

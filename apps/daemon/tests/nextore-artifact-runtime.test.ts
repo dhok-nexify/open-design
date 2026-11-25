@@ -486,6 +486,7 @@ describe('NextoreArtifactRuntime out-of-run trigger', () => {
         onChange = callback;
         return dispose;
       },
+      resolveProjectRoot: () => projectRoot,
       resolveProjectDeliverable: async () => ({
         deliverable: options.deliverable ?? {
           valid: true,
@@ -503,7 +504,8 @@ describe('NextoreArtifactRuntime out-of-run trigger', () => {
       worker,
       publish,
       dispose,
-      fire: () => onChange?.(),
+      fire: (changed: ReadonlyArray<{ path: string; kind: 'add' | 'change' | 'unlink' }> = []) =>
+        onChange?.(changed),
     };
   }
 
@@ -548,6 +550,31 @@ describe('NextoreArtifactRuntime out-of-run trigger', () => {
         reason: 'file-change',
         memberId: 7,
         runId: null,
+      }),
+    ]);
+    worker.unwatchAll();
+  });
+
+  it('adopts an HTML page that first appears with no artifact row', async () => {
+    // An upload lands on disk with no artifact row, so the entry-file path
+    // would drop it. The watcher batch names the file, and adoption publishes
+    // it under its own project-relative id.
+    seedPublishedRecord();
+    rememberProjectMember(db, 'project-1', 7, 1_000);
+    await writeFile(join(projectRoot, 'uploaded-page.html'), '<!doctype html><h1>uploaded</h1>');
+    const { worker, fire } = watchedRuntime();
+    worker.watchProject('project-1');
+
+    fire([{ path: 'uploaded-page.html', kind: 'add' }]);
+    await new Promise((resolve) => setTimeout(resolve, 60));
+
+    expect(listNextorePublishQueue(db, 'project-1')).toEqual([
+      expect.objectContaining({
+        artifactId: 'uploaded-page.html',
+        representation: 'source',
+        relativePath: 'uploaded-page.html',
+        reason: 'file-adopted',
+        memberId: 7,
       }),
     ]);
     worker.unwatchAll();
