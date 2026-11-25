@@ -3360,6 +3360,10 @@ export async function startServer({
   });
   if (sandboxEgress.warning) console.warn('[sandbox] ' + sandboxEgress.warning);
   if (sandboxEgress.bridge) {
+    // Operators need one line that says the mode is on: the relay is otherwise
+    // invisible until a run behaves differently.
+    console.log('[sandbox] egress relay enabled — runs have no route; socket='
+      + sandboxEgress.options!.socketPath + ' port=' + resolvedPort);
     void sandboxEgress.bridge.start().catch((error: unknown) => {
       console.warn('[sandbox] egress bridge failed to start: '
         + (error instanceof Error ? error.message : String(error)));
