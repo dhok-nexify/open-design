@@ -3456,11 +3456,20 @@ export async function startServer({
   // NXD-P01 path A: the sandboxed agent reaches the model through the daemon.
   // Mounted before the JSON parser (a model call is a long stream, not a 4 MB
   // object) and before the browser gate (the capability token is the auth).
-  const byokProxyEnabled = edition === 'nextore' && process.env.OD_BYOK_PROXY === 'on';
+  //
+  // The proxy follows the relay rather than carrying its own default: a run
+  // with no route needs a front door or its model call simply fails, so an
+  // operator must not be able to enable one half of the pair by accident.
+  // OD_BYOK_PROXY=on stays available for hosts that reach the provider another
+  // way and for probing the proxy on its own.
+  const sandboxRelayActive = sandboxEgress.options !== null;
+  const byokProxyEnabled =
+    edition === 'nextore' && (sandboxRelayActive || process.env.OD_BYOK_PROXY === 'on');
   const byokProxyRegistry = createByokProxyRegistry();
   if (byokProxyEnabled) {
     registerByokProxyRoutes(app, { registry: byokProxyRegistry });
-    console.log('[byok] model proxy enabled — sandboxed runs call it instead of the provider');
+    console.log('[byok] model proxy enabled — sandboxed runs call it instead of the provider'
+      + (sandboxRelayActive ? '' : ' (OD_BYOK_PROXY override, no egress relay)'));
   }
   app.use(express.json({ limit: '4mb', verify: captureJsonBodySize }));
   if (nextoreAuth) {
