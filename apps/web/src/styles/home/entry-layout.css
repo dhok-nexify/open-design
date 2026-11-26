@@ -304,6 +304,12 @@
   display: none;
   position: absolute;
   inset: 0;
+  /* `height: auto` is load-bearing, for the same reason the rail rows spell it
+     out: primitives.css sets a blanket `button { height: 36px }`, and an
+     explicit height defeats the inset-based stretch, leaving a 36px strip of
+     scrim at the top instead of a full-height dismissal surface. */
+  height: auto;
+  width: auto;
   z-index: 39;
   padding: 0;
   border: 0;
