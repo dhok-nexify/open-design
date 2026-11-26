@@ -24,7 +24,7 @@ export const koOverlay: LocaleOverlay = {
   "nextore.share.expiry": "Link expiry",
   "nextore.share.loadFailed": "Could not load share links.",
   "nextore.share.never": "Never",
-  "nextore.share.subtitle": "Anyone with this link who can sign in to NexTore can view this project and leave comments.",
+  "nextore.share.subtitle": "Anyone with this link can preview this project. No NexTore account is needed, and recipients cannot edit or comment.",
   "nextoreAccount.signOut": "이 기기에서 로그아웃",
   "nextoreAccount.signOutFailed": "세션을 종료하지 못했습니다. 다시 시도해 주세요.",
   "nextorePermissions.title": "Project permissions",

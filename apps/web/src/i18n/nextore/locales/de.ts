@@ -24,7 +24,7 @@ export const deOverlay: LocaleOverlay = {
   "nextore.share.expiry": "Link expiry",
   "nextore.share.loadFailed": "Could not load share links.",
   "nextore.share.never": "Never",
-  "nextore.share.subtitle": "Anyone with this link who can sign in to NexTore can view this project and leave comments.",
+  "nextore.share.subtitle": "Anyone with this link can preview this project. No NexTore account is needed, and recipients cannot edit or comment.",
   "nextoreAccount.signOut": "Von diesem Gerät abmelden",
   "nextoreAccount.signOutFailed": "Die Sitzung konnte nicht beendet werden. Bitte erneut versuchen.",
   "nextorePermissions.title": "Project permissions",

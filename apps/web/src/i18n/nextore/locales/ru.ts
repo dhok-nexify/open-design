@@ -24,7 +24,7 @@ export const ruOverlay: LocaleOverlay = {
   "nextore.share.expiry": "Link expiry",
   "nextore.share.loadFailed": "Could not load share links.",
   "nextore.share.never": "Never",
-  "nextore.share.subtitle": "Anyone with this link who can sign in to NexTore can view this project and leave comments.",
+  "nextore.share.subtitle": "Anyone with this link can preview this project. No NexTore account is needed, and recipients cannot edit or comment.",
   "nextoreAccount.signOut": "Выйти на этом устройстве",
   "nextoreAccount.signOutFailed": "Не удалось завершить сеанс. Повторите попытку.",
   "nextorePermissions.title": "Project permissions",

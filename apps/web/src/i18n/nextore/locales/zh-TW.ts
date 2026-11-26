@@ -24,7 +24,7 @@ export const zhTWOverlay: LocaleOverlay = {
   "nextore.share.expiry": "連結有效期",
   "nextore.share.loadFailed": "無法載入分享連結。",
   "nextore.share.never": "永不過期",
-  "nextore.share.subtitle": "任何持有此連結且能登入 NexTore 的人都可以檢視此專案並留下評論。",
+  "nextore.share.subtitle": "任何持有此連結的人都可以預覽此專案，不需要 NexTore 帳號，且收件者無法編輯或留言。",
   "nextoreAccount.signOut": "登出本機",
   "nextoreAccount.signOutFailed": "無法結束此工作階段，請再試一次。",
   "nextorePermissions.title": "项目权限",
