@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { ProjectShareHistoryResponse, WorkspaceCollabContext } from '@open-design/contracts';
 import { currentWorkspaceAccountGeneration, workspaceAccountScopedCacheKey, workspaceProjectHeaders } from '../../collab/workspace-identity';
+import { isFeatureEnabled } from '../../nextore/features';
 import { AMR_LOGIN_STATUS_EVENT } from '../amrLoginPolling';
 import { PROJECT_SHARE_HISTORY_CHANGED_EVENT } from './share-publication-events';
 
@@ -33,6 +34,13 @@ export function useProjectShareHistoryState(projectId: string | undefined, conte
       controller?.abort();
       setResult(null);
       if (!projectId) return;
+      if (!isFeatureEnabled('collab-cloud')) {
+        // NexTore shares through its own module: this edition has no Cloud
+        // share record to read, and the route refuses (409) rather than
+        // answering. "Nothing to show" is the honest state, not an error.
+        setResult({ scope, history: null });
+        return;
+      }
       controller = new AbortController();
       void (async () => {
         let value: unknown;
@@ -65,7 +73,9 @@ export function useProjectShareHistoryState(projectId: string | undefined, conte
     };
   }, [projectId, context, generation, scope]);
   const current = result?.scope === scope ? result : null;
-  const status: ProjectShareReadStatus = !projectId ? 'idle' : !current ? 'loading' : current.history ? 'ready' : 'error';
+  const status: ProjectShareReadStatus = !isFeatureEnabled('collab-cloud')
+    ? 'idle'
+    : !projectId ? 'idle' : !current ? 'loading' : current.history ? 'ready' : 'error';
   return { history: current?.history ?? null, status };
 }
 
