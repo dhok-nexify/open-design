@@ -13,6 +13,8 @@ export interface RegisterNextoreArtifactShareRoutesDeps {
   runtime: NextoreArtifactRuntime | null;
   client: NextoreArtifactClient | null;
   authorizeProject: AuthorizeProjectRequest;
+  /** Externally reachable Designer base URL (DESIGNER_BASE_URL). */
+  designerBaseUrl?: string | null;
 }
 
 const SHARE_REPRESENTATIONS = new Set(['source', 'snapshot']);
@@ -36,17 +38,35 @@ function sessionMemberId(res: Response): number | null {
   return typeof id === 'number' && Number.isInteger(id) && id > 0 ? id : null;
 }
 
-// The copy button must hand out the branded page, not the platform URL, while
-// keeping the platform link one step away for password and restricted shares.
-function brandedShareUrl(
-  req: { protocol: string; get(name: string): string | undefined },
-  url: string,
-): string {
+/**
+ * Rewrites a NexTore share URL to the branded Designer page.
+ *
+ * The base comes from DESIGNER_BASE_URL, never from the request Host: the
+ * daemon normally runs behind a reverse proxy, so Host/Protocol describe the
+ * internal hop (http://10.x.x.x:8888) instead of the address a recipient can
+ * reach, and a caller-supplied Host would flow straight into the copied link.
+ * A base path is preserved: https://host/Designer -> https://host/Designer/share.
+ *
+ * Reading a link has to return the exact same string as creating one; otherwise
+ * the dialog shows one URL right after creating and a different (platform) URL
+ * the next time it opens.
+ */
+function brandedShareUrl(baseUrl: string | null | undefined, url: string): string {
+  const base = baseUrl?.trim().replace(/\/+$/, '');
+  if (!base) return url;
+  let key: string | null;
   try {
-    const key = new URL(url).searchParams.get('key');
-    const host = req.get('host');
-    if (!key || !host) return url;
-    return req.protocol + '://' + host + '/share?key=' + encodeURIComponent(key);
+    key = new URL(url).searchParams.get('key');
+  } catch {
+    return url;
+  }
+  if (!key) return url;
+  try {
+    const target = new URL(base + '/');
+    target.pathname = target.pathname.replace(/\/+$/, '') + '/share';
+    target.search = '?key=' + encodeURIComponent(key);
+    target.hash = '';
+    return target.toString();
   } catch {
     return url;
   }
@@ -165,7 +185,7 @@ export function registerNextoreArtifactShareRoutes(
         return;
       }
       const payload: NextoreArtifactShareResult = {
-        url: brandedShareUrl(req, url),
+        url: brandedShareUrl(deps.designerBaseUrl, url),
         representation,
         previewOnly: body.previewOnly !== false,
         pinnedVersion: null,
@@ -250,7 +270,7 @@ export function registerNextoreArtifactShareRoutes(
         accessToken, nextoreProjectId, artifactId, raw,
       );
       const moduleUrl = typeof result?.url === 'string' ? result.url : null;
-      const url = moduleUrl ? brandedShareUrl(req, moduleUrl) : null;
+      const url = moduleUrl ? brandedShareUrl(deps.designerBaseUrl, moduleUrl) : null;
       const payload: NextoreArtifactShareDescribe = {
         projectId, artifactId, representation: raw as 'source' | 'snapshot',
         shared: Boolean(url), url,
@@ -292,7 +312,10 @@ export function registerNextoreArtifactShareRoutes(
         accessToken,
         nextoreProjectId,
       );
-      const url = typeof result?.url === 'string' && result.url ? result.url : null;
+      const moduleUrl = typeof result?.url === 'string' && result.url ? result.url : null;
+      // Keep one URL shape across create and read: a folder link must land on
+      // the branded page right away and on every later reopen of the dialog.
+      const url = moduleUrl ? brandedShareUrl(deps.designerBaseUrl, moduleUrl) : null;
       res.json({ projectId, shared: result?.shared === true && url !== null, url });
     } catch (error) {
       mapClientError(res, error, 'share_status_failed');
@@ -389,7 +412,7 @@ export function registerNextoreArtifactShareRoutes(
       res.json({
         // Folder links must land on the branded page too: the platform page
         // renders documents only, so a folder shows an empty viewer there.
-        url: brandedShareUrl(req, url),
+        url: brandedShareUrl(deps.designerBaseUrl, url),
         scope: 'project',
         previewOnly: body.previewOnly !== false,
         expiresAt: typeof body.expiresAt === 'string' ? body.expiresAt : null,

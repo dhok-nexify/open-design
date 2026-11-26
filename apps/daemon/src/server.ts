@@ -9591,6 +9591,8 @@ export async function startServer({
       runtime: nextoreArtifactRuntime,
       client: nextoreClient,
       authorizeProject: authorizeProjectRequest,
+      // Share links must use the externally reachable base, not the proxy hop.
+      designerBaseUrl: nextoreConfig?.designerBaseUrl ?? null,
     });
     registerNextorePublicShareRoutes(app, { client: nextoreClient, edition });
     registerNextoreSnapshotRoutes(app, {

@@ -74,6 +74,7 @@ async function startApp(deps: {
   client: NextoreArtifactClient | null;
   deny?: boolean;
   withSession?: boolean;
+  designerBaseUrl?: string | null;
 }): Promise<string> {
   const app = express();
   app.use(express.json());
@@ -84,6 +85,7 @@ async function startApp(deps: {
   registerNextoreArtifactShareRoutes(app, {
     runtime: deps.runtime,
     client: deps.client,
+    designerBaseUrl: deps.designerBaseUrl === undefined ? 'https://designer.test' : deps.designerBaseUrl,
     authorizeProject: async (_req, res) => {
       if (deps.deny) {
         res.status(403).json({ error: 'forbidden' });
@@ -118,9 +120,43 @@ describe('nextore folder share routes', () => {
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({
       shared: true,
-      url: 'https://share.test/PublicShare?key=abc',
+      url: 'https://designer.test/share?key=abc',
     });
     expect(client.shareProject).not.toHaveBeenCalled();
+  });
+
+  it('hands out the same branded link on create and on every later read', async () => {
+    const client = clientStub({
+      projectShare: async () => ({ shared: true, url: 'https://share.test/PublicShare?key=abc' }),
+      shareProject: async () => ({ url: 'https://share.test/PublicShare?key=abc' }),
+    });
+    const base = await startApp({ runtime: runtimeStub(), client });
+
+    const read = await fetch(base + '/api/nextore/projects/project-1/share');
+    const created = await postJson(base, '/api/nextore/projects/project-1/share', {});
+
+    // Reopening the dialog must not swap in the raw platform URL: for a folder
+    // link that page renders an empty document viewer.
+    expect((await read.json() as { url: string }).url).toBe('https://designer.test/share?key=abc');
+    expect((await created.json() as { url: string }).url).toBe('https://designer.test/share?key=abc');
+  });
+
+  it('builds links from the configured base and ignores the request host', async () => {
+    const client = clientStub({
+      projectShare: async () => ({ shared: true, url: 'https://share.test/PublicShare?key=abc' }),
+    });
+    const base = await startApp({
+      runtime: runtimeStub(),
+      client,
+      designerBaseUrl: 'https://designer.example/Designer/',
+    });
+
+    const response = await fetch(base + '/api/nextore/projects/project-1/share', {
+      headers: { host: 'internal.test:8888' },
+    });
+
+    expect((await response.json() as { url: string }).url)
+      .toBe('https://designer.example/Designer/share?key=abc');
   });
 
   it('revokes the folder link and treats a repeat delete as already revoked', async () => {
@@ -300,7 +336,9 @@ describe('nextore artifact share routes', () => {
   });
 
   it('shares the project folder through NexTore', async () => {
-    const client = clientStub({});
+    const client = clientStub({
+      shareProject: async () => ({ url: 'https://share.test/PublicShare?key=folder' }),
+    });
     const runtime = runtimeStub();
     const base = await startApp({ runtime, client });
 
@@ -308,7 +346,7 @@ describe('nextore artifact share routes', () => {
 
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({
-      url: 'https://share.test/s/folder',
+      url: 'https://designer.test/share?key=folder',
       scope: 'project',
       previewOnly: true,
     });

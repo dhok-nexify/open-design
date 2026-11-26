@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { I18nProvider } from '../../src/i18n';
@@ -42,5 +42,44 @@ describe('ProjectShareForm', () => {
     expect(fetchMock).toHaveBeenCalledWith('/api/nextore/projects/p1/share', {
       headers: { accept: 'application/json' },
     });
+  });
+
+  it('shows the link the daemon returns and keeps it after the dialog reopens', async () => {
+    const sharedUrl = 'https://designer.test/share?key=abc';
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({ shared: true, url: sharedUrl })));
+
+    renderForm();
+    const first = await screen.findByDisplayValue(sharedUrl);
+    expect((first as HTMLInputElement).value).toBe(sharedUrl);
+
+    // Reopening mounts a fresh form. The read must render the identical string;
+    // a project (folder) link must never fall back to the platform URL, which
+    // renders an empty document viewer.
+    cleanup();
+    renderForm();
+    const second = await screen.findByDisplayValue(sharedUrl);
+    expect((second as HTMLInputElement).value).toBe(sharedUrl);
+  });
+
+  it('renders the created link exactly as the create call returned it', async () => {
+    const sharedUrl = 'https://designer.test/share?key=created';
+    vi.stubGlobal('fetch', vi.fn(async (_url: string, init?: RequestInit) => {
+      if (init?.method === 'POST') {
+        return jsonResponse({
+          url: sharedUrl,
+          scope: 'project',
+          previewOnly: true,
+          expiresAt: null,
+          hasPassword: false,
+        });
+      }
+      return jsonResponse({ shared: false, url: null });
+    }));
+
+    renderForm();
+    fireEvent.click(await screen.findByRole('button', { name: 'Create project link' }));
+
+    const input = await screen.findByDisplayValue(sharedUrl);
+    expect((input as HTMLInputElement).value).toBe(sharedUrl);
   });
 });
