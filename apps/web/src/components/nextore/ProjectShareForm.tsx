@@ -55,6 +55,11 @@ export function ProjectShareForm({ projectId }: { projectId: string }) {
     return () => clearTimeout(timer);
   }, [copied]);
 
+  // Hooks must stay above the state guard: the first render returns early, so
+  // a hook declared below it changes the hook order once data arrives and
+  // React aborts the whole project page (error #310).
+  const urlInputRef = useRef<HTMLInputElement | null>(null);
+
   if (!state) return null;
 
   const create = async () => {
@@ -97,8 +102,6 @@ export function ProjectShareForm({ projectId }: { projectId: string }) {
       setBusy(false);
     }
   };
-
-  const urlInputRef = useRef<HTMLInputElement | null>(null);
 
   const copy = async () => {
     if (!state.url) return;
