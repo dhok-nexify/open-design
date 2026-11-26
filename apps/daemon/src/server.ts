@@ -12279,6 +12279,17 @@ export async function startServer({
             : {},
         )
       : null;
+    if (byokProxyEnabled && def.id === 'byok-opencode') {
+      // Audit trail (NXD-P01): one searchable line per run that can reach the
+      // model only through the daemon. It says what this run's network world
+      // was, which is what an incident review asks for first.
+      console.log('[sandbox] run egress', {
+        run: run.id,
+        project: typeof projectId === 'string' ? projectId : null,
+        mode: sandboxRelayActive ? 'relay' : 'shared',
+        modelProxy: 'byok',
+      });
+    }
     if (def.id === 'byok-opencode' && !byokOpenCodeProvider) {
       return failRun(
         'BYOK_PROVIDER_REQUIRED',

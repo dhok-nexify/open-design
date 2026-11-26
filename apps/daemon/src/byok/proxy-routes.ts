@@ -58,6 +58,10 @@ export function registerByokProxyRoutes(
     const rest = match?.[2] ?? '';
     const target = deps.registry.resolve(token);
     if (!target) {
+      // The path segment IS the credential, so never log it. One line is enough
+      // to tell an operator "something tried the proxy without a capability"
+      // apart from "the network is broken".
+      console.warn('[byok] proxy rejected an unknown or expired capability');
       res.status(404).json({ error: 'proxy_target_unknown' });
       return;
     }

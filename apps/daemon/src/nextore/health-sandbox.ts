@@ -12,6 +12,16 @@ export type SandboxHealth = {
   mode: 'bwrap' | 'noop';
   reason?: string;
   detail?: string;
+  /**
+   * How the sandbox can reach the network (NXD-P01). "relay" means the run has
+   * no route and only the daemon is reachable; modelProxy says whether BYOK
+   * traffic is fronted by the per-run capability proxy. Together these are the
+   * audit answer to "what could this run talk to?".
+   */
+  egress?: {
+    relay: boolean;
+    modelProxy: boolean;
+  };
 };
 
 const SANDBOX_HEALTH_TTL_MS = 30_000;
@@ -20,6 +30,19 @@ const SANDBOX_HEALTH_TTL_MS = 30_000;
 const SANDBOX_HEALTH_FAILURE_TTL_MS = 10_000;
 
 let cache: { at: number; value: SandboxHealth } | null = null;
+
+/**
+ * The egress posture this process is actually running with. Read from env, but
+ * keyed the same way `server.ts` decides it, so health cannot claim a mode the
+ * runs do not have.
+ */
+function readEgressPosture(): { relay: boolean; modelProxy: boolean } {
+  const relay = process.env.OD_SANDBOX_EGRESS === 'relay';
+  return {
+    relay,
+    modelProxy: relay || process.env.OD_BYOK_PROXY === 'on',
+  };
+}
 
 /** Sandbox status for the health payload, or undefined outside the edition. */
 export function readSandboxHealth(edition: Edition): SandboxHealth | undefined {
@@ -32,8 +55,12 @@ export function readSandboxHealth(edition: Edition): SandboxHealth | undefined {
     cache = {
       at: now,
       value: mode === 'noop'
-        ? { ok: true, mode }
-        : { ...checkBwrap({ bwrapPath: process.env.OD_BWRAP_BIN?.trim() || 'bwrap' }), mode },
+        ? { ok: true, mode, egress: readEgressPosture() }
+        : {
+          ...checkBwrap({ bwrapPath: process.env.OD_BWRAP_BIN?.trim() || 'bwrap' }),
+          mode,
+          egress: readEgressPosture(),
+        },
     };
   }
   return cache.value;
