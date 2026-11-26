@@ -458,3 +458,71 @@ describe('byok-opencode runtime config', () => {
     expect(provider?.options).not.toHaveProperty('apiKey');
   });
 });
+
+describe('byok-opencode proxy transport', () => {
+  // Stands in for the daemon: the token is opaque, so nothing about the real
+  // provider URL can leak into the sandbox config.
+  const proxyUrlFor = (baseUrl: string): string =>
+    'http://127.0.0.1:8888/api/byok/proxy/t' + Buffer.from(baseUrl, 'utf8').toString('hex');
+
+  type Provider = { options?: Record<string, unknown> };
+  function providerOf(out: ReturnType<typeof buildOpenCodeByokProviderConfig>): Provider | undefined {
+    const provider = out?.config.provider as Record<string, Provider> | undefined;
+    return provider?.[BYOK_OPENCODE_PROVIDER_ID];
+  }
+
+  it('emits the proxy URL while keeping classic Azure deployment mode', () => {
+    const out = buildOpenCodeByokProviderConfig(
+      { protocol: 'azure', apiKey: 'azure-key', baseUrl: 'https://example.openai.azure.com' },
+      'gpt-4o',
+      { proxyUrlFor },
+    );
+    const provider = providerOf(out);
+
+    expect(provider?.options?.baseURL).toBe(proxyUrlFor('https://example.openai.azure.com'));
+    expect(provider?.options?.useDeploymentBasedUrls).toBe(true);
+    expect(provider?.options).toHaveProperty('apiKey');
+  });
+
+  it('keeps Azure OpenAI-compatible v1 paths in model-based URL mode while proxied', () => {
+    const baseUrl = 'https://resource.services.ai.azure.com/api/projects/p/openai/v1';
+    const out = buildOpenCodeByokProviderConfig(
+      { protocol: 'azure', apiKey: 'azure-key', baseUrl, apiVersion: '' },
+      'prod',
+      { proxyUrlFor },
+    );
+    const provider = providerOf(out);
+
+    expect(provider?.options?.baseURL).toBe(proxyUrlFor(baseUrl));
+    expect(provider?.options).not.toHaveProperty('useDeploymentBasedUrls');
+  });
+
+  it('keeps the real-OpenAI package and its API key while proxied', () => {
+    const out = buildOpenCodeByokProviderConfig(
+      { protocol: 'openai', apiKey: 'sk-openai', baseUrl: 'https://api.openai.com' },
+      'gpt-4o',
+      { proxyUrlFor },
+    );
+    const entry = (out?.config.provider as Record<string, { npm?: string }> | undefined)?.[BYOK_OPENCODE_PROVIDER_ID];
+
+    expect(entry?.npm).toBe('@ai-sdk/openai');
+    expect(out?.env).toHaveProperty(BYOK_OPENCODE_API_KEY_ENV);
+    expect(JSON.stringify(out?.config)).not.toContain('api.openai.com');
+  });
+
+  it('still requires the Ollama Cloud key and proxies its normalised v1 URL', () => {
+    const out = buildOpenCodeByokProviderConfig(
+      { protocol: 'ollama', apiKey: 'ollama-key', baseUrl: 'https://ollama.com' },
+      'gpt-oss:20b',
+      { proxyUrlFor },
+    );
+
+    expect(providerOf(out)?.options?.baseURL).toBe(proxyUrlFor('https://ollama.com/v1'));
+    expect(out?.env).toHaveProperty(BYOK_OPENCODE_API_KEY_ENV);
+    expect(buildOpenCodeByokProviderConfig(
+      { protocol: 'ollama', apiKey: '', baseUrl: 'https://ollama.com' },
+      'gpt-oss:20b',
+      { proxyUrlFor },
+    )).toBeNull();
+  });
+});

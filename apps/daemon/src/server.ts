@@ -421,6 +421,8 @@ import { registerBrandRoutes } from './brand-routes.js';
 import { resolveEdition } from './edition/index.js';
 import { resolveSandboxProvider, SandboxUnavailableError } from './sandbox/index.js';
 import { resolveSandboxEgress } from './sandbox/egress.js';
+import { createByokProxyRegistry } from './byok/proxy-registry.js';
+import { registerByokProxyRoutes } from './byok/proxy-routes.js';
 import { createNextoreClient } from './nextore/client.js';
 import { mountNextoreAccess, registerNextoreApiRoutes } from './nextore/host-access.js';
 import { readSandboxHealth } from './nextore/health-sandbox.js';
@@ -3450,6 +3452,15 @@ export async function startServer({
         },
       },
     });
+  }
+  // NXD-P01 path A: the sandboxed agent reaches the model through the daemon.
+  // Mounted before the JSON parser (a model call is a long stream, not a 4 MB
+  // object) and before the browser gate (the capability token is the auth).
+  const byokProxyEnabled = edition === 'nextore' && process.env.OD_BYOK_PROXY === 'on';
+  const byokProxyRegistry = createByokProxyRegistry();
+  if (byokProxyEnabled) {
+    registerByokProxyRoutes(app, { registry: byokProxyRegistry });
+    console.log('[byok] model proxy enabled — sandboxed runs call it instead of the provider');
   }
   app.use(express.json({ limit: '4mb', verify: captureJsonBodySize }));
   if (nextoreAuth) {
@@ -12239,6 +12250,17 @@ export async function startServer({
       ? buildOpenCodeByokProviderConfig(
           byokProvider,
           typeof model === 'string' ? model : null,
+          byokProxyEnabled
+            ? {
+                proxyUrlFor: (providerBaseUrl) => {
+                  const token = byokProxyRegistry.issue({
+                    baseUrl: providerBaseUrl,
+                    runId: typeof run.id === 'string' ? run.id : null,
+                  });
+                  return 'http://127.0.0.1:' + resolvedPort + '/api/byok/proxy/' + token;
+                },
+              }
+            : {},
         )
       : null;
     if (def.id === 'byok-opencode' && !byokOpenCodeProvider) {

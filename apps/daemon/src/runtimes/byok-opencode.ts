@@ -42,6 +42,7 @@ export function opencodeByokModelId(model: string | null | undefined): string | 
 export function buildOpenCodeByokProviderConfig(
   provider: ByokChatProviderConfig | null | undefined,
   model: string | null | undefined,
+  options: { proxyUrlFor?: (baseUrl: string) => string } = {},
 ): OpenCodeByokProviderConfig | null {
   if (!provider || typeof provider !== 'object') return null;
   const protocol = provider.protocol;
@@ -51,12 +52,24 @@ export function buildOpenCodeByokProviderConfig(
   const apiKey = typeof provider.apiKey === 'string' ? provider.apiKey.trim() : '';
   const rawModel = typeof model === 'string' ? model.trim() : '';
   const defaultBaseUrl = DEFAULT_BASE_URL_BY_PROTOCOL[protocol];
+  // The provider URL drives every decision below: whether an API key is
+  // required, which package serves the protocol, and Azure's URL mode. Only the
+  // transport address written into the sandbox config may be swapped, so
+  // proxying can never change provider semantics.
   const baseUrl = normalizeProviderBaseUrl(
     protocol,
     typeof provider.baseUrl === 'string' && provider.baseUrl.trim()
       ? provider.baseUrl.trim()
       : defaultBaseUrl,
   );
+  // NXD-P01: the sandbox may have no route to the provider, so the daemon
+  // fronts it. The callback receives the resolved provider URL (after protocol
+  // normalisation) and returns the daemon's proxy URL; the real base URL stays
+  // in the daemon and never enters the sandbox config.
+  const transportBaseUrl =
+    baseUrl && typeof options.proxyUrlFor === 'function'
+      ? options.proxyUrlFor(baseUrl)
+      : baseUrl;
   const needsApiKey = requiresApiKey(provider, baseUrl);
   if (needsApiKey && !apiKey) return null;
   if (!rawModel || rawModel.toLowerCase() === 'default') return null;
@@ -68,6 +81,7 @@ export function buildOpenCodeByokProviderConfig(
   const providerEntry = buildProviderEntry(
     protocol,
     baseUrl,
+    transportBaseUrl,
     provider.apiVersion,
     needsApiKey,
   );
@@ -177,6 +191,7 @@ function isRealOpenAIHost(baseUrl: string): boolean {
 function buildProviderEntry(
   protocol: ByokChatProviderConfig['protocol'],
   baseUrl: string,
+  transportBaseUrl: string,
   apiVersion: string | undefined,
   includeApiKey: boolean,
 ): { npm: ProviderPackage; options: Record<string, unknown> } {
@@ -191,7 +206,7 @@ function buildProviderEntry(
         npm: '@ai-sdk/anthropic',
         options: {
           ...apiKeyOption,
-          ...(baseUrl ? { baseURL: baseUrl } : {}),
+          ...(transportBaseUrl ? { baseURL: transportBaseUrl } : {}),
         },
       };
     case 'azure':
@@ -199,7 +214,7 @@ function buildProviderEntry(
         npm: '@ai-sdk/azure',
         options: {
           ...apiKeyOption,
-          ...(baseUrl ? { baseURL: baseUrl } : {}),
+          ...(transportBaseUrl ? { baseURL: transportBaseUrl } : {}),
           ...(usesAzureOpenAICompatiblePath
             ? {}
             : { useDeploymentBasedUrls: true }),
@@ -211,14 +226,14 @@ function buildProviderEntry(
         npm: '@ai-sdk/google',
         options: {
           ...apiKeyOption,
-          ...(baseUrl ? { baseURL: baseUrl } : {}),
+          ...(transportBaseUrl ? { baseURL: transportBaseUrl } : {}),
         },
       };
     case 'ollama':
       return {
         npm: '@ai-sdk/openai-compatible',
         options: {
-          baseURL: baseUrl,
+          baseURL: transportBaseUrl,
           ...apiKeyOption,
         },
       };
@@ -231,14 +246,14 @@ function buildProviderEntry(
           npm: '@ai-sdk/openai',
           options: {
             ...apiKeyOption,
-            ...(baseUrl ? { baseURL: baseUrl } : {}),
+            ...(transportBaseUrl ? { baseURL: transportBaseUrl } : {}),
           },
         };
       }
       return {
         npm: '@ai-sdk/openai-compatible',
         options: {
-          baseURL: baseUrl,
+          baseURL: transportBaseUrl,
           ...apiKeyOption,
         },
       };
@@ -247,7 +262,7 @@ function buildProviderEntry(
       return {
         npm: '@ai-sdk/openai-compatible',
         options: {
-          baseURL: baseUrl,
+          baseURL: transportBaseUrl,
           ...apiKeyOption,
         },
       };
