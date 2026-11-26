@@ -1,5 +1,6 @@
 import type { WorkspaceCollabContext } from '@open-design/contracts';
 import { currentWorkspaceAccountGeneration, workspaceProjectHeaders } from '../../collab/workspace-identity';
+import { isFeatureEnabled } from '../../nextore/features';
 import { isProjectShareHistory } from '../share/useProjectShareHistory';
 
 /** Read only the exact HTML files targeted by a destructive file operation.
@@ -11,6 +12,9 @@ export async function activeFileSharesBeforeDelete(
 ): Promise<number | null> {
   const htmlPaths = new Set(filePaths.filter(path => /\.html?$/i.test(path)));
   if (htmlPaths.size === 0) return null;
+  // NexTore shares through its own module, so there is no Cloud share record
+  // to consult before a delete - and the route refuses (409) in this edition.
+  if (!isFeatureEnabled('collab-cloud')) return 0;
   if (!context) throw new Error('workspace identity unavailable for shared HTML deletion');
   const generation = currentWorkspaceAccountGeneration();
   const response = await fetch(`/api/projects/${encodeURIComponent(projectId)}/share-state`, {

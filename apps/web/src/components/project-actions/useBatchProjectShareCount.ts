@@ -5,6 +5,7 @@ import {
   workspaceAccountScopedCacheKey,
   workspaceProjectHeaders,
 } from '../../collab/workspace-identity';
+import { isFeatureEnabled } from '../../nextore/features';
 import { AMR_LOGIN_STATUS_EVENT } from '../amrLoginPolling';
 import { isProjectShareHistory } from '../share/useProjectShareHistory';
 
@@ -33,6 +34,14 @@ export function useBatchProjectShareCount(
       controller?.abort();
       setResult(null);
       if (ids.length === 0 || !context) return;
+      if (!isFeatureEnabled('collab-cloud')) {
+        // NexTore shares through its own module. The Cloud share-state route
+        // cannot answer in this edition (409 WORKSPACE_IDENTITY_REQUIRED), and
+        // that refusal must not read as "couldn't check, keep delete locked":
+        // there are simply no Cloud shares to count.
+        setResult({ scope, count: 0, failed: false });
+        return;
+      }
       const account = currentWorkspaceAccountGeneration();
       controller = new AbortController();
       void (async () => {
