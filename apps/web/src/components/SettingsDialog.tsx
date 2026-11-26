@@ -4027,7 +4027,10 @@ export function SettingsDialog({
     about: { title: t('settings.about'), subtitle: t('settings.aboutHint') },
   };
   const activeHeader = sectionHeader[activeSection];
-  const visibleAgents = agents.filter(isVisibleLocalCliAgent);
+  const visibleAgents = agents.filter(isVisibleLocalCliAgent)
+    // NEXTORE: "amr" is the OpenDesign Cloud runtime; its card exists to sign
+    // in, show a wallet and pick a plan, none of which this edition has.
+    .filter((agent) => agent.id !== 'amr' || isFeatureEnabled('cloud-amr'));
   const installedAgents = orderAgentsWithOpenDesignFirst(
     visibleAgents.filter((agent) => agent.available || deepSeekHarnessNeedsSetup(agent)),
   );
@@ -4617,7 +4620,7 @@ export function SettingsDialog({
                 </button>
               </div>
               </div>
-              {cfg.mode === 'daemon' && !amrCardSignedIn ? (
+              {isFeatureEnabled('cloud-amr') && cfg.mode === 'daemon' && !amrCardSignedIn ? (
                 // Only prompt to sign into OpenDesign Cloud when NOT already
                 // signed in — the AMR/vela session IS the cloud identity (one
                 // session drives both), so a logged-in user has nothing to do

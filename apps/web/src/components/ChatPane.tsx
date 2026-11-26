@@ -185,7 +185,7 @@ import {
 import { attachmentLocalPreviewUrl } from '../runtime/chat/creation-handoff';
 import type { PendingUpload } from '../runtime/chat/staged-attachment';
 import type { PlaceholderScenario } from './home-hero/placeholderScenarios';
-import { isFeatureEnabled } from '../nextore/features';
+import { resolveCloudRecoveryActions } from '../nextore/cloud-recovery';
 import { listDesignArtifactCandidates } from './design-files/designArtifacts';
 import type { PluginFolderAgentAction } from './design-files/pluginFolderActions';
 import { Icon, type IconName } from './Icon';
@@ -2548,12 +2548,16 @@ export function ChatPane({
     !accessErrorCopy && retryAssistant && failedRunErrorEvent ? retryAssistant.id : null;
   // OPEND-2807 / G16: the failed run selects one fixed recovery action.
   // The classifier still owns approved copy and handoffs, never extra buttons.
-  const failedRunUsesCloud = retryAssistant?.agentId === 'amr';
-  const showCloudRetry = Boolean(retryAssistant && failedRunUsesCloud && onRetry);
-  const showCloudSwitchCta = Boolean(
-    retryAssistant && !failedRunUsesCloud
-    && (onSwitchToAmrAndRetry || onOpenAmrSettings),
-  );
+  // NEXTORE: the edition has no Cloud account, so neither Cloud recovery action
+  // may render. The policy - and the test that locks it - lives in
+  // nextore/cloud-recovery so the card and the rule cannot drift apart.
+  const cloudRecovery = resolveCloudRecoveryActions({
+    failedAgentId: retryAssistant?.agentId,
+    hasRetry: Boolean(onRetry),
+    hasSwitchTarget: Boolean(onSwitchToAmrAndRetry || onOpenAmrSettings),
+  });
+  const showCloudRetry = Boolean(retryAssistant) && cloudRecovery.cloudRetry;
+  const showCloudSwitchCta = Boolean(retryAssistant) && cloudRecovery.switchToCloud;
 
   const [supportDialogOpen, setSupportDialogOpen] = useState(false);
   // The separate balance card retains its existing plans entry.
