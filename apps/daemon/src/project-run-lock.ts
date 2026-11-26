@@ -27,6 +27,35 @@ export interface ProjectRunLockOptions {
 }
 
 const DEFAULT_TTL_MS = 30 * 60_000;
+const DEFAULT_QUEUED_GRACE_MS = 60_000;
+
+/** The run fields this module reads; both the live record and a rehydrated one fit. */
+export interface ProjectRunLockRecord {
+  status: string;
+  startedAt?: number | null;
+  createdAt: number;
+}
+
+/**
+ * Whether a run record still justifies holding its project's lock.
+ *
+ * A run that never emitted `start` has spawned nothing and cannot be writing
+ * the project directory, so it stops counting shortly after creation. Without
+ * that rule a turn whose start died before the spawn path - or one created and
+ * never picked up - keeps the project locked for the lock's whole TTL, and every
+ * later turn answers "another run is active in this project" against a run the
+ * UI cannot even see.
+ */
+export function isRunRecordLocking(
+  record: ProjectRunLockRecord,
+  options: { now?: () => number; queuedGraceMs?: number } = {},
+): boolean {
+  const now = options.now ?? Date.now;
+  const queuedGraceMs = options.queuedGraceMs ?? DEFAULT_QUEUED_GRACE_MS;
+  const startedAt = record.startedAt ?? null;
+  if (startedAt !== null) return true;
+  return now() - record.createdAt <= queuedGraceMs;
+}
 
 /**
  * One active run per project in the NexTore edition (NXD-D11).

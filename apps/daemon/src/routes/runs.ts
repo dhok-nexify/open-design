@@ -183,7 +183,7 @@ import {
 import { resolveChatRunInactivityTimeoutMs } from '../runtimes/chat-run-lifecycle.js';
 import { editionAgentGate } from '../edition/agent-selection.js';
 import { requiresRunProjectAuthorization } from '../nextore/authorization.js';
-import { createProjectRunLock } from '../project-run-lock.js';
+import { createProjectRunLock, isRunRecordLocking } from '../project-run-lock.js';
 import { resolveNextoreRunProvider } from '../nextore/models/resolve-run-provider.js';
 import { readNextoreConfig } from '../nextore/config.js';
 import type { NextoreSession } from '../nextore/auth/session-store.js';
@@ -1030,7 +1030,8 @@ export function registerRunRoutes(app: Express, ctx: RegisterRunRoutesDeps) {
       (runId) => {
         const active = design.runs.get(runId);
         if (!active) return false;
-        return !TERMINAL_RUN_STATUSES.has(active.status);
+        if (TERMINAL_RUN_STATUSES.has(active.status)) return false;
+        return isRunRecordLocking(active);
       },
     );
     if (!acquired.ok) {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { createProjectRunLock } from '../src/project-run-lock.js';
+import { createProjectRunLock, isRunRecordLocking } from '../src/project-run-lock.js';
 
 const active = () => true;
 const inactive = () => false;
@@ -58,5 +58,35 @@ describe('createProjectRunLock', () => {
     expect(lock.size()).toBe(2);
     lock.clear();
     expect(lock.size()).toBe(0);
+  });
+});
+
+describe('isRunRecordLocking', () => {
+  it('keeps counting a run that started, however old it is', () => {
+    expect(isRunRecordLocking(
+      { status: 'running', startedAt: 1_000, createdAt: 1_000 },
+      { now: () => 24 * 60 * 60_000, queuedGraceMs: 60_000 },
+    )).toBe(true);
+  });
+
+  it('keeps counting a run that is still inside the queued grace window', () => {
+    expect(isRunRecordLocking(
+      { status: 'queued', startedAt: null, createdAt: 1_000 },
+      { now: () => 30_000, queuedGraceMs: 60_000 },
+    )).toBe(true);
+  });
+
+  it('stops counting a run that never left the queue', () => {
+    expect(isRunRecordLocking(
+      { status: 'queued', startedAt: null, createdAt: 1_000 },
+      { now: () => 61_001, queuedGraceMs: 60_000 },
+    )).toBe(false);
+  });
+
+  it('treats a missing startedAt as never started', () => {
+    expect(isRunRecordLocking(
+      { status: 'queued', createdAt: 1_000 },
+      { now: () => 120_000, queuedGraceMs: 60_000 },
+    )).toBe(false);
   });
 });
