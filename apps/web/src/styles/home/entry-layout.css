@@ -261,12 +261,31 @@
    zeroes out and the floating panel is clipped and inert. The open state is
    preserved, so widening the window restores the rail as it was. */
 @media (max-width: 1080px) {
+  /* The rail cannot dock beside the content at this width, so opening it
+     floats it OVER the entry as a drawer. The grid track still zeroes out:
+     the content keeps its full width and the drawer sits above it. Before
+     this, the track was pinned to 0 while the toggle stayed visible, so the
+     rail could never be opened at all below 1080px - the entire nav
+     (projects, design systems, settings) was unreachable. */
+  .entry-shell--no-header .entry {
+    position: relative;
+  }
   .entry-shell--no-header .entry.entry--rail-open {
     grid-template-columns: 0 minmax(0, 1fr);
   }
   .entry--rail-open .entry-nav-rail {
-    overflow: hidden;
-    pointer-events: none;
+    position: absolute;
+    inset: 0 auto 0 0;
+    z-index: 40;
+    width: min(var(--entry-rail-width, 236px), 86vw);
+    overflow: visible;
+    pointer-events: auto;
+    background: var(--bg);
+    border-right: 1px solid var(--border);
+    box-shadow: 16px 0 40px rgb(0 0 0 / 0.16);
+  }
+  .entry.entry--rail-open .entry-nav-rail__scrim {
+    display: block;
   }
   /* …and the content card takes over the left gutter, exactly as it does when
      the user collapses the rail themselves. It cannot inherit that rule: the
@@ -278,6 +297,20 @@
     margin-left: 12px;
   }
 }
+/* Tap-outside dismissal for the narrow-window rail drawer. Rendered only
+   while the rail is open; hidden by default so the docked rail above 1080px
+   never dims the content it sits beside. */
+.entry-nav-rail__scrim {
+  display: none;
+  position: absolute;
+  inset: 0;
+  z-index: 39;
+  padding: 0;
+  border: 0;
+  background: rgb(15 15 15 / 0.28);
+  cursor: pointer;
+}
+
 /* Topbar panel toggle — the single affordance left visible when the rail
    is collapsed. Sits at the left edge of the sticky topbar and is hidden
    once the rail is docked (the tabs bar's pinned Home toggle takes over). */

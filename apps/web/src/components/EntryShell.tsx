@@ -1561,6 +1561,19 @@ export function EntryShell({
     );
   }, [railOpen]);
 
+  // Escape closes the drawer the same way it closes every other transient
+  // surface in the shell - but only when no dialog is in front of it.
+  useEffect(() => {
+    if (!railOpen) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      if (document.querySelector('[role="dialog"], [aria-modal="true"]')) return;
+      setRailOpen(false);
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [railOpen]);
+
   // The pinned Home tab (WorkspaceTabsBar) carries a sidebar toggle; it lives
   // in a sibling tree, so the request arrives as a window event.
   useEffect(() => {
@@ -2366,6 +2379,17 @@ export function EntryShell({
         // track (the base 56px icon-rail clips the labels + team affordances).
         style={{ ['--entry-rail-width' as string]: '236px' }}
       >
+        {railOpen ? (
+          // Narrow windows open the rail as a drawer, so tapping the dimmed
+          // area dismisses it. Above 1080px this element is display:none and
+          // the docked rail keeps its existing interaction.
+          <button
+            type="button"
+            className="entry-nav-rail__scrim"
+            aria-label={t('common.close')}
+            onClick={() => setRailOpen(false)}
+          />
+        ) : null}
         <EntryNavRail
           view={view}
           onViewChange={changeView}
