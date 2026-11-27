@@ -1085,12 +1085,17 @@ export function registerRunRoutes(app: Express, ctx: RegisterRunRoutesDeps) {
     }
   };
 
-  const nextoreProviderForRun = (res: ApiResponse, tier: unknown) => {
+  const nextoreProviderForRun = (res: ApiResponse, tier: unknown, modelKey: unknown) => {
     if (resolveEdition(process.env.OD_EDITION) !== 'nextore') return null;
     const config = readNextoreConfig(process.env, 'nextore');
     if (!config) return null;
     const session = (res.locals as { nextoreSession?: NextoreSession }).nextoreSession ?? null;
-    return resolveNextoreRunProvider({ config, session, tier });
+    return resolveNextoreRunProvider({
+      config,
+      session,
+      tier,
+      ...(typeof modelKey === 'string' ? { modelKey } : {}),
+    });
   };
   const {
     connectorService,
@@ -2151,7 +2156,7 @@ export function registerRunRoutes(app: Express, ctx: RegisterRunRoutesDeps) {
     }
     // NEXTORE: ignore any client-supplied provider for the edition and derive
     // it from the session instead. A missing session is a 401, not a 400.
-    const nextoreProvider = nextoreProviderForRun(res, requestBody.tier);
+    const nextoreProvider = nextoreProviderForRun(res, requestBody.tier, requestBody.modelKey);
     if (nextoreProvider && !nextoreProvider.ok) {
       return sendApiError(
         res,
@@ -2163,6 +2168,7 @@ export function registerRunRoutes(app: Express, ctx: RegisterRunRoutesDeps) {
     if (nextoreProvider?.ok) {
       meta.byokProvider = nextoreProvider.byokProvider;
       meta.model = nextoreProvider.model;
+      meta.modelKey = nextoreProvider.modelKey;
     }
     const providerSnapshot = nextoreProvider?.ok
       ? meta

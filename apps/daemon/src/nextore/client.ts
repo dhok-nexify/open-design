@@ -78,6 +78,8 @@ export interface NextoreClient {
    * base URL instead.
    */
   tierModels<T>(accessToken: string, tier: NextoreTier, signal?: AbortSignal): Promise<T>;
+  /** Readable platform model catalog, without endpoint or credential fields. */
+  readableModels?<T>(accessToken: string, signal?: AbortSignal): Promise<T>;
   /** Effective rights for one DesignProject, as the module computes them. */
   projectAccess<T>(accessToken: string, projectId: string, signal?: AbortSignal): Promise<T>;
   /** Deep link into the site's permission editor for one DesignProject. */
@@ -735,6 +737,14 @@ export function createNextoreClient(
     tierModels<T>(accessToken: string, tier: NextoreTier, signal?: AbortSignal) {
       return request<T>(
         'api/designer/llm/' + encodeURIComponent(tier) + '/v1/models',
+        signal ? { accessToken, signal } : { accessToken },
+      );
+    },
+
+    /** Readable platform model catalog; no endpoint URL or credential is returned. */
+    readableModels<T>(accessToken: string, signal?: AbortSignal) {
+      return request<T>(
+        'api/llm/prompt/models',
         signal ? { accessToken, signal } : { accessToken },
       );
     },

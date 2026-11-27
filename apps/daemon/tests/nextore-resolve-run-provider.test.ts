@@ -63,6 +63,31 @@ describe('resolveNextoreRunProvider', () => {
       .toMatchObject({ ok: false, status: 400, code: 'TIER_INVALID' });
   });
 
+describe('P12 explicit modelKey', () => {
+  it('routes a concrete platform model to its own module endpoint', () => {
+    const resolved = resolveNextoreRunProvider({
+      config,
+      session,
+      tier: 'expert',
+      modelKey: 'model:42',
+    });
+    expect(resolved).toMatchObject({
+      ok: true,
+      model: 'model:42',
+      modelKey: 'model:42',
+    });
+    expect(resolved.ok && resolved.byokProvider.baseUrl)
+      .toBe('https://nextore.example.test/api/designer/llm/models/42/v1');
+  });
+
+  it('treats presets as aliases and rejects arbitrary keys', () => {
+    expect(resolveNextoreRunProvider({ config, session, tier: 'expert', modelKey: 'fast' }))
+      .toMatchObject({ ok: true, model: 'fast', tier: 'fast' });
+    expect(resolveNextoreRunProvider({ config, session, tier: 'expert', modelKey: 'https://evil.test' }))
+      .toMatchObject({ ok: false, status: 400, code: 'MODEL_KEY_INVALID' });
+  });
+});
+
 describe('D40 small_model alias', () => {
   it('resolves small_model to the fast tier base URL', () => {
     const result = resolveNextoreRunProvider({

@@ -192,6 +192,12 @@ export interface ChatRequest {
    */
   tier?: NextoreTier;
   /**
+   * NexTore edition: a platform model selected from the readable catalog.
+   * `fast`/`expert` are aliases; a concrete model uses `model:<treeObjectId>`.
+   * The daemon resolves it server-side; the client never supplies credentials.
+   */
+  modelKey?: string | null;
+  /**
    * Run-scoped BYOK media defaults selected in the chat UI. The daemon uses
    * these to guide OpenCode-backed `od media generate` calls for this run only.
    */

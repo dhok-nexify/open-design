@@ -235,6 +235,58 @@ export function registerNextoreRoutes(
   app.get('/api/nextore/self-test', createNextoreSelfTestHandler(deps.client));
 
   /**
+   * Models the current user may select. Presets stay first; concrete entries
+   * come from the platform catalog and never carry endpoint or key material.
+   */
+  app.get('/api/designer/models', async (_req, res) => {
+    const session = res.locals as {
+      nextoreSession?: { accessToken?: string; member?: { id?: number } };
+    };
+    const accessToken = session.nextoreSession?.accessToken?.trim();
+    if (!accessToken) {
+      res.status(401).json({ error: 'SESSION_REQUIRED' });
+      return;
+    }
+    const presets = [
+      { modelKey: 'fast', name: 'Fast', source: 'preset', capabilities: [] as string[] },
+      { modelKey: 'expert', name: 'Expert', source: 'preset', capabilities: [] as string[] },
+    ];
+    if (!deps.client.readableModels) {
+      res.status(502).json({ error: 'model_catalog_unavailable' });
+      return;
+    }
+    try {
+      const upstream = await deps.client.readableModels<{
+        data?: Array<{ id?: string | number; owned_by?: string }>;
+      }>(accessToken);
+      const models = (upstream.data ?? [])
+        .map((entry) => {
+          const id = entry.id === undefined || entry.id === null ? '' : String(entry.id).trim();
+          if (!/^\d+$/.test(id)) return null;
+          return {
+            modelKey: 'model:' + id,
+            name: id,
+            source: entry.owned_by === 'custom' ? 'custom' : 'standard',
+            capabilities: [] as string[],
+          };
+        })
+        .filter((entry): entry is {
+          modelKey: string;
+          name: string;
+          source: string;
+          capabilities: string[];
+        } => entry !== null);
+      res.json({ models: [...presets, ...models] });
+    } catch (error) {
+      const code = error instanceof NextoreClientError ? error.upstreamCode ?? error.code : undefined;
+      res.status(502).json({
+        error: 'model_catalog_unavailable',
+        ...(code ? { upstreamCode: code } : {}),
+      });
+    }
+  });
+
+  /**
    * Renderer diagnostics: which Chromium the daemon would run, and whether the
    * deb-first resolver is deployed. Exists because a stale daemon build and a
    * snap-only PATH look identical from the outside ("chromium exited 46").

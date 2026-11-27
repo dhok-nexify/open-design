@@ -4,17 +4,18 @@ import type { NextoreSession } from '../auth/session-store.js';
 import type { NextoreConfig } from '../config.js';
 
 /**
- * The provider a NexTore edition run must use (NXD-D13).
+ * The provider a NexTore edition run must use (NXD-D13, P12).
  *
- * The client never supplies a model id, base URL or credential in the edition:
- * the tier picks a module endpoint, and the signed-in session supplies the API
- * key. That keeps the token out of the browser and out of the prompt, and it
- * means a client cannot point the run at an arbitrary upstream.
+ * The client only names a model from the platform catalog (`fast`, `expert` or
+ * `model:<treeObjectId>`). The daemon resolves that name to a module endpoint
+ * and the signed-in session supplies the credential. A client can never supply
+ * an arbitrary base URL, API key or upstream model string.
  */
 export interface NextoreRunProviderInput {
   config: NextoreConfig;
   session: Pick<NextoreSession, 'accessToken'> | null | undefined;
   tier: unknown;
+  modelKey?: string | null;
 }
 
 export type NextoreRunProvider =
@@ -22,12 +23,13 @@ export type NextoreRunProvider =
       ok: true;
       tier: NextoreTier;
       model: string;
+      modelKey: string;
       byokProvider: ByokChatProviderConfig;
     }
   | {
       ok: false;
       status: 400 | 401;
-      code: 'TIER_INVALID' | 'SESSION_REQUIRED';
+      code: 'TIER_INVALID' | 'MODEL_KEY_INVALID' | 'SESSION_REQUIRED';
       message: string;
     };
 
@@ -37,7 +39,16 @@ export function nextoreTierBaseUrl(baseUrl: string, tier: NextoreTier): string {
 }
 
 export function resolveNextoreRunProvider(input: NextoreRunProviderInput): NextoreRunProvider {
-  const tier = normalizeNextoreTier(input.tier as string | null | undefined);
+  const requested = parseModelKey(input.modelKey);
+  if (requested.invalid) {
+    return {
+      ok: false,
+      status: 400,
+      code: 'MODEL_KEY_INVALID',
+      message: 'modelKey must be "fast", "expert" or "model:<treeObjectId>".',
+    };
+  }
+  const tier = requested.tier ?? normalizeNextoreTier(input.tier as string | null | undefined);
   if (!tier) {
     return {
       ok: false,
@@ -57,18 +68,42 @@ export function resolveNextoreRunProvider(input: NextoreRunProviderInput): Nexto
     };
   }
 
+  const modelKey = requested.key ?? tier;
+  const baseUrl = requested.modelId
+    ? input.config.baseUrl.replace(/\/+$/, '') + '/api/designer/llm/models/' + requested.modelId + '/v1'
+    : nextoreTierBaseUrl(input.config.baseUrl, tier);
+
   return {
     ok: true,
     tier,
-    // The module resolves the tier to the configured model; the OpenAI client
-    // still needs a model string, so the tier name is the honest value.
-    model: tier,
+    // The OpenAI client still needs a model string; use the catalog key so
+    // diagnostics record what the user actually selected.
+    model: modelKey,
+    modelKey,
     byokProvider: {
       protocol: 'openai',
       apiKey: accessToken,
-      baseUrl: nextoreTierBaseUrl(input.config.baseUrl, tier),
+      baseUrl,
     },
   };
+}
+
+type ParsedModelKey = {
+  invalid?: false;
+  key: string | null;
+  tier: NextoreTier | null;
+  modelId: string | null;
+} | {
+  invalid: true;
+};
+
+function parseModelKey(value: string | null | undefined): ParsedModelKey {
+  const raw = typeof value === 'string' ? value.trim() : '';
+  if (!raw) return { key: null, tier: null, modelId: null };
+  if (isNextoreTier(raw)) return { key: raw, tier: raw, modelId: null };
+  const match = /^model:(\d+)$/.exec(raw);
+  if (!match) return { invalid: true };
+  return { key: raw, tier: null, modelId: match[1] ?? '' };
 }
 
 /**
