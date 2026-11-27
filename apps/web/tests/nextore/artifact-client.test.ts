@@ -31,6 +31,19 @@ describe('primaryArtifact', () => {
     expect(primary?.artifactId).toBe('new');
   });
 
+  it('never picks a Release ZIP as the current file', () => {
+    const primary = primaryArtifact([
+      record({ artifactId: 'page', representation: 'source', updatedAt: 10 }),
+      record({
+        artifactId: 'release:r1',
+        representation: 'source',
+        relativePath: 'Releases/p1-v1.zip',
+        updatedAt: 99,
+      }),
+    ]);
+    expect(primary?.artifactId).toBe('page');
+  });
+
   it('falls back to any representation when no source exists', () => {
     const primary = primaryArtifact([record({ artifactId: 'snap', representation: 'snapshot' })]);
     expect(primary?.artifactId).toBe('snap');

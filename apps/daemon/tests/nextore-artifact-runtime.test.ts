@@ -1,5 +1,6 @@
 import Database from 'better-sqlite3';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import JSZip from 'jszip';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -91,6 +92,7 @@ afterEach(async () => {
 function runtime(
   mode: 'off' | 'publish' | 'publish+share',
   onStatus?: (event: NextoreArtifactStatusEvent) => void,
+  options: { releaseZipDir?: string } = {},
 ): { runtime: NextoreArtifactRuntime; publish: ReturnType<typeof vi.fn>; store: FakeSessionStore } {
   const store = new FakeSessionStore();
   store.rows.set('sid-1', {
@@ -121,6 +123,8 @@ function runtime(
       mode,
       now: () => 1_000,
       autoDrain: false,
+      resolveProjectRoot: () => projectRoot,
+      ...(options.releaseZipDir ? { releaseZipDir: options.releaseZipDir } : {}),
       ...(onStatus ? { onStatus } : {}),
     }),
     publish,
@@ -336,6 +340,39 @@ describe('NextoreArtifactRuntime', () => {
       exportedFiles: ['chapters/one.html', 'assets/site.css', 'assets/app.js'],
     });
     expect(worker.releases('project-1')).toHaveLength(1);
+  });
+
+  it('freezes and publishes a deterministic zip as a single-file artifact', async () => {
+    await mkdir(join(projectRoot, 'chapters'), { recursive: true });
+    await mkdir(join(projectRoot, 'assets'), { recursive: true });
+    await writeFile(join(projectRoot, 'chapters', 'one.html'), '<html>one</html>', 'utf8');
+    await writeFile(join(projectRoot, 'assets', 'site.css'), 'body{}', 'utf8');
+    const zipDir = join(dir, 'release-zips');
+    const { runtime: worker } = runtime('publish', undefined, { releaseZipDir: zipDir });
+    worker.enqueueRun({
+      projectId: 'project-1',
+      artifactId: 'artifact-1',
+      projectRoot,
+      runId: 'run-1',
+      tier: 'expert',
+      memberId: 7,
+      deliverable,
+      exportedFiles: ['chapters/one.html', 'assets/site.css'],
+    });
+
+    for (let i = 0; i < 5; i += 1) await worker.drainOnce();
+
+    const release = worker.releases('project-1')[0]!;
+    expect(release.status).toBe('ready');
+    const zip = await worker.releaseZip('project-1', release.releaseId);
+    expect(zip).not.toBeNull();
+    const archive = await JSZip.loadAsync(zip!.buffer);
+    expect(archive.file('manifest.json')).not.toBeNull();
+    expect(archive.file('assets/site.css')).not.toBeNull();
+
+    // Same manifest must produce identical bytes.
+    const again = await worker.releaseZip('project-1', release.releaseId);
+    expect(again?.sha256).toBe(zip?.sha256);
   });
 
   it('re-arms an existing queue row and refuses an unknown one', () => {

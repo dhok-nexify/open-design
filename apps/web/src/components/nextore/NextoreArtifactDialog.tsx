@@ -10,9 +10,14 @@ import { useT } from '../../i18n';
 import {
   artifactDownloadUrl,
   fetchProjectArtifacts,
+  fetchProjectReleases,
+  prepareReleaseShare,
   primaryArtifact,
+  releaseDownloadUrl,
+  type ProjectRelease,
 } from '../../nextore/artifact-client';
 import { Icon } from '../Icon';
+import { ArtifactShareDialog } from './ArtifactShareDialog';
 import { ArtifactShareForm } from './ArtifactShareForm';
 import { ArtifactStatusChip } from './ArtifactStatusChip';
 import { LegacyShareBanner } from './LegacyShareBanner';
@@ -37,6 +42,10 @@ export function NextoreArtifactDialog({
 }) {
   const t = useT();
   const [records, setRecords] = useState<NextoreArtifactRecord[]>([]);
+  const [releases, setReleases] = useState<ProjectRelease[]>([]);
+  const [releaseShareArtifactId, setReleaseShareArtifactId] = useState<string | null>(null);
+  const [preparingReleaseId, setPreparingReleaseId] = useState<string | null>(null);
+  const [releaseError, setReleaseError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
   const dialogRef = useRef<HTMLDivElement | null>(null);
@@ -61,9 +70,13 @@ export function NextoreArtifactDialog({
     let cancelled = false;
     void (async () => {
       try {
-        const list = await fetchProjectArtifacts(projectId);
+        const [list, history] = await Promise.all([
+          fetchProjectArtifacts(projectId),
+          fetchProjectReleases(projectId),
+        ]);
         if (cancelled) return;
         setRecords(list);
+        setReleases(history);
         setFailed(false);
       } catch {
         if (!cancelled) setFailed(true);
@@ -126,6 +139,19 @@ export function NextoreArtifactDialog({
       representation,
       ...(typeof version === 'number' ? { version } : {}),
     }));
+  };
+
+  const shareRelease = async (release: ProjectRelease) => {
+    setPreparingReleaseId(release.releaseId);
+    setReleaseError(null);
+    try {
+      const prepared = await prepareReleaseShare(projectId, release.releaseId);
+      setReleaseShareArtifactId(prepared.artifactId);
+    } catch (cause) {
+      setReleaseError(cause instanceof Error ? cause.message : 'release_share_failed');
+    } finally {
+      setPreparingReleaseId(null);
+    }
   };
 
   return createPortal(
@@ -200,6 +226,44 @@ export function NextoreArtifactDialog({
                 )}
               </div>
 
+              {releases.length > 0 ? (
+                <div className={styles.downloads}>
+                  <span className={styles.downloadLabel}>Stable releases</span>
+                  {releaseError ? <p role="alert">{releaseError}</p> : null}
+                  <ul>
+                    {releases.map((release) => (
+                      <li key={release.releaseId}>
+                        <span>
+                          v{release.version} · {release.files.length} files
+                          {release.status !== 'ready' ? ' · ' + release.status : ''}
+                        </span>
+                        <button
+                          type="button"
+                          className={styles.download}
+                          disabled={release.status !== 'ready'}
+                          onClick={() => window.location.assign(
+                            releaseDownloadUrl(projectId, release.releaseId),
+                          )}
+                        >
+                          <Icon name="download" size={14} aria-hidden="true" />
+                          <span>Download ZIP</span>
+                        </button>
+                        <button
+                          type="button"
+                          className={styles.download}
+                          disabled={release.status !== 'ready' || preparingReleaseId !== null}
+                          onClick={() => void shareRelease(release)}
+                        >
+                          <span>
+                            {preparingReleaseId === release.releaseId ? 'Preparing…' : 'Share…'}
+                          </span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+
               <hr className={styles.separator} />
               <h3 className={styles.shareTitle}>{t('nextore.artifact.share.title')}</h3>
               <ArtifactShareForm
@@ -214,6 +278,14 @@ export function NextoreArtifactDialog({
           )}
         </div>
       </div>
+      {releaseShareArtifactId ? (
+        <ArtifactShareDialog
+          projectId={projectId}
+          artifactId={releaseShareArtifactId}
+          initialRepresentation="source"
+          onClose={() => setReleaseShareArtifactId(null)}
+        />
+      ) : null}
     </div>,
     document.body,
   );

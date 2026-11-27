@@ -63,7 +63,10 @@ export async function fetchProjectArtifacts(
 
 /** Pick the newest source representation; the project dialog's default target. */
 export function primaryArtifact(records: readonly NextoreArtifactRecord[]): NextoreArtifactRecord | null {
-  const sources = records.filter((row) => row.representation === 'source');
+  // Release ZIPs are shareable files, but they must never become the dialog's
+  // default "current file"; the project's real source still leads.
+  const sources = records.filter((row) => row.representation === 'source'
+    && !row.artifactId.startsWith('release:'));
   const pool = sources.length > 0 ? sources : [...records];
   if (pool.length === 0) return null;
   return pool.reduce((best, row) => (row.updatedAt > best.updatedAt ? row : best));
@@ -84,6 +87,46 @@ export function artifactDownloadUrl(
 
 export function projectDownloadUrl(projectId: string): string {
   return '/api/nextore/projects/' + encodeURIComponent(projectId) + '/download';
+}
+
+export interface ProjectRelease {
+  releaseId: string;
+  version: number;
+  status: 'partial' | 'ready' | 'failed';
+  files: Array<{ relativePath: string; artifactId: string; mimeType: string; contentHash: string }>;
+  createdAt: number;
+}
+
+export async function fetchProjectReleases(
+  projectId: string,
+  signal?: AbortSignal,
+): Promise<ProjectRelease[]> {
+  const response = await fetch(
+    '/api/nextore/projects/' + encodeURIComponent(projectId) + '/releases',
+    { headers: { accept: 'application/json' }, ...(signal ? { signal } : {}) },
+  );
+  if (!response.ok) throw new Error('release_list_' + response.status);
+  const payload = await response.json() as { releases?: ProjectRelease[] };
+  return Array.isArray(payload.releases) ? payload.releases : [];
+}
+
+export function releaseDownloadUrl(projectId: string, releaseId: string): string {
+  return '/api/nextore/projects/' + encodeURIComponent(projectId)
+    + '/releases/' + encodeURIComponent(releaseId) + '/download';
+}
+
+/** Publish the immutable ZIP as a single-file artifact, then share it normally. */
+export async function prepareReleaseShare(
+  projectId: string,
+  releaseId: string,
+): Promise<{ artifactId: string; representation: 'source' }> {
+  const response = await fetch(
+    '/api/nextore/projects/' + encodeURIComponent(projectId)
+      + '/releases/' + encodeURIComponent(releaseId) + '/prepare-share',
+    { method: 'POST', headers: { accept: 'application/json' } },
+  );
+  if (!response.ok) throw await shareError(response);
+  return await response.json() as { artifactId: string; representation: 'source' };
 }
 
 /**

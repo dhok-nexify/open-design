@@ -81,6 +81,106 @@ export function registerNextoreArtifactRoutes(
   });
 
   /**
+   * POST .../releases/:releaseId/prepare-share — publish the Release ZIP as an
+   * ordinary single-file artifact. The caller then uses the standard artifact
+   * share route and dialog, so representation, preview, expiry and password
+   * behave exactly like any other file share.
+   */
+  app.post('/api/nextore/projects/:id/releases/:releaseId/prepare-share', async (req, res) => {
+    if (!deps.runtime) {
+      res.status(404).json({ error: 'feature_disabled' });
+      return;
+    }
+    const projectId = String(req.params.id ?? '');
+    const releaseId = String(req.params.releaseId ?? '');
+    if (!projectId || !releaseId) {
+      res.status(400).json({ error: 'BAD_REQUEST', message: 'project and release ids are required' });
+      return;
+    }
+    if (!await deps.authorizeProject(req, res, projectId, { mode: 'write', capability: 'share' })) return;
+    const release = deps.runtime.release(projectId, releaseId);
+    if (!release) {
+      res.status(404).json({ error: 'nextore_release_not_found' });
+      return;
+    }
+    if (release.status !== 'ready') {
+      res.status(409).json({
+        error: 'release_not_ready',
+        status: release.status,
+        message: 'A Release can only be shared after every file is published.',
+      });
+      return;
+    }
+    try {
+      const artifactId = await deps.runtime.prepareReleaseArtifact(projectId, releaseId);
+      if (!artifactId) {
+        res.status(409).json({
+          error: 'release_zip_not_ready',
+          message: 'The Release ZIP is not published yet; retry in a moment.',
+        });
+        return;
+      }
+      res.json({ projectId, releaseId, artifactId, representation: 'source' });
+    } catch (error) {
+      res.status(502).json({
+        error: 'release_zip_publish_failed',
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  });
+
+  /**
+   * GET .../releases/:releaseId/download — deterministic ZIP from the frozen
+   * manifest. A Release is immutable, so the response is cacheable forever.
+   */
+  app.get('/api/nextore/projects/:id/releases/:releaseId/download', async (req, res) => {
+    if (!deps.runtime) {
+      res.status(404).json({ error: 'feature_disabled' });
+      return;
+    }
+    const projectId = String(req.params.id ?? '');
+    const releaseId = String(req.params.releaseId ?? '');
+    if (!projectId || !releaseId) {
+      res.status(400).json({ error: 'BAD_REQUEST', message: 'project and release ids are required' });
+      return;
+    }
+    if (!await deps.authorizeProject(req, res, projectId, { mode: 'read' })) return;
+    const release = deps.runtime.release(projectId, releaseId);
+    if (!release) {
+      res.status(404).json({ error: 'nextore_release_not_found' });
+      return;
+    }
+    if (release.status !== 'ready') {
+      res.status(409).json({
+        error: 'release_not_ready',
+        status: release.status,
+        message: 'A Release can only be downloaded after every file is published.',
+      });
+      return;
+    }
+    try {
+      const zip = await deps.runtime.releaseZip(projectId, releaseId);
+      if (!zip) {
+        res.status(404).json({ error: 'nextore_release_zip_unavailable' });
+        return;
+      }
+      res.setHeader('Content-Type', 'application/zip');
+      res.setHeader('Content-Disposition', `attachment; filename="${zip.fileName}"`);
+      res.setHeader('X-Release-Sha256', zip.sha256);
+      res.setHeader('Cache-Control', 'private, max-age=31536000, immutable');
+      res.send(zip.buffer);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      res.status(409).json({
+        error: message.startsWith('release_snapshot_drift:')
+          ? 'release_snapshot_drift'
+          : 'release_zip_failed',
+        message,
+      });
+    }
+  });
+
+  /**
    * POST .../artifacts/reconcile — compare the local mapping with the module.
    * Reconciliation never tombstones on an outage; it only adopts, repairs a
    * drift, and orphans a row the module has omitted past its grace window.

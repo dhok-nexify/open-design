@@ -1,5 +1,7 @@
 import { createHash } from 'node:crypto';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import JSZip from 'jszip';
 import type Database from 'better-sqlite3';
 import type {
   NextoreArtifactRecord,
@@ -67,12 +69,28 @@ async function hashQuietly(filePath: string): Promise<string | null> {
   }
 }
 
+function sha256(value: Buffer): string {
+  return createHash('sha256').update(value).digest('hex');
+}
+
 function hashQuietlySync(filePath: string): string | null {
   try {
     return hashFileSha256Sync(filePath);
   } catch {
     return null;
   }
+}
+
+/** Stable artifact id for a Release ZIP; the web uses it to open the file share dialog. */
+export function releaseArtifactId(releaseId: string): string {
+  return 'release:' + releaseId;
+}
+
+export interface NextoreReleaseZip {
+  buffer: Buffer;
+  fileName: string;
+  sha256: string;
+  cachePath: string;
 }
 
 export interface NextoreArtifactStatusEvent {
@@ -126,6 +144,8 @@ export interface NextoreArtifactRuntimeDeps {
   fileChangeDebounceMs?: number;
   /** Absolute project root, needed to requeue a drifted artifact. */
   resolveProjectRoot?: (projectId: string) => string | null;
+  /** Daemon-owned cache directory for deterministic Release ZIPs. */
+  releaseZipDir?: string;
   /** Interval between reconciliation sweeps; defaults to 15 minutes. */
   reconcileIntervalMs?: number;
   /** Projects reconciled per sweep; defaults to 5. */
@@ -228,13 +248,16 @@ export class NextoreArtifactRuntime {
             .sort()
             .join('\n'))
           .digest('hex');
-        recordNextoreRelease(this.deps.db, {
+        const release = recordNextoreRelease(this.deps.db, {
           projectId: input.projectId,
           runId: input.runId,
           snapshotHash,
           files: manifest,
           now: now(),
         });
+        // Freeze the bytes now, while the run's files are still the current
+        // state. A later edit must not change what vN contains.
+        void this.freezeReleaseZip(input.projectId, release.releaseId).catch(() => {});
       }
     }
     if (artifacts.length > 0 && this.deps.autoDrain !== false) void this.wake();
@@ -572,6 +595,12 @@ export class NextoreArtifactRuntime {
           }
         },
       });
+      await this.ensureReadyReleaseZips().catch((error) => {
+        console.warn(
+          '[nextore-artifact] release zip skipped: '
+            + (error instanceof Error ? error.message : String(error)),
+        );
+      });
       return result.processed;
     } finally {
       this.running = false;
@@ -697,6 +726,161 @@ export class NextoreArtifactRuntime {
 
   release(projectId: string, releaseId: string): NextoreReleaseRecord | null {
     return getNextoreRelease(this.deps.db, projectId, releaseId);
+  }
+
+  /**
+   * Build (or reuse) a deterministic ZIP from the frozen Release manifest.
+   *
+   * The hash check is load-bearing: a Release is immutable, so a changed source
+   * file must surface as a drift error rather than silently produce a ZIP that
+   * no longer matches the recorded manifest.
+   */
+  async releaseZip(
+    projectId: string,
+    releaseId: string,
+    requireReady = true,
+  ): Promise<NextoreReleaseZip | null> {
+    const release = getNextoreRelease(this.deps.db, projectId, releaseId);
+    if (!release || (requireReady && release.status !== 'ready')) return null;
+    const projectRoot = this.deps.resolveProjectRoot?.(projectId);
+    const cacheDir = this.deps.releaseZipDir;
+    if (!projectRoot || !cacheDir) return null;
+
+    const safeProject = projectId.replace(/[^A-Za-z0-9._-]+/gu, '-');
+    const fileName = safeProject + '-v' + release.version + '.zip';
+    const cachePath = path.join(cacheDir, fileName);
+    try {
+      const cached = await readFile(cachePath);
+      return { buffer: cached, fileName, sha256: sha256(cached), cachePath };
+    } catch {
+      // Build it below.
+    }
+
+    const fixedDate = new Date('1980-01-01T00:00:00.000Z');
+    const zip = new JSZip();
+    const files = [...release.files].sort((a, b) => a.relativePath.localeCompare(b.relativePath));
+    for (const file of files) {
+      const absolute = path.resolve(projectRoot, file.relativePath);
+      const relative = path.relative(projectRoot, absolute);
+      if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) {
+        throw new Error('release_path_escape:' + file.relativePath);
+      }
+      const content = await readFile(absolute);
+      if (file.contentHash) {
+        const actual = sha256(content);
+        if (actual !== file.contentHash) {
+          throw new Error('release_snapshot_drift:' + file.relativePath);
+        }
+      }
+      zip.file(file.relativePath, content, { date: fixedDate, unixPermissions: 0o644 });
+    }
+    zip.file(
+      'manifest.json',
+      JSON.stringify({
+        releaseId: release.releaseId,
+        version: release.version,
+        projectId: release.projectId,
+        runId: release.runId,
+        snapshotHash: release.snapshotHash,
+        createdAt: release.createdAt,
+        files: files.map((file) => ({
+          path: file.relativePath,
+          mimeType: file.mimeType,
+          sha256: file.contentHash,
+        })),
+      }, null, 2),
+      { date: fixedDate, unixPermissions: 0o644 },
+    );
+
+    const buffer = await zip.generateAsync({
+      type: 'nodebuffer',
+      compression: 'DEFLATE',
+      compressionOptions: { level: 6 },
+      platform: 'UNIX',
+      streamFiles: false,
+    });
+    await mkdir(cacheDir, { recursive: true });
+    await writeFile(cachePath, buffer);
+    return { buffer, fileName, sha256: sha256(buffer), cachePath };
+  }
+
+  private async freezeReleaseZip(projectId: string, releaseId: string): Promise<void> {
+    await this.releaseZip(projectId, releaseId, false);
+  }
+
+  /**
+   * Make a ready Release available as a single-file artifact so the existing
+   * share dialog can be used unchanged. Returns the artifact id only after the
+   * publish succeeds; a caller must never open a share form on a missing file.
+   */
+  async prepareReleaseArtifact(projectId: string, releaseId: string): Promise<string | null> {
+    const release = getNextoreRelease(this.deps.db, projectId, releaseId);
+    if (!release || release.status !== 'ready') return null;
+    const artifactId = releaseArtifactId(releaseId);
+    const existing = getNextoreArtifact(this.deps.db, projectId, artifactId, 'source');
+    if (existing?.status === 'published') return artifactId;
+    const memberId = this.projectMembers.get(projectId) ?? findPublishMember(this.deps.db, projectId);
+    if (!memberId) return null;
+    const zip = await this.releaseZip(projectId, releaseId);
+    if (!zip) return null;
+    enqueueNextorePublish(this.deps.db, {
+      projectId,
+      artifactId,
+      representation: 'source',
+      memberId,
+      runId: null,
+      tier: null,
+      relativePath: 'Releases/' + zip.fileName,
+      sourcePath: zip.cachePath,
+      name: zip.fileName,
+      mimeType: 'application/zip',
+      reason: 'release-complete',
+      now: (this.deps.now ?? Date.now)(),
+      contentHash: zip.sha256,
+    });
+    await this.drainOnce();
+    const published = getNextoreArtifact(this.deps.db, projectId, artifactId, 'source');
+    return published?.status === 'published' ? artifactId : null;
+  }
+
+  /**
+   * Publish each ready Release ZIP as an ordinary source file artifact. The
+   * existing single-file share dialog then applies unchanged, including the
+   * preview/download toggle, expiry and password.
+   */
+  private async ensureReadyReleaseZips(): Promise<void> {
+    for (const projectId of this.projectMembers.keys()) {
+      for (const release of listNextoreReleases(this.deps.db, projectId)) {
+        if (release.status !== 'ready') continue;
+        const artifactId = releaseArtifactId(release.releaseId);
+        const row = getNextoreArtifact(this.deps.db, projectId, artifactId, 'source');
+        // The ZIP is derived and immutable. Publish it once; a failure stays
+        // visible for an explicit retry instead of being re-enqueued forever.
+        if (row) continue;
+        const memberId = this.projectMembers.get(projectId) ?? findPublishMember(this.deps.db, projectId);
+        if (!memberId) continue;
+        const zip = await this.releaseZip(projectId, release.releaseId);
+        if (!zip) continue;
+        enqueueNextorePublish(this.deps.db, {
+          projectId,
+          artifactId,
+          representation: 'source',
+          memberId,
+          // The ZIP is derived from the Release, not a member of it; keeping
+          // the run id would make Release readiness depend on its own package.
+          runId: null,
+          tier: null,
+          relativePath: 'Releases/' + zip.fileName,
+          sourcePath: zip.cachePath,
+          name: zip.fileName,
+          mimeType: 'application/zip',
+          reason: 'release-complete',
+          now: (this.deps.now ?? Date.now)(),
+          contentHash: zip.sha256,
+        });
+        if (this.deps.autoDrain !== false) void this.wake();
+      }
+    }
   }
 
   /**

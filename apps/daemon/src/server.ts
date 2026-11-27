@@ -3801,6 +3801,7 @@ export async function startServer({
         },
         resolveProjectRoot: (projectId) =>
           resolveProjectDir(PROJECTS_DIR, projectId, getProject(db, projectId)?.metadata),
+        releaseZipDir: path.join(ARTIFACTS_DIR, 'nextore-releases'),
         resolveProjectDeliverable: async (projectId) => {
           const project = getProject(db, projectId);
           const result = await validateProjectDeliverable({
