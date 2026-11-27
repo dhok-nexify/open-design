@@ -9645,6 +9645,9 @@ Common options:
         designSystemId,
         ...(flags.agent ? { agentId: flags.agent } : {}),
         ...(flags.model ? { model: flags.model } : {}),
+        // NEXTORE resolves --model as a platform model key. Upstream ignores
+        // modelKey, so both surfaces can share one flag.
+        ...(flags.model ? { modelKey: flags.model } : {}),
         ...(flags['service-tier'] ? { serviceTier: flags['service-tier'] } : {}),
       };
       const data = await postJsonToDaemon(base, '/api/runs', body, workspaceHeaders);
