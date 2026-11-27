@@ -24,6 +24,33 @@ export function nextoreModelStorageKeyForProject(projectId: string): string {
   return NEXTORE_MODEL_STORAGE_KEY + ':' + projectId;
 }
 
+/** New projects inherit this Home-level choice; an existing project keeps its own. */
+export function readStoredNextoreModelKey(
+  storage: ModelStorage | null = defaultStorage(),
+): string {
+  try {
+    const stored = storage?.getItem(NEXTORE_MODEL_STORAGE_KEY);
+    if (isValidNextoreModelKey(stored)) return stored;
+    const legacy = storage?.getItem('open-design:nextore-tier');
+    if (isNextoreTier(legacy)) return legacy;
+  } catch {
+    // Fall through to the default.
+  }
+  return DEFAULT_NEXTORE_MODEL_KEY;
+}
+
+export function writeStoredNextoreModelKey(
+  modelKey: string,
+  storage: ModelStorage | null = defaultStorage(),
+): void {
+  if (!isValidNextoreModelKey(modelKey)) return;
+  try {
+    storage?.setItem(NEXTORE_MODEL_STORAGE_KEY, modelKey);
+  } catch {
+    // The selection still applies to the current page.
+  }
+}
+
 export function isValidNextoreModelKey(value: unknown): value is string {
   return typeof value === 'string'
     && (isNextoreTier(value) || /^model:\d+$/.test(value));

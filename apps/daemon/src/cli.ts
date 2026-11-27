@@ -419,6 +419,7 @@ const PLUGIN_LIST_BOOLEAN_FLAGS = new Set([
 const SUBCOMMAND_MAP = {
   agent: runAgent,
   artifacts: runArtifacts,
+  models: runModels,
   media: runMedia,
   mcp: runMcp,
   amr: runAmr,
@@ -7716,6 +7717,46 @@ async function runAuth(args) {
 
   console.error('Usage: od auth <login|logout|status> [--json]');
   process.exit(2);
+}
+
+/** `od models list` — the same platform catalog the Home/composer picker reads. */
+async function runModels(args) {
+  const flags = parseFlags(args, {
+    string: new Set(['daemon-url']),
+    boolean: new Set(['help', 'h', 'json']),
+  });
+  if (flags.help || flags.h || args[0] === 'help') {
+    console.log(`Usage:
+  od models list [--daemon-url <url>] [--json]
+
+Lists Fast/Expert presets and the platform models the signed-in member may use.
+`);
+    return;
+  }
+  const action = args.find((value) => !value.startsWith('-'));
+  if (action && action !== 'list') {
+    console.error('Usage: od models list [--json]');
+    process.exitCode = 2;
+    return;
+  }
+  const base = (await cliDaemonBaseUrl(flags)).replace(/\/$/, '');
+  const response = await daemonFetch(base + '/api/designer/models', {
+    headers: { accept: 'application/json' },
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    console.error('model catalog unavailable: ' + String(data?.error ?? response.status));
+    process.exitCode = 1;
+    return;
+  }
+  const models = Array.isArray(data?.models) ? data.models : [];
+  if (flags.json) {
+    process.stdout.write(JSON.stringify({ models }, null, 2) + '\n');
+    return;
+  }
+  for (const model of models) {
+    console.log(`${model.modelKey}\t${model.name}\t${model.source}`);
+  }
 }
 
 async function runNextore(args) {

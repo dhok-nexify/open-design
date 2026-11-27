@@ -5,6 +5,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 
 import { ModelSelect } from '../src/nextore/ModelSelect';
 import {
+  readStoredNextoreModelKey,
   readStoredNextoreModelKeyForProject,
   writeStoredNextoreModelKeyForProject,
 } from '../src/nextore/model';
@@ -59,5 +60,19 @@ describe('nextore model preference', () => {
 
     writeStoredNextoreModelKeyForProject('project-1', 'model:42', storage);
     expect(readStoredNextoreModelKeyForProject('project-1', storage)).toBe('model:42');
+  });
+
+  it('migrates the global legacy tier without overriding a saved model', () => {
+    const values = new Map<string, string>([
+      ['open-design:nextore-tier', 'fast'],
+    ]);
+    const storage = {
+      getItem: (key: string) => values.get(key) ?? null,
+      setItem: () => undefined,
+    };
+    expect(readStoredNextoreModelKey(storage)).toBe('fast');
+
+    values.set('open-design:nextore-model', 'model:7');
+    expect(readStoredNextoreModelKey(storage)).toBe('model:7');
   });
 });

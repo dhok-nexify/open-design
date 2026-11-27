@@ -102,8 +102,12 @@ import { DesignSystemsTab } from './DesignSystemsTab';
 import { BrandsTab } from './BrandsTab';
 import { EntryNavRail, type EntryView as EntryViewKind } from './EntryNavRail';
 import { NEXTORE_WEB_EDITION, isFeatureEnabled } from '../nextore/features';
-import { TierToggle } from '../nextore/TierToggle';
+import { ModelSelect } from '../nextore/ModelSelect';
 import { readStoredNextoreTier, writeStoredNextoreTier } from '../nextore/tier';
+import {
+  readStoredNextoreModelKey,
+  writeStoredNextoreModelKey,
+} from '../nextore/model';
 import { groupProjectsByWorkspace } from '../nextore-projects';
 import { useNextoreProjectListing } from '../nextore/listing-store';
 import { useNextoreSessionView } from '../nextore/session-view';
@@ -740,6 +744,17 @@ export function EntryShell({
   const chooseEntryNextoreTier = useCallback((tier: NextoreTier) => {
     setEntryNextoreTier(tier);
     writeStoredNextoreTier(tier);
+  }, []);
+  const [entryNextoreModelKey, setEntryNextoreModelKey] = useState<string>(() =>
+    readStoredNextoreModelKey(),
+  );
+  const chooseEntryNextoreModel = useCallback((modelKey: string) => {
+    setEntryNextoreModelKey(modelKey);
+    writeStoredNextoreModelKey(modelKey);
+    if (modelKey === 'fast' || modelKey === 'expert') {
+      setEntryNextoreTier(modelKey);
+      writeStoredNextoreTier(modelKey);
+    }
   }, []);
   const [inviteSignInRequest, setInviteSignInRequest] = useState<'start' | 'waiting' | null>(null);
   useEffect(() => {
@@ -2312,7 +2327,7 @@ export function EntryShell({
   }
 
   const homeExecutionSwitcher = NEXTORE_WEB_EDITION === 'nextore' ? (
-    <TierToggle value={entryNextoreTier} onChange={chooseEntryNextoreTier} />
+    <ModelSelect value={entryNextoreModelKey} onChange={chooseEntryNextoreModel} />
   ) : (
     <InlineModelSwitcher
       compact
