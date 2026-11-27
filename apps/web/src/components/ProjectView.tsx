@@ -4455,9 +4455,10 @@ export function ProjectView({
   // on project mount (after conversations load) and on user-triggered
   // conversation switches.
   useEffect(() => {
+    const commentIdentity = `${project.id}\u0000${activeConversationId}\u0000${projectRunAuthorityKey}`;
     if (!activeConversationId) {
       ++previewCommentsReadSeq.current;
-      previewCommentsIdentityRef.current = '';
+      previewCommentsIdentityRef.current = commentIdentity;
       setPreviewCommentsState('loading');
       setMessages([]);
       setMessagesInitialized(false);
@@ -4466,12 +4467,21 @@ export function ProjectView({
         // part of the promised review surface. Hydrate them from the
         // project-scoped endpoint instead of clearing the panel.
         const commentsGeneration = ++previewCommentsGenerationRef.current;
+        const commentsReadSeq = previewCommentsReadSeq.current;
         void fetchProjectPreviewComments(project.id, projectRunWorkspaceContext)
           .then((comments) => {
+            if (previewCommentsReadSeq.current !== commentsReadSeq) return;
             if (previewCommentsGenerationRef.current !== commentsGeneration) return;
             setPreviewComments(comments);
+            // The project-scoped read is the whole comment surface for a
+            // read-only member. Settle the loading state here; otherwise the
+            // side panel shows a spinner forever even though comments arrived.
+            setPreviewCommentsState('success');
           })
-          .catch(() => {});
+          .catch(() => {
+            if (previewCommentsReadSeq.current !== commentsReadSeq) return;
+            setPreviewCommentsState('error');
+          });
       } else {
         commitPreviewComments([]);
       }
@@ -4550,7 +4560,6 @@ export function ProjectView({
       setArtifact(null);
       savedArtifactRef.current = null;
     }
-    const commentIdentity = `${project.id}\u0000${activeConversationId}\u0000${projectRunAuthorityKey}`;
     if (previewCommentsIdentityRef.current !== commentIdentity) {
       previewCommentsIdentityRef.current = commentIdentity;
       commitPreviewComments([]);
@@ -6828,15 +6837,6 @@ export function ProjectView({
         } catch {
           // Preserve the existing failure and draft when authority or reads fail.
         }
-      }
-      if (!commentConversationId) {
-        setProjectActionsToast({
-          message: t('project.previewCommentSaveFailedTitle'),
-          details: t('project.previewCommentSaveFailedDescription'),
-          tone: 'error',
-          ttlMs: 5000,
-        });
-        return null;
       }
       // Upload any attached images first so the saved comment carries durable
       // file paths — this is what lets the comment list / re-opened popover

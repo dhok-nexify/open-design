@@ -11,6 +11,7 @@ import type { PreviewComment, PreviewCommentTarget } from '../../src/types';
 const listConversations = vi.fn();
 const listMessages = vi.fn();
 const fetchPreviewComments = vi.fn();
+const fetchProjectPreviewComments = vi.fn();
 const loadTabs = vi.fn();
 const fetchProjectFiles = vi.fn();
 const fetchLiveArtifacts = vi.fn();
@@ -19,8 +20,21 @@ const fetchDesignSystem = vi.fn();
 const getTemplate = vi.fn();
 const listActiveChatRuns = vi.fn();
 const upsertPreviewComment = vi.fn();
+const upsertProjectPreviewComment = vi.fn();
 const originalFetch = globalThis.fetch;
 const translation = vi.hoisted(() => ({ t: (value: string) => value }));
+const nextoreAccess = vi.hoisted(() => ({
+  value: {
+    mapped: false,
+    exists: true,
+    canRead: true,
+    canEdit: true,
+    canDelete: true,
+    canManage: true,
+    canDownload: true,
+    shareLinksEnabled: true,
+  },
+}));
 
 vi.mock('../../src/i18n', () => ({
   useI18n: () => ({ locale: 'en', setLocale: () => undefined, t: (value: string) => translation.t(value) }),
@@ -40,6 +54,7 @@ vi.mock('../../src/providers/daemon', async () => {
 vi.mock('../../src/providers/registry', () => ({
   deletePreviewComment: vi.fn(),
   fetchPreviewComments: (...args: unknown[]) => fetchPreviewComments(...args),
+  fetchProjectPreviewComments: (...args: unknown[]) => fetchProjectPreviewComments(...args),
   fetchDesignSystem: (...args: unknown[]) => fetchDesignSystem(...args),
   fetchProjectDesignSystemPackageAudit: vi.fn(async () => null),
   fetchLiveArtifacts: (...args: unknown[]) => fetchLiveArtifacts(...args),
@@ -48,7 +63,15 @@ vi.mock('../../src/providers/registry', () => ({
   fetchSkill: (...args: unknown[]) => fetchSkill(...args),
   patchPreviewCommentStatus: vi.fn(),
   upsertPreviewComment: (...args: unknown[]) => upsertPreviewComment(...args),
+  upsertProjectPreviewComment: (...args: unknown[]) => upsertProjectPreviewComment(...args),
   writeProjectTextFile: vi.fn(),
+}));
+vi.mock('../../src/nextore/access', () => ({
+  fetchNextoreProjectAccess: vi.fn(async () => nextoreAccess.value),
+}));
+vi.mock('../../src/nextore/features', () => ({
+  NEXTORE_WEB_EDITION: 'nextore',
+  isFeatureEnabled: () => false,
 }));
 vi.mock('../../src/providers/project-events', () => ({ useProjectFileEvents: vi.fn() }));
 vi.mock('../../src/router', () => ({ navigate: vi.fn() }));
@@ -88,6 +111,16 @@ vi.mock('../../src/components/Loading', () => ({ CenteredLoader: () => null }));
 afterEach(() => {
   cleanup();
   translation.t = (value: string) => value;
+  nextoreAccess.value = {
+    mapped: false,
+    exists: true,
+    canRead: true,
+    canEdit: true,
+    canDelete: true,
+    canManage: true,
+    canDownload: true,
+    shareLinksEnabled: true,
+  };
   vi.clearAllMocks();
   globalThis.fetch = originalFetch;
   window.sessionStorage.clear();
@@ -279,4 +312,93 @@ it('OPEND-3894 retains same-scope rows on failed refresh and accepts a successfu
   await waitFor(() => expect(preview().previewComments).toEqual([{ ...comment, id: 'new-project-comment' }]));
   await act(async () => { finishOldRead([comment]); await oldRead; });
   expect(preview().previewComments).toEqual([{ ...comment, id: 'new-project-comment' }]);
+});
+
+it('settles the project-scoped read-only comment surface and creates through the project route', async () => {
+  const projectId = 'read-only-project';
+  const target: PreviewCommentTarget = {
+    filePath: 'index.html',
+    elementId: 'hero',
+    selector: '#hero',
+    label: 'Hero',
+    text: '',
+    position: { x: 10, y: 20, width: 100, height: 40 },
+    htmlHint: '<div id="hero">Hero</div>',
+  };
+  const existing: PreviewComment = {
+    id: 'existing-reader-comment',
+    projectId,
+    conversationId: 'reader-conversation',
+    ...target,
+    note: 'Existing review note',
+    status: 'open',
+    createdAt: 1,
+    updatedAt: 1,
+  };
+  nextoreAccess.value = {
+    mapped: true,
+    exists: true,
+    canRead: true,
+    canEdit: false,
+    canDelete: false,
+    canManage: false,
+    canDownload: false,
+    shareLinksEnabled: true,
+  };
+  listConversations.mockResolvedValue([]);
+  listMessages.mockResolvedValue([]);
+  fetchPreviewComments.mockResolvedValue([]);
+  fetchProjectPreviewComments.mockResolvedValue([existing]);
+  loadTabs.mockResolvedValue({ tabs: [], activeTabId: null });
+  fetchProjectFiles.mockResolvedValue([]);
+  fetchLiveArtifacts.mockResolvedValue([]);
+  fetchSkill.mockResolvedValue(null);
+  fetchDesignSystem.mockResolvedValue(null);
+  getTemplate.mockResolvedValue(null);
+  listActiveChatRuns.mockResolvedValue([]);
+  upsertProjectPreviewComment.mockResolvedValue({ ...existing, id: 'saved-reader-comment' });
+  globalThis.fetch = vi.fn(async () => Response.json({}));
+
+  render(
+    <ProjectView
+      project={{ id: projectId, name: 'Read-only review', skillId: null, designSystemId: null } as never}
+      routeFileName={null}
+      routeConversationId={null}
+      config={{ mode: 'daemon', agentId: 'agent-1', notifications: undefined, agentModels: {} } as never}
+      agents={[{ id: 'agent-1', name: 'OpenCode', models: [] } as never]}
+      skills={[]}
+      designTemplates={[]}
+      designSystems={[]}
+      daemonLive
+      onModeChange={() => {}}
+      onAgentChange={() => {}}
+      onAgentModelChange={() => {}}
+      onRefreshAgents={() => {}}
+      onOpenSettings={() => {}}
+      onBack={() => {}}
+      onClearPendingPrompt={() => {}}
+      onTouchProject={() => {}}
+      onProjectChange={() => {}}
+      onProjectsRefresh={() => {}}
+    />,
+  );
+
+  const preview = () => fileWorkspaceSpy.mock.calls.at(-1)?.[0] as {
+    previewComments: PreviewComment[];
+    previewCommentsState: string;
+    onSavePreviewComment: (
+      target: PreviewCommentTarget,
+      note: string,
+      attachAfterSave: boolean,
+    ) => Promise<PreviewComment | null>;
+  };
+
+  await waitFor(() => expect(fileWorkspaceSpy).toHaveBeenCalled());
+  await waitFor(() => expect(preview().previewCommentsState).toBe('success'));
+  expect(preview().previewComments).toEqual([existing]);
+
+  const saved = await act(async () => preview().onSavePreviewComment(target, 'Reader note', false));
+  expect(saved).toMatchObject({ id: 'saved-reader-comment' });
+  expect(upsertProjectPreviewComment).toHaveBeenCalledTimes(1);
+  expect(upsertPreviewComment).not.toHaveBeenCalled();
 });
