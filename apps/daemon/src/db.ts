@@ -735,7 +735,14 @@ function migrate(db: SqliteDb): void {
   migrateCollabSyncSnapshots(db);
   migrateCommentRelayOutbox(db);
   migrateAmrTerminalReportOutbox(db);
-  migrateNextoreNotificationOutbox(db);
+  try {
+    migrateNextoreNotificationOutbox(db);
+  } catch (error) {
+    // Notification delivery is optional. A ledger migration failure must not
+    // abort later migrations or make comment reads/writes unavailable.
+    console.warn('[nextore-notifications] ledger migration failed: '
+      + (error instanceof Error ? error.message : String(error)));
+  }
   migratePublicFilePublications(db);
   migrateCommentInboundStore(db);
   migrateOwnedContentSync(db);

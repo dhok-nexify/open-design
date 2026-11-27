@@ -54,7 +54,8 @@ export function enqueueCommentNotification(
   input: CommentNoticeInput,
   now: number = Date.now(),
 ): void {
-  migrateNextoreNotificationOutbox(db);
+  // Schema is created once at startup. Doing DDL on every comment write would
+  // put migration failures inside the comment transaction.
   const eventId = commentNotificationEventId(input.projectId, input.commentId);
   db.prepare(`
     INSERT INTO nextore_notification_outbox
@@ -69,7 +70,6 @@ export function listDueNotifications(
   now: number,
   limit = 20,
 ): NotificationOutboxRow[] {
-  migrateNextoreNotificationOutbox(db);
   return db.prepare(`
     SELECT event_id AS eventId, event_type AS eventType, project_id AS projectId,
            payload_json AS payloadJson, attempts, next_attempt_at AS nextAttemptAt,

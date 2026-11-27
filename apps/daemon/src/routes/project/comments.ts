@@ -802,30 +802,34 @@ export function registerProjectCommentRoutes(app: Express, ctx: RegisterProjectC
           ));
         }
         if (saved && ctx.commentNotify) {
-          // Durable trigger: the notification intent commits with the comment.
-          // Recipients are intentionally empty; the module resolves the project ACL
-          // at send time, so a cached manager list can never widen the audience.
-          const noticeProject = getProject(db, req.params.id);
-          const nextoreProjectId =
-            (noticeProject?.metadata as { nextoreProjectId?: unknown } | null | undefined)?.nextoreProjectId;
-          enqueueCommentNotification(db, {
-            projectId: req.params.id,
-            nextoreProjectId:
-              typeof nextoreProjectId === 'string' || typeof nextoreProjectId === 'number'
-                ? String(nextoreProjectId)
+          // Durable trigger. A broken notification ledger must never roll back a
+          // saved comment; the ledger only improves delivery, it is not the write.
+          try {
+            const noticeProject = getProject(db, req.params.id);
+            const nextoreProjectId =
+              (noticeProject?.metadata as { nextoreProjectId?: unknown } | null | undefined)?.nextoreProjectId;
+            enqueueCommentNotification(db, {
+              projectId: req.params.id,
+              nextoreProjectId:
+                typeof nextoreProjectId === 'string' || typeof nextoreProjectId === 'number'
+                  ? String(nextoreProjectId)
+                  : null,
+              commentId: String((saved as { id?: unknown }).id ?? ''),
+              authorMemberId: nextoreMemberId ?? (Number(authorMemberId ?? 0) || 0),
+              isReply: Boolean((saved as { parentId?: unknown }).parentId),
+              projectName: noticeProject?.name ?? null,
+              commentText: typeof (saved as { note?: unknown }).note === 'string'
+                ? (saved as { note: string }).note
                 : null,
-            commentId: String((saved as { id?: unknown }).id ?? ''),
-            authorMemberId: nextoreMemberId ?? (Number(authorMemberId ?? 0) || 0),
-            isReply: Boolean((saved as { parentId?: unknown }).parentId),
-            projectName: noticeProject?.name ?? null,
-            commentText: typeof (saved as { note?: unknown }).note === 'string'
-              ? (saved as { note: string }).note
-              : null,
-            createdAt: typeof (saved as { createdAt?: unknown }).createdAt === 'number'
-              ? new Date((saved as { createdAt: number }).createdAt).toISOString()
-              : null,
-            recipientIds: [],
-          });
+              createdAt: typeof (saved as { createdAt?: unknown }).createdAt === 'number'
+                ? new Date((saved as { createdAt: number }).createdAt).toISOString()
+                : null,
+              recipientIds: [],
+            });
+          } catch (error) {
+            console.warn('[comment-notify] failed to enqueue trigger: '
+              + (error instanceof Error ? error.message : String(error)));
+          }
         }
         return saved;
       })();
