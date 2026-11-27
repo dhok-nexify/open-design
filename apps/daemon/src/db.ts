@@ -34,6 +34,7 @@ import { migratePublicFilePublications } from './collab/public-file-publication-
 import { migrateCommentInboundStore } from './collab/comment-inbound-store.js';
 import { migrateOwnedContentSync } from './collab/owned-content-store.js';
 import { migrateAmrTerminalReportOutbox } from './storage/amr-terminal-report-outbox.js';
+import { migrateNextoreNotificationOutbox } from './nextore/notification-outbox.js';
 import {
   collapseWorkspaceProjectHomes,
   type WorkspaceProjectHomeRow,
@@ -734,6 +735,7 @@ function migrate(db: SqliteDb): void {
   migrateCollabSyncSnapshots(db);
   migrateCommentRelayOutbox(db);
   migrateAmrTerminalReportOutbox(db);
+  migrateNextoreNotificationOutbox(db);
   migratePublicFilePublications(db);
   migrateCommentInboundStore(db);
   migrateOwnedContentSync(db);

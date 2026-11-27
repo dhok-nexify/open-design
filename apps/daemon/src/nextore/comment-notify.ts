@@ -1,10 +1,18 @@
 /**
  * P05 comment notification trigger (daemon side).
  *
- * The module owns delivery, dedupe (1 minute per project/member), channel
- * selection and the deep link template. The daemon only decides *whether* to
- * ask and never lets a notification failure affect the comment write.
+ * The module owns recipient resolution, channel selection and the deep link
+ * template. The daemon signs the typed payload when a service secret is
+ * configured; otherwise it falls back to the author's stored member session.
+ * A notification failure never affects the comment write.
  */
+
+import {
+  canonicalNotificationFields,
+  encodeServiceField,
+  notificationHeaders,
+  stableNotificationEventId,
+} from './notification-auth.js';
 
 export interface CommentNoticeInput {
   /** The local Designer project id used by the deep link. */
@@ -74,9 +82,34 @@ export function buildCommentNoticePayload(input: CommentNoticeInput): CommentNot
   };
 }
 
+/** Signed field list must match DesignerCommentNotificationController.Canonical exactly. */
+export function commentCanonicalBody(
+  eventId: string,
+  nextoreProjectId: string,
+  payload: CommentNoticePayload,
+): string {
+  return canonicalNotificationFields([
+    ['event_id', encodeServiceField(eventId)],
+    ['project_id', encodeServiceField(payload.projectId)],
+    ['nextore_project_id', encodeServiceField(nextoreProjectId)],
+    ['comment_id', encodeServiceField(payload.commentId)],
+    ['author_member_id', encodeServiceField(payload.authorMemberId)],
+    ['is_reply', encodeServiceField(payload.isReply)],
+    ['project_name', encodeServiceField(payload.projectName)],
+    ['comment_text', encodeServiceField(payload.commentText)],
+    ['created_at', encodeServiceField(payload.createdAt)],
+    ['recipient_ids', encodeServiceField(payload.recipientIds.join(','))],
+    ['idempotency_key', encodeServiceField(payload.idempotencyKey)],
+  ]);
+}
+
 export interface CommentNotifyDeps {
   /** Absolute module base URL incl. any path prefix, or null when unconfigured. */
   moduleBaseUrl: string | null;
+  /** Shared HMAC secret for service-to-module calls. Unset keeps the session fallback. */
+  notificationSecret?: string | null;
+  /** Clock seam for deterministic signature tests. */
+  now?: () => number;
   /**
    * Resolve the author's module credential from the daemon's own member session
    * store. There is deliberately no request-token variant: a notification is a
@@ -117,11 +150,18 @@ export async function notifyComment(
   if (!/^\d+$/.test(nextoreProjectId)) return 'skipped';
 
   try {
-    const token = await deps.resolveMemberToken(authorMemberId);
-    if (!token) {
+    const secret = deps.notificationSecret?.trim() || null;
+    const token = secret ? null : await deps.resolveMemberToken(authorMemberId);
+    if (!secret && !token) {
       deps.log?.('[comment-notify] no stored member session member=' + authorMemberId + '; skipping');
       return 'skipped';
     }
+    const eventId = stableNotificationEventId('cmt_', payload.idempotencyKey);
+    const canonical = commentCanonicalBody(eventId, nextoreProjectId, payload);
+    const headers: Record<string, string> = secret
+      ? { 'content-type': 'application/json', accept: 'application/json',
+          ...notificationHeaders(secret, eventId, canonical, (deps.now ?? Date.now)()) }
+      : { 'content-type': 'application/json', accept: 'application/json', APIkey: token! };
     const fetchImpl = deps.fetchImpl ?? fetch;
     const response = await fetchImpl(
       deps.moduleBaseUrl.replace(/\/+$/, '')
@@ -129,11 +169,7 @@ export async function notifyComment(
         + '/comment-notifications',
       {
         method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          accept: 'application/json',
-          APIkey: token,
-        },
+        headers,
         body: JSON.stringify(payload),
         // The APIkey must never be forwarded to another origin by a redirect,
         // and a hung module must not keep the request (and its token) alive.
@@ -142,8 +178,13 @@ export async function notifyComment(
       },
     );
     if (response.status === 204) {
+      // Legacy module build: accepted without a receipt.
       deps.log?.('[comment-notify] module accepted (204)');
       return 'skipped';
+    }
+    if (response.status === 202) {
+      deps.log?.('[comment-notify] module accepted (202)');
+      return 'sent';
     }
     if (!response.ok) {
       // The module's own code is what makes the next log readable; the body is

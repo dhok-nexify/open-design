@@ -448,6 +448,8 @@ import { resolveMemberAccessToken } from './nextore/artifacts/session-access.js'
 import { createSunsetSender, listSunsetCandidates, runShareSunsetSweep } from './nextore/share/sunset-notices.js';
 import { createShareSunsetScheduler } from './nextore/share/sunset-scheduler.js';
 import { createRecipientCache, resolveProjectManageRecipients } from './nextore/comment-recipients.js';
+import { notifyCommentSafely, type CommentNotifyDeps } from './nextore/comment-notify.js';
+import { createNotificationOutboxDelivery } from './nextore/notification-outbox.js';
 import { registerNextoreEventRoutes } from './nextore/events/routes.js';
 import { invalidateAllProjectAccess } from './nextore/acl/invalidation.js';
 import { nextoreHealthMetadata } from './nextore/routes.js';
@@ -3863,6 +3865,7 @@ export async function startServer({
       if (!nextoreConfig || !nextoreSecrets) return;
       const sender = createSunsetSender({
         moduleBaseUrl: nextoreConfig.baseUrl,
+        notificationSecret: process.env.NEXTORE_NOTIFICATION_SECRET?.trim() || null,
         resolveToken: (ownerMemberId) => resolveMemberAccessToken(ownerMemberId, {
           store: createNextoreSessionStore(() => db, nextoreSecrets),
           config: nextoreConfig,
@@ -9747,6 +9750,24 @@ export async function startServer({
       }
     },
   });
+  const commentNotifyDeps: CommentNotifyDeps = {
+    moduleBaseUrl: nextoreConfig?.baseUrl ?? null,
+    notificationSecret: process.env.NEXTORE_NOTIFICATION_SECRET?.trim() || null,
+    log: (message: string) => console.warn(message),
+    resolveMemberToken: nextoreConfig && nextoreSecrets
+      ? (memberId: number) => resolveMemberAccessToken(memberId, {
+          store: createNextoreSessionStore(() => db, nextoreSecrets),
+          config: nextoreConfig,
+        })
+      : async () => null,
+  };
+  const notificationOutboxDelivery = createNotificationOutboxDelivery({
+    db,
+    notify: (notice) => notifyCommentSafely(commentNotifyDeps, notice),
+    log: (message: string) => console.warn(message),
+  });
+  notificationOutboxDelivery.start();
+
   registerProjectRoutes(app, {
     db,
     publicFileMutations,
@@ -9759,19 +9780,10 @@ export async function startServer({
       : {}),
     http: httpDeps,
     nextore: nextoreClient ? { client: nextoreClient } : undefined,
-    // P05: comment notifications reuse the module channel. The author's
-    // credential always comes from the daemon's member session store; no
-    // request-scoped bearer token is ever forwarded to the module.
-    commentNotify: {
-      moduleBaseUrl: nextoreConfig?.baseUrl ?? null,
-      log: (message: string) => console.warn(message),
-      resolveMemberToken: nextoreConfig && nextoreSecrets
-        ? (memberId: number) => resolveMemberAccessToken(memberId, {
-            store: createNextoreSessionStore(() => db, nextoreSecrets),
-            config: nextoreConfig,
-          })
-        : async () => null,
-    },
+    // P05: comment notifications reuse the module channel. A service secret takes
+    // precedence; otherwise the author's stored session is used, never the
+    // request-scoped bearer token.
+    commentNotify: commentNotifyDeps,
     // P05: CanManage recipients come from the module's permission matrix via a
     // shared 60s cache. Any missing prerequisite returns [] so the caller falls
     // back to owner-only instead of failing the comment.
@@ -19402,6 +19414,7 @@ export async function startServer({
       collabCloud?.dispose();
       nextoreArtifactRuntime?.stop();
   sunsetScheduler.stop();
+  notificationOutboxDelivery.stop();
     };
     const shutdownDaemonRuns = (): Promise<void> => {
       if (daemonShutdownPromise) return daemonShutdownPromise;

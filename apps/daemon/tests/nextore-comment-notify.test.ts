@@ -76,6 +76,28 @@ describe('P05 notifyComment', () => {
     });
   });
 
+  it('signs the typed payload and accepts the 202 receipt', async () => {
+    let headers: Record<string, string> = {};
+    const fetchImpl = (async (_url: string, init: RequestInit) => {
+      headers = init.headers as Record<string, string>;
+      return new Response('{}', { status: 202 });
+    }) as unknown as typeof fetch;
+
+    const outcome = await notifyComment({
+      moduleBaseUrl: 'https://module.test',
+      notificationSecret: 'secret',
+      now: () => 1_000_000,
+      resolveMemberToken: async () => null,
+      fetchImpl,
+    }, base);
+
+    expect(outcome).toBe('sent');
+    expect(headers.APIkey).toBeUndefined();
+    expect(headers['X-NXD-Event-Id']).toMatch(/^cmt_[0-9a-f]{32}$/);
+    expect(headers['X-NXD-Timestamp']).toBe('1000');
+    expect(headers['X-NXD-Signature']).toMatch(/^v1=[0-9a-f]{64}$/);
+  });
+
   it('still asks the module when the author is the only recipient', async () => {
     // The module is the permission authority and resolves CanManage itself, so an
     // empty list must reach it instead of stopping in the daemon.

@@ -1,5 +1,12 @@
 import type Database from 'better-sqlite3';
 
+import {
+  canonicalNotificationFields,
+  encodeServiceField,
+  notificationHeaders,
+  stableNotificationEventId,
+} from '../notification-auth.js';
+
 type SqliteDb = Database.Database;
 
 /** Buckets that actually trigger a notice; expired/never/later never send. */
@@ -148,47 +155,76 @@ export function listSunsetCandidates(db: SqliteDb, now: number): SunsetSweepCand
   return result;
 }
 
-/** Minimal HTML escape for text interpolated into an email body. */
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
 export interface SunsetSenderDeps {
   moduleBaseUrl: string | null;
   resolveToken: (ownerMemberId: number) => Promise<string | null>;
+  /** Shared HMAC secret for service-to-module calls. Unset keeps the session fallback. */
+  notificationSecret?: string | null;
+  now?: () => number;
   fetchImpl?: typeof fetch;
   log?: (message: string) => void;
   projectName?: (projectId: string) => string | null;
 }
 
+/** Signed field list must match DesignerSunsetNotificationRules.Canonical exactly. */
+export function sunsetCanonicalBody(
+  eventId: string,
+  notice: {
+    linkId: string;
+    bucket: string;
+    ownerMemberId: number;
+    projectName: string;
+    expiresAt: string;
+    deepLink: string | null;
+  },
+): string {
+  return canonicalNotificationFields([
+    ['event_id', encodeServiceField(eventId)],
+    ['link_id', encodeServiceField(notice.linkId)],
+    ['bucket', encodeServiceField(notice.bucket)],
+    ['owner_member_id', encodeServiceField(notice.ownerMemberId)],
+    ['project_name', encodeServiceField(notice.projectName)],
+    ['expires_at', encodeServiceField(notice.expiresAt)],
+    ['deep_link', encodeServiceField(notice.deepLink)],
+  ]);
+}
+
 /**
- * Build the sweep sender. 204 means "decided" (sent, disabled or no channel)
- * and is recorded so the same window never nags again; anything else means
- * "not delivered" and stays unrecorded so the next sweep retries.
+ * Build the sweep sender. 202/204 mean "decided" (sent or disabled) and are recorded
+ * so the same window never nags again; 503 and transport failures stay unrecorded so
+ * the next sweep retries.
  */
 export function createSunsetSender(deps: SunsetSenderDeps) {
   return async (candidate: SunsetSweepCandidate): Promise<'sent' | 'skipped' | 'failed'> => {
     if (!deps.moduleBaseUrl) return 'failed';
-    let token: string | null = null;
-    try {
-      token = await deps.resolveToken(candidate.ownerMemberId);
-    } catch {
-      token = null;
-    }
-    if (!token) return 'failed';
 
-    // The project name is member-supplied text that becomes HTML in the email, so
-    // it is escaped here rather than trusted by the module.
-    const name = escapeHtml(deps.projectName?.(candidate.projectId) ?? candidate.projectId);
-    const expires = candidate.expiresAt ? new Date(candidate.expiresAt).toISOString() : 'never';
-    const subject = 'Legacy share link expires soon';
-    const body = '<p>The legacy share link for ' + name + ' expires ' + expires
-      + '. Create a NexTore link instead.</p>';
+    const secret = deps.notificationSecret?.trim() || null;
+    let token: string | null = null;
+    if (!secret) {
+      try {
+        token = await deps.resolveToken(candidate.ownerMemberId);
+      } catch {
+        token = null;
+      }
+      if (!token) return 'failed';
+    }
+
+    // The module renders the subject and body from these structured fields. No
+    // caller-supplied HTML ever reaches the mail provider.
+    const notice = {
+      linkId: candidate.linkId,
+      bucket: candidate.bucket,
+      ownerMemberId: candidate.ownerMemberId,
+      projectName: (deps.projectName?.(candidate.projectId) ?? candidate.projectId).trim().slice(0, 160),
+      expiresAt: candidate.expiresAt ? new Date(candidate.expiresAt).toISOString() : 'never',
+      deepLink: null as string | null,
+    };
+    const eventId = stableNotificationEventId('sun_', notice.linkId + ':' + notice.bucket);
+    const canonical = sunsetCanonicalBody(eventId, notice);
+    const headers: Record<string, string> = secret
+      ? { 'content-type': 'application/json', accept: 'application/json',
+          ...notificationHeaders(secret, eventId, canonical, (deps.now ?? Date.now)()) }
+      : { 'content-type': 'application/json', accept: 'application/json', APIkey: token! };
 
     try {
       const fetchImpl = deps.fetchImpl ?? fetch;
@@ -196,17 +232,20 @@ export function createSunsetSender(deps: SunsetSenderDeps) {
         deps.moduleBaseUrl.replace(/\/+$/, '') + '/api/designer/share-links/sunset-notifications',
         {
           method: 'POST',
-          headers: { 'content-type': 'application/json', accept: 'application/json', APIkey: token },
+          headers,
           body: JSON.stringify({
-            linkId: candidate.linkId,
-            bucket: candidate.bucket,
-            ownerMemberId: candidate.ownerMemberId,
-            subject,
-            body,
+            linkId: notice.linkId,
+            bucket: notice.bucket,
+            ownerMemberId: notice.ownerMemberId,
+            projectName: notice.projectName,
+            expiresAt: notice.expiresAt,
+            deepLink: notice.deepLink,
           }),
+          redirect: 'error',
+          signal: AbortSignal.timeout(5_000),
         },
       );
-      if (response.status === 204) return 'sent';
+      if (response.status === 202 || response.status === 204) return 'sent';
       deps.log?.('[sunset-notices] module answered ' + response.status);
       return 'failed';
     } catch (error) {

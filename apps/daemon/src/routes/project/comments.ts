@@ -1,5 +1,6 @@
 import { jsonBodyByteLength } from '../../http/json-body-size.js';
-import { notifyCommentSafely, type CommentNotifyDeps } from '../../nextore/comment-notify.js';
+import type { CommentNotifyDeps } from '../../nextore/comment-notify.js';
+import { enqueueCommentNotification } from '../../nextore/notification-outbox.js';
 import type { Express, Request } from 'express';
 import type { CommentSyncStateService } from '../../collab/comment-sync-state.js';
 import type {
@@ -800,6 +801,32 @@ export function registerProjectCommentRoutes(app: Express, ctx: RegisterProjectC
             workspaceContext,
           ));
         }
+        if (saved && ctx.commentNotify) {
+          // Durable trigger: the notification intent commits with the comment.
+          // Recipients are intentionally empty; the module resolves the project ACL
+          // at send time, so a cached manager list can never widen the audience.
+          const noticeProject = getProject(db, req.params.id);
+          const nextoreProjectId =
+            (noticeProject?.metadata as { nextoreProjectId?: unknown } | null | undefined)?.nextoreProjectId;
+          enqueueCommentNotification(db, {
+            projectId: req.params.id,
+            nextoreProjectId:
+              typeof nextoreProjectId === 'string' || typeof nextoreProjectId === 'number'
+                ? String(nextoreProjectId)
+                : null,
+            commentId: String((saved as { id?: unknown }).id ?? ''),
+            authorMemberId: nextoreMemberId ?? (Number(authorMemberId ?? 0) || 0),
+            isReply: Boolean((saved as { parentId?: unknown }).parentId),
+            projectName: noticeProject?.name ?? null,
+            commentText: typeof (saved as { note?: unknown }).note === 'string'
+              ? (saved as { note: string }).note
+              : null,
+            createdAt: typeof (saved as { createdAt?: unknown }).createdAt === 'number'
+              ? new Date((saved as { createdAt: number }).createdAt).toISOString()
+              : null,
+            recipientIds: [],
+          });
+        }
         return saved;
       })();
       // Only a genuinely new, successfully persisted comment is counted.
@@ -856,54 +883,8 @@ export function registerProjectCommentRoutes(app: Express, ctx: RegisterProjectC
         } catch {
           // Measurement cannot change the successful save or response.
         }
-        // P05: never let notification failure affect a saved comment. The call
-        // runs after the response so the notice cannot delay the reply.
-        if (ctx.commentNotify) {
-          // A notification is a system action, not the member's own API call: it
-          // runs as the author through the daemon's member session store and never
-          // copies the caller's request credential into a second service call.
-          const notifier = ctx.commentNotify;
-          const ownerOnly = ownerMemberId ? [Number(ownerMemberId)] : [];
-          const resolveRecipients = ctx.resolveCommentRecipients;
-          void (async () => {
-            let recipientIds = ownerOnly;
-            if (resolveRecipients) {
-              try {
-                const resolved = await resolveRecipients({
-                  projectId: req.params.id,
-                  ownerMemberId: ownerMemberId ? Number(ownerMemberId) : null,
-                });
-                if (resolved.length > 0) recipientIds = resolved;
-              } catch {
-                // Degrade to the owner; a comment must never fail over a notification.
-              }
-            }
-            const nextoreProjectId = (project?.metadata as { nextoreProjectId?: unknown } | null | undefined)
-              ?.nextoreProjectId;
-            await notifyCommentSafely(notifier, {
-              projectId: req.params.id,
-              nextoreProjectId:
-                typeof nextoreProjectId === 'string' || typeof nextoreProjectId === 'number'
-                  ? String(nextoreProjectId)
-                  : null,
-              commentId: String(comment.id),
-              // The session-stamped NexTore author is the identity the module can
-              // authorise and address. A personal project has no workspace member
-              // id, so the workspace caller id is empty there.
-              authorMemberId: nextoreMemberId ?? (Number(authorMemberId ?? 0) || 0),
-              isReply: Boolean((comment as { parentId?: unknown }).parentId),
-              projectName: project?.name ?? null,
-              // The email quotes the comment, so the reader can decide whether to open.
-              commentText: typeof (comment as { note?: unknown }).note === 'string'
-                ? (comment as { note: string }).note
-                : null,
-              createdAt: typeof (comment as { createdAt?: unknown }).createdAt === 'number'
-                ? new Date((comment as { createdAt: number }).createdAt).toISOString()
-                : null,
-              recipientIds,
-            });
-          })().catch(() => {});
-        }
+        // Notification delivery is owned by the durable outbox worker started in
+        // server.ts. A restart between commit and delivery no longer loses mail.
       }
       res.json({ comment });
     } catch (err: any) {
