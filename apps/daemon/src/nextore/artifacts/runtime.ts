@@ -20,6 +20,7 @@ import {
   listWatchableArtifactProjectIds,
   listPublishProjectMembers,
   rememberProjectMember,
+  retryDeadLetteredNextorePublishForMember,
   retryNextorePublish,
 } from './store.js';
 import {
@@ -29,6 +30,8 @@ import {
   type PublishOutcomeStatus,
 } from './publisher.js';
 import {
+  isPublishableNextorePath,
+  mimeTypeFor,
   resolvePublishableArtifacts,
   type NextoreDeliverableSnapshot,
 } from './registry.js';
@@ -334,11 +337,10 @@ export class NextoreArtifactRuntime {
   /**
    * Publish the files a watcher batch named.
    *
-   * An existing artifact row is republished in place. A file with no row is
-   * adopted only when it first appears ('add') and only when it is an HTML page
-   * outside the daemon's own dot-directories, so a stray edit can never invent
-   * an artifact id and a bulk write cannot re-adopt the whole tree on every
-   * change.
+   * Existing artifact rows are republished in place. A new file is adopted
+   * through the same whitelist the run pipeline uses, so CSS/JS/images/fonts
+   * are tracked as well as HTML. The publisher still compares content hashes,
+   * so a touch that changes nothing stays a no-op.
    */
   private async publishChangedFiles(
     projectId: string,
@@ -359,11 +361,10 @@ export class NextoreArtifactRuntime {
     for (const change of changed) {
       const relativePath = change.path.replaceAll('\\', '/');
       if (change.kind === 'unlink') continue;
-      if (!/\.html?$/iu.test(relativePath)) continue;
-      if (relativePath.split('/').some((segment) => segment.startsWith('.'))) continue;
+      if (!isPublishableNextorePath(relativePath)) continue;
       const row = sourceRows.find((candidate) => candidate.relativePath === relativePath);
-      if (!row && change.kind !== 'add') continue;
       const reason = row ? 'file-change' : 'file-adopted';
+      const mimeType = mimeTypeFor(relativePath);
 
       const artifacts = resolvePublishableArtifacts({
         projectId,
@@ -373,7 +374,7 @@ export class NextoreArtifactRuntime {
         deliverable: {
           valid: true,
           entryFile: relativePath,
-          artifactKind: 'html',
+          artifactKind: mimeType.startsWith('text/') ? 'html' : 'asset',
           linkedPage: null,
         },
       });
@@ -670,6 +671,15 @@ export class NextoreArtifactRuntime {
     const now = this.deps.now ?? Date.now;
     const reset = retryNextorePublish(this.deps.db, projectId, artifactId, representation, now());
     if (reset && this.deps.autoDrain !== false) void this.wake();
+    return reset;
+  }
+
+  /** Resume dead-lettered work when the same member signs in again. */
+  resumePendingForMember(memberId: number): number {
+    if (!isNextoreArtifactPublishEnabled(this.deps.mode)) return 0;
+    const now = this.deps.now ?? Date.now;
+    const reset = retryDeadLetteredNextorePublishForMember(this.deps.db, memberId, now());
+    if (reset > 0 && this.deps.autoDrain !== false) void this.wake();
     return reset;
   }
 

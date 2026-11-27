@@ -46,7 +46,14 @@ const MIME_BY_EXTENSION: Readonly<Record<string, string>> = {
   '.png': 'image/png',
   '.jpg': 'image/jpeg',
   '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
   '.webp': 'image/webp',
+  '.avif': 'image/avif',
+  '.ico': 'image/x-icon',
+  '.woff': 'font/woff',
+  '.woff2': 'font/woff2',
+  '.ttf': 'font/ttf',
+  '.otf': 'font/otf',
   '.pdf': 'application/pdf',
   '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
   '.zip': 'application/zip',
@@ -89,11 +96,38 @@ function toArtifact(
   };
 }
 
+const BLOCKED_DIRECTORY_SEGMENTS = new Set([
+  'node_modules', 'cache', 'tmp', 'temp', 'sessions', 'secrets',
+]);
+
+/**
+ * The single whitelist shared by run publication and watcher adoption.
+ * Deliverables and their static dependencies are publishable; hidden files,
+ * caches, temporary files, session data and secrets are not.
+ */
+export function isPublishableNextorePath(value: string | null | undefined): boolean {
+  const relative = normalizeRelativePath(value);
+  if (!relative || relative.length > 512) return false;
+  const segments = relative.split('/');
+  if (segments.some((segment) => segment.startsWith('.') || BLOCKED_DIRECTORY_SEGMENTS.has(segment.toLowerCase()))) {
+    return false;
+  }
+  const name = segments[segments.length - 1] ?? '';
+  if (name.endsWith('~') || /\.(tmp|bak)$/iu.test(name)) return false;
+  return Object.hasOwn(MIME_BY_EXTENSION, path.posix.extname(name).toLowerCase());
+}
+
+/** Stable, collision-free artifact id for a non-entry file. */
+export function nextoreExportArtifactId(entryArtifactId: string, relativePath: string): string {
+  return `${entryArtifactId}::export::${relativePath.replaceAll('/', '__')}`;
+}
+
 /**
  * Resolve the publishable deliverables for one successful run.
  *
- * P04c deliberately does not scan the workspace. It publishes the finalized entry file and the
- * explicit export files the run declared; snapshot/cover are added by P04-S later.
+ * The run declares its produced files through `exportedFiles`; the daemon never
+ * scans the workspace. The entry file and every whitelisted produced file are
+ * published, so a first run is complete without waiting for a later edit.
  */
 export function resolvePublishableArtifacts(
   input: ResolvePublishableArtifactsInput,
@@ -108,12 +142,13 @@ export function resolvePublishableArtifacts(
 
   const seen = new Set([entry]);
   for (const raw of input.exportedFiles ?? []) {
+    if (!isPublishableNextorePath(raw)) continue;
     const relative = normalizeRelativePath(raw);
     if (!relative || seen.has(relative)) continue;
     seen.add(relative);
     result.push(toArtifact(
       input,
-      `${input.artifactId}::export::${path.posix.basename(relative)}`,
+      nextoreExportArtifactId(input.artifactId, relative),
       relative,
     ));
   }

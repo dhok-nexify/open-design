@@ -199,7 +199,12 @@ describe('nextore artifact file link read route', () => {
     const response = await fetch(base + '/api/nextore/projects/project-1/artifacts/artifact-1/share?representation=snapshot');
 
     expect(response.status).toBe(200);
-    const body = await response.json();
+    const body = await response.json() as {
+      url?: string;
+      artifactId?: string;
+      representation?: string;
+      shared?: boolean;
+    };
     expect(body).toMatchObject({
       artifactId: 'artifact-1',
       representation: 'snapshot',

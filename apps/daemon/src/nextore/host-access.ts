@@ -33,6 +33,8 @@ export type NextoreAccessOptions = {
   getDb: () => SessionDb;
   /** Run-scoped export tools authenticate with their own signed token. */
   isRunScopedExportRequest: (req: Request) => boolean;
+  /** Optional hook to resume publication work that was waiting for a session. */
+  onSessionEstablished?: ((input: { sid: string; memberId: number }) => void) | undefined;
 };
 
 /**
@@ -62,7 +64,7 @@ export type NextoreAccess = {
  * at-rest encryption in the edition.
  */
 export function mountNextoreAccess(options: NextoreAccessOptions): NextoreAccess {
-  const { app, edition, config, client, getDb, isRunScopedExportRequest } = options;
+  const { app, edition, config, client, getDb, isRunScopedExportRequest, onSessionEstablished } = options;
 
   const secrets = config ? lazyNextoreSecrets(config.secretFile) : null;
   const auth = config && client && secrets
@@ -79,6 +81,7 @@ export function mountNextoreAccess(options: NextoreAccessOptions): NextoreAccess
           const db = getDb();
           if (db) rebindApiTokenSessions(db, { fromSid: previousSid, toSid: sid, memberId });
         },
+        onSessionEstablished,
       })
     : null;
 

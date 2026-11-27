@@ -471,7 +471,10 @@ describe('NextoreArtifactRuntime out-of-run trigger', () => {
       versionLabel: '1',
       auditId: 'audit-1',
     }));
-    let onChange: (() => void) | null = null;
+    let onChange: ((changed: ReadonlyArray<{
+      path: string;
+      kind: 'add' | 'change' | 'unlink';
+    }>) => void) | null = null;
     const dispose = vi.fn();
     const worker = new NextoreArtifactRuntime({
       db,
@@ -575,6 +578,31 @@ describe('NextoreArtifactRuntime out-of-run trigger', () => {
         relativePath: 'uploaded-page.html',
         reason: 'file-adopted',
         memberId: 7,
+      }),
+    ]);
+    worker.unwatchAll();
+  });
+
+  it('adopts generated static assets and skips hidden files', async () => {
+    seedPublishedRecord();
+    rememberProjectMember(db, 'project-1', 7, 1_000);
+    await writeFile(join(projectRoot, 'site.css'), 'body{}');
+    await writeFile(join(projectRoot, '.od-state.json'), '{}');
+    const { worker, fire } = watchedRuntime();
+    worker.watchProject('project-1');
+
+    fire([
+      { path: 'site.css', kind: 'add' },
+      { path: '.od-state.json', kind: 'add' },
+    ]);
+    await new Promise((resolve) => setTimeout(resolve, 60));
+
+    expect(listNextorePublishQueue(db, 'project-1')).toEqual([
+      expect.objectContaining({
+        artifactId: 'site.css',
+        relativePath: 'site.css',
+        mimeType: 'text/css',
+        reason: 'file-adopted',
       }),
     ]);
     worker.unwatchAll();

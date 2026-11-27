@@ -3419,6 +3419,7 @@ export async function startServer({
     console.log('[byok] model proxy enabled — sandboxed runs call it instead of the provider'
       + (sandboxRelayActive ? '' : ' (OD_BYOK_PROXY override, no egress relay)'));
   }
+  let resumeNextorePublishForMember: ((memberId: number) => void) | null = null;
   const { auth: nextoreAuth, secrets: nextoreSecrets } = mountNextoreAccess({
     app,
     edition,
@@ -3433,6 +3434,9 @@ export async function startServer({
         endpoint: PROJECT_EXPORT_TOOL_ENDPOINT,
         operation: 'project:export',
       }).ok,
+    onSessionEstablished: ({ memberId }) => {
+      resumeNextorePublishForMember?.(memberId);
+    },
   });
   // Clipper page captures are self-contained HTML with inlined images plus a
   // Figma IR, which for an image-heavy site (The Economist, news front pages)
@@ -3856,6 +3860,9 @@ export async function startServer({
         },
       })
     : null;
+  resumeNextorePublishForMember = (memberId) => {
+    nextoreArtifactRuntime?.resumePendingForMember(memberId);
+  };
   nextoreArtifactRuntime?.start();
 
   // P04h: daily legacy-share sunset notices. Off unless the operator opts in.
@@ -18242,6 +18249,9 @@ export async function startServer({
                 artifactKind: deliverable.artifactKind,
                 linkedPage: deliverable.linkedPage,
               },
+              // Publish everything this run produced, not only the entry page.
+              // The registry filters this through the shared whitelist.
+              exportedFiles: run.artifactPaths,
             });
           } catch (error) {
             console.warn(

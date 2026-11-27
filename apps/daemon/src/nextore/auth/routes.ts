@@ -269,6 +269,8 @@ export interface NextoreAuthOptions {
    * sid - a CLI token, for instance - has to follow it.
    */
   onSessionRotated?: (input: { previousSid: string; sid: string; memberId: number }) => void;
+  /** A successful sign-in restores the credential used by pending publication. */
+  onSessionEstablished?: ((input: { sid: string; memberId: number }) => void) | undefined;
 }
 
 export interface NextoreAuth {
@@ -472,7 +474,7 @@ function escapeHtml(value: string): string {
 }
 
 export function createNextoreAuth(options: NextoreAuthOptions): NextoreAuth {
-  const { config, client, store, secrets, allowRequest, onSessionRotated } = options;
+  const { config, client, store, secrets, allowRequest, onSessionRotated, onSessionEstablished } = options;
   const hintRetryDelaysMs = options.hintRetryDelaysMs ?? [2_000, 6_000];
   const now = options.now ?? (() => Date.now());
 
@@ -998,6 +1000,13 @@ export function createNextoreAuth(options: NextoreAuthOptions): NextoreAuth {
         onSessionRotated({ previousSid: previous.sid, sid: session.sid, memberId: member.member.id });
       } catch {
         // A failure here must not fail the sign-in itself.
+      }
+    }
+    if (onSessionEstablished) {
+      try {
+        onSessionEstablished({ sid: session.sid, memberId: member.member.id });
+      } catch {
+        // A failed resume must not fail the sign-in itself.
       }
     }
     setSessionCookie(res, session.sid, at);

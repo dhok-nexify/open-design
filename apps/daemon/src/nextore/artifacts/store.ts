@@ -916,3 +916,28 @@ export function retryNextorePublish(
   `).run(now, id);
   return result.changes > 0;
 }
+
+/**
+ * Re-arm dead-lettered work for a member who just signed in again.
+ * A sign-in restores the credential; it must not require the user to edit a
+ * file before the pending publication resumes.
+ */
+export function retryDeadLetteredNextorePublishForMember(
+  db: SqliteDb,
+  memberId: number,
+  now = Date.now(),
+): number {
+  if (!Number.isInteger(memberId) || memberId <= 0) return 0;
+  ensureNextoreArtifactSchema(db);
+  const result = db.prepare(`
+    UPDATE nextore_publish_queue
+       SET attempts = 0,
+           next_attempt_at = ?,
+           dead_letter_at = NULL,
+           last_error = NULL,
+           claimed_by = NULL,
+           lease_until = NULL
+     WHERE member_id = ? AND dead_letter_at IS NOT NULL
+  `).run(now, memberId);
+  return result.changes;
+}
