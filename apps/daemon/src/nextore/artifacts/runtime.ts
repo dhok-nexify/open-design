@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import path from 'node:path';
 import type Database from 'better-sqlite3';
 import type {
@@ -15,13 +16,17 @@ import {
   enqueueNextorePublish,
   getNextoreArtifact,
   findPublishMember,
+  getNextoreRelease,
   listNextoreArtifacts,
+  listNextoreReleases,
   listProjectMembers,
   listWatchableArtifactProjectIds,
   listPublishProjectMembers,
+  recordNextoreRelease,
   rememberProjectMember,
   retryDeadLetteredNextorePublishForMember,
   retryNextorePublish,
+  type NextoreReleaseRecord,
 } from './store.js';
 import {
   hashFileSha256,
@@ -181,8 +186,15 @@ export class NextoreArtifactRuntime {
       ...(input.exportedFiles ? { exportedFiles: input.exportedFiles } : {}),
     });
     const now = this.deps.now ?? Date.now;
+    const manifest: Array<{
+      relativePath: string;
+      artifactId: string;
+      mimeType: string;
+      contentHash: string;
+    }> = [];
     for (const artifact of artifacts) {
       const sourcePath = path.resolve(input.projectRoot, artifact.sourcePath);
+      const contentHash = hashQuietlySync(sourcePath);
       enqueueNextorePublish(this.deps.db, {
         projectId: artifact.projectId,
         artifactId: artifact.artifactId,
@@ -196,13 +208,34 @@ export class NextoreArtifactRuntime {
         mimeType: artifact.mimeType,
         reason: 'run-complete',
         now: now(),
-        contentHash: hashQuietlySync(sourcePath),
+        contentHash,
+      });
+      manifest.push({
+        relativePath: artifact.relativePath,
+        artifactId: artifact.artifactId,
+        mimeType: artifact.mimeType,
+        contentHash: contentHash ?? '',
       });
     }
     if (artifacts.length > 0) {
       this.projectMembers.set(input.projectId, input.memberId);
       rememberProjectMember(this.deps.db, input.projectId, input.memberId, now());
       this.watchProject(input.projectId);
+      if (input.runId) {
+        const snapshotHash = createHash('sha256')
+          .update(manifest
+            .map((file) => `${file.relativePath}:${file.contentHash}`)
+            .sort()
+            .join('\n'))
+          .digest('hex');
+        recordNextoreRelease(this.deps.db, {
+          projectId: input.projectId,
+          runId: input.runId,
+          snapshotHash,
+          files: manifest,
+          now: now(),
+        });
+      }
     }
     if (artifacts.length > 0 && this.deps.autoDrain !== false) void this.wake();
     return artifacts.length;
@@ -656,6 +689,14 @@ export class NextoreArtifactRuntime {
 
   status(projectId: string, artifactId: string): NextoreArtifactStatusResponse {
     return buildNextoreArtifactStatus(this.deps.db, projectId, artifactId);
+  }
+
+  releases(projectId: string): NextoreReleaseRecord[] {
+    return listNextoreReleases(this.deps.db, projectId);
+  }
+
+  release(projectId: string, releaseId: string): NextoreReleaseRecord | null {
+    return getNextoreRelease(this.deps.db, projectId, releaseId);
   }
 
   /**

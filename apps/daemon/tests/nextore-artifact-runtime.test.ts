@@ -298,6 +298,46 @@ describe('NextoreArtifactRuntime', () => {
     });
   });
 
+  it('records a frozen Release for the run and reuses it on an identical retry', () => {
+    const { runtime: worker } = runtime('publish');
+    worker.enqueueRun({
+      projectId: 'project-1',
+      artifactId: 'artifact-1',
+      projectRoot,
+      runId: 'run-1',
+      tier: 'expert',
+      memberId: 7,
+      deliverable,
+      exportedFiles: ['chapters/one.html', 'assets/site.css', 'assets/app.js'],
+    });
+
+    const first = worker.releases('project-1');
+    expect(first).toHaveLength(1);
+    expect(first[0]).toMatchObject({
+      version: 1,
+      status: 'partial',
+      runId: 'run-1',
+    });
+    expect(first[0]?.files.map((file) => file.relativePath)).toEqual([
+      'index.html',
+      'chapters/one.html',
+      'assets/site.css',
+      'assets/app.js',
+    ]);
+
+    worker.enqueueRun({
+      projectId: 'project-1',
+      artifactId: 'artifact-1',
+      projectRoot,
+      runId: 'run-1',
+      tier: 'expert',
+      memberId: 7,
+      deliverable,
+      exportedFiles: ['chapters/one.html', 'assets/site.css', 'assets/app.js'],
+    });
+    expect(worker.releases('project-1')).toHaveLength(1);
+  });
+
   it('re-arms an existing queue row and refuses an unknown one', () => {
     const { runtime: worker } = runtime('publish');
     worker.enqueueRun({
@@ -354,6 +394,7 @@ describe('NextoreArtifactRuntime', () => {
       treeObjectId: 101,
       currentVersion: 1,
     });
+    expect(worker.releases('project-1')[0]?.status).toBe('ready');
     expect(events[0]).toMatchObject({
       projectId: 'project-1',
       artifactId: 'artifact-1',

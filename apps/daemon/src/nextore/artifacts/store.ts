@@ -88,6 +88,23 @@ const PROJECT_MEMBER_SQL = `
   );
 `;
 
+const RELEASE_SQL = `
+  CREATE TABLE IF NOT EXISTS nextore_releases (
+    release_id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL,
+    run_id TEXT NOT NULL,
+    version INTEGER NOT NULL,
+    snapshot_hash TEXT NOT NULL,
+    manifest_json TEXT NOT NULL,
+    idempotency_key TEXT NOT NULL UNIQUE,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_nextore_releases_project
+    ON nextore_releases(project_id, version DESC);
+`;
+
 const INDEX_SQL = `
   CREATE INDEX IF NOT EXISTS idx_nextore_artifacts_project
     ON nextore_artifacts(project_id, status);
@@ -123,6 +140,7 @@ export const NEXTORE_ARTIFACT_SCHEMA_SQL = [
   INDEX_SQL,
   BACKFILL_SQL,
   PROJECT_MEMBER_SQL,
+  RELEASE_SQL,
 ].join('\n');
 
 const ensuredSchemas = new WeakSet<object>();
@@ -273,6 +291,8 @@ export function migrateNextoreArtifactSchema(db: SqliteDb): void {
     // The run initiator per project, so reconcile and backfill survive a
     // restart instead of depending on an in-memory map a run happened to fill.
     db.exec(PROJECT_MEMBER_SQL);
+    // P12: immutable Release manifests for successful runs.
+    db.exec(RELEASE_SQL);
   });
   migrate();
 }
@@ -940,4 +960,131 @@ export function retryDeadLetteredNextorePublishForMember(
      WHERE member_id = ? AND dead_letter_at IS NOT NULL
   `).run(now, memberId);
   return result.changes;
+}
+
+export interface NextoreReleaseFile {
+  relativePath: string;
+  artifactId: string;
+  mimeType: string;
+  contentHash: string;
+}
+
+export type NextoreReleaseStatus = 'partial' | 'ready' | 'failed';
+
+export interface NextoreReleaseRecord {
+  releaseId: string;
+  projectId: string;
+  runId: string;
+  version: number;
+  status: NextoreReleaseStatus;
+  snapshotHash: string;
+  files: NextoreReleaseFile[];
+  createdAt: number;
+  updatedAt: number;
+}
+
+interface ReleaseRow {
+  release_id: string;
+  project_id: string;
+  run_id: string;
+  version: number;
+  snapshot_hash: string;
+  manifest_json: string;
+  created_at: number;
+  updated_at: number;
+}
+
+function releaseStatusForRun(db: SqliteDb, runId: string): NextoreReleaseStatus {
+  const rows = db.prepare(`
+    SELECT dead_letter_at FROM nextore_publish_queue WHERE run_id = ?
+  `).all(runId) as Array<{ dead_letter_at: number | null }>;
+  if (rows.some((row) => row.dead_letter_at !== null)) return 'failed';
+  return rows.length > 0 ? 'partial' : 'ready';
+}
+
+function toReleaseRecord(db: SqliteDb, row: ReleaseRow): NextoreReleaseRecord {
+  return {
+    releaseId: row.release_id,
+    projectId: row.project_id,
+    runId: row.run_id,
+    version: row.version,
+    status: releaseStatusForRun(db, row.run_id),
+    snapshotHash: row.snapshot_hash,
+    files: JSON.parse(row.manifest_json) as NextoreReleaseFile[],
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+/**
+ * Create (or reuse) the immutable Release for one successful run. The
+ * idempotency key makes a retry with the same frozen snapshot a no-op, so a
+ * retry never silently creates another user-visible version.
+ */
+export function recordNextoreRelease(
+  db: SqliteDb,
+  input: {
+    projectId: string;
+    runId: string;
+    snapshotHash: string;
+    files: NextoreReleaseFile[];
+    now?: number;
+  },
+): NextoreReleaseRecord {
+  ensureNextoreArtifactSchema(db);
+  const now = input.now ?? Date.now();
+  const idempotencyKey = `${input.projectId}:${input.runId}:${input.snapshotHash}`;
+  const existing = db.prepare(
+    'SELECT * FROM nextore_releases WHERE idempotency_key = ?',
+  ).get(idempotencyKey) as ReleaseRow | undefined;
+  if (existing) return toReleaseRecord(db, existing);
+
+  const latest = db.prepare(
+    'SELECT COALESCE(MAX(version), 0) AS version FROM nextore_releases WHERE project_id = ?',
+  ).get(input.projectId) as { version: number };
+  const version = latest.version + 1;
+  const releaseId = `${input.projectId}:v${version}`;
+  db.prepare(`
+    INSERT INTO nextore_releases (
+      release_id, project_id, run_id, version, snapshot_hash, manifest_json,
+      idempotency_key, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    releaseId,
+    input.projectId,
+    input.runId,
+    version,
+    input.snapshotHash,
+    JSON.stringify(input.files),
+    idempotencyKey,
+    now,
+    now,
+  );
+  const row = db.prepare(
+    'SELECT * FROM nextore_releases WHERE release_id = ?',
+  ).get(releaseId) as ReleaseRow;
+  return toReleaseRecord(db, row);
+}
+
+export function getNextoreRelease(
+  db: SqliteDb,
+  projectId: string,
+  releaseId: string,
+): NextoreReleaseRecord | null {
+  ensureNextoreArtifactSchema(db);
+  const row = db.prepare(
+    'SELECT * FROM nextore_releases WHERE project_id = ? AND release_id = ?',
+  ).get(projectId, releaseId) as ReleaseRow | undefined;
+  return row ? toReleaseRecord(db, row) : null;
+}
+
+export function listNextoreReleases(
+  db: SqliteDb,
+  projectId: string,
+): NextoreReleaseRecord[] {
+  ensureNextoreArtifactSchema(db);
+  const rows = db.prepare(
+    'SELECT * FROM nextore_releases WHERE project_id = ? ORDER BY version DESC',
+  ).all(projectId) as ReleaseRow[];
+  return rows.map((row) => toReleaseRecord(db, row));
 }
