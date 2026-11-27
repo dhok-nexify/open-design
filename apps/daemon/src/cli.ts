@@ -7790,6 +7790,10 @@ async function runNextore(args) {
                     [--password <value>] [--no-preview] [--json]
   od nextore artifact unshare <projectId> <artifactId>
                     [--representation snapshot|source] [--json]
+  od nextore release list <projectId> [--json]
+  od nextore release download <projectId> <releaseId> [--out <path>] [--json]
+  od nextore release share <projectId> <releaseId>
+                    [--expires-at <iso>] [--password <value>] [--json]
   od nextore project status <projectId> [--json]
   od nextore project share <projectId> [--expires-at <iso>] [--json]
   od nextore project unshare <projectId> [--json]
@@ -7808,6 +7812,11 @@ async function runNextore(args) {
 
   if (sub === 'artifact') {
     await runNextoreArtifact(rest, flags, base, NEXTORE_STRING_FLAGS);
+    return;
+  }
+
+  if (sub === 'release') {
+    await runNextoreRelease(rest, flags, base, NEXTORE_STRING_FLAGS);
     return;
   }
 
@@ -7937,6 +7946,131 @@ async function runNextore(args) {
  * plane. Progress and the pause flag are durable, so a restart resumes where
  * the operator left off.
  */
+/**
+ * od nextore release list|download|share — the CLI side of immutable Releases.
+ * Share uses the same artifact share route as a single file, so every option
+ * (expiry, password, revoke) behaves identically.
+ */
+async function runNextoreRelease(args, flags, base, stringFlags) {
+  const positionals = positionalArgs(args, stringFlags);
+  const action = positionals[0];
+  const projectId = positionals[1];
+  const releaseId = positionals[2];
+  const usage = () => {
+    console.error(`Usage:
+  od nextore release list <projectId> [--json]
+  od nextore release download <projectId> <releaseId> [--out <path>] [--json]
+  od nextore release share <projectId> <releaseId> [--password <pw>] [--expires-at <iso>] [--json]`);
+    process.exitCode = 2;
+  };
+
+  if (!action || !projectId) {
+    usage();
+    return;
+  }
+  const projectPath = '/api/nextore/projects/' + encodeURIComponent(projectId);
+
+  if (action === 'list') {
+    const response = await daemonFetch(base + projectPath + '/releases', {
+      headers: { accept: 'application/json' },
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      console.error('release list failed: ' + String(data?.error ?? response.status));
+      process.exitCode = 1;
+      return;
+    }
+    if (flags.json) {
+      process.stdout.write(JSON.stringify(data, null, 2) + '\n');
+      return;
+    }
+    for (const release of data?.releases ?? []) {
+      console.log(`v${release.version}\t${release.releaseId}\t${release.status}\t${release.files?.length ?? 0} files`);
+    }
+    return;
+  }
+
+  if (!releaseId) {
+    usage();
+    return;
+  }
+  const releasePath = projectPath + '/releases/' + encodeURIComponent(releaseId);
+
+  if (action === 'download') {
+    const response = await daemonFetch(base + releasePath + '/download');
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      console.error('release download failed: ' + String(data?.error ?? response.status));
+      process.exitCode = 1;
+      return;
+    }
+    const buffer = Buffer.from(await response.arrayBuffer());
+    const out = typeof flags.out === 'string' && flags.out.trim()
+      ? flags.out
+      : response.headers.get('content-disposition')?.match(/filename="([^"]+)"/)?.[1] ?? 'release.zip';
+    const { writeFile } = await import('node:fs/promises');
+    await writeFile(out, buffer);
+    if (flags.json) {
+      process.stdout.write(JSON.stringify({
+        out,
+        bytes: buffer.length,
+        sha256: response.headers.get('x-release-sha256'),
+      }, null, 2) + '\n');
+      return;
+    }
+    console.log('wrote ' + out + ' (' + buffer.length + ' bytes)');
+    return;
+  }
+
+  if (action === 'share') {
+    const prepare = await daemonFetch(base + releasePath + '/prepare-share', { method: 'POST' });
+    const prepared = await prepare.json().catch(() => ({}));
+    if (!prepare.ok) {
+      console.error('release prepare failed: ' + String(prepared?.error ?? prepare.status));
+      process.exitCode = 1;
+      return;
+    }
+    const artifactId = String(prepared.artifactId ?? '');
+    if (!artifactId) {
+      console.error('release prepare returned no artifact id');
+      process.exitCode = 1;
+      return;
+    }
+    const body = {
+      representation: 'source',
+      previewOnly: false,
+      ...(typeof flags.password === 'string' && flags.password.trim()
+        ? { password: flags.password.trim() }
+        : {}),
+      ...(typeof flags['expires-at'] === 'string' && flags['expires-at'].trim()
+        ? { expiresAt: flags['expires-at'].trim() }
+        : {}),
+    };
+    const response = await daemonFetch(
+      base + projectPath + '/artifacts/' + encodeURIComponent(artifactId) + '/share',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      },
+    );
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      console.error('release share failed: ' + String(data?.error ?? response.status));
+      process.exitCode = 1;
+      return;
+    }
+    if (flags.json) {
+      process.stdout.write(JSON.stringify({ ...data, artifactId }, null, 2) + '\n');
+      return;
+    }
+    console.log(data.url ?? data.shareUrl ?? JSON.stringify(data));
+    return;
+  }
+
+  usage();
+}
+
 async function runNextoreBackfill(args, flags, base, stringFlags) {
   const positionals = positionalArgs(args, stringFlags);
   const action = positionals[0] ?? 'status';
