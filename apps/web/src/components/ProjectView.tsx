@@ -27,7 +27,11 @@ import {
 import { AnimatePresence } from 'motion/react';
 import { createHtmlArtifactManifest, inferLegacyManifest } from '../artifacts/manifest';
 import { NEXTORE_WEB_EDITION, isFeatureEnabled } from '../nextore/features';
-import { TierToggle } from '../nextore/TierToggle';
+import { ModelSelect } from '../nextore/ModelSelect';
+import {
+  readStoredNextoreModelKeyForProject,
+  writeStoredNextoreModelKeyForProject,
+} from '../nextore/model';
 import { ProjectPermissionsDialog } from '../nextore/ProjectPermissionsDialog';
 import { ProjectShareDialog } from './nextore/ProjectShareDialog';
 import { NextoreArtifactDialog } from './nextore/NextoreArtifactDialog';
@@ -11272,7 +11276,9 @@ export function ProjectView({
           ...(daemonByokOpenCode && byokOpenCodeProvider && NEXTORE_WEB_EDITION !== 'nextore'
             ? { byokProvider: byokOpenCodeProvider }
             : {}),
-          ...(NEXTORE_WEB_EDITION === 'nextore' ? { tier: nextoreTier } : {}),
+          ...(NEXTORE_WEB_EDITION === 'nextore'
+            ? { tier: nextoreTier, modelKey: nextoreModelKey }
+            : {}),
           ...(daemonByokOpenCode
             ? {
                 byokMediaDefaults: byokMediaDefaultsForRun({
@@ -14797,9 +14803,17 @@ export function ProjectView({
     setNextoreTier(tier);
     writeStoredNextoreTierForProject(project.id, tier);
   }, [project.id]);
+  const [nextoreModelKey, setNextoreModelKey] = useState<string>(() =>
+    readStoredNextoreModelKeyForProject(project.id),
+  );
+  const chooseNextoreModel = useCallback((modelKey: string) => {
+    setNextoreModelKey(modelKey);
+    writeStoredNextoreModelKeyForProject(project.id, modelKey);
+    if (modelKey === 'fast' || modelKey === 'expert') setNextoreTier(modelKey);
+  }, [project.id]);
 
   const executionControls = NEXTORE_WEB_EDITION === 'nextore' ? (
-    <TierToggle value={nextoreTier} onChange={chooseNextoreTier} />
+    <ModelSelect value={nextoreModelKey} onChange={chooseNextoreModel} />
   ) : (
     <>
       <AvatarMenu

@@ -522,6 +522,8 @@ export interface DaemonStreamOptions {
   byokProvider?: ByokChatProviderConfig;
   /** NexTore edition: which model tier this run asks for. */
   tier?: NextoreTier;
+  /** NexTore edition: the platform model key selected in the composer. */
+  modelKey?: string | null;
   byokMediaDefaults?: ChatRequest['byokMediaDefaults'];
   research?: ResearchOptions;
   context?: RunContextSelection;
@@ -1021,6 +1023,7 @@ export async function streamViaDaemon({
   serviceTier,
   byokProvider,
   tier,
+  modelKey,
   byokMediaDefaults,
   research,
   context,
@@ -1072,6 +1075,7 @@ export async function streamViaDaemon({
     serviceTier: serviceTier ?? null,
     ...(byokProvider ? { byokProvider } : {}),
     ...(tier ? { tier } : {}),
+    ...(modelKey ? { modelKey } : {}),
     ...(byokMediaDefaults ? { byokMediaDefaults } : {}),
     locale,
     ...(appliedPluginSnapshotId

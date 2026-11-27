@@ -4045,6 +4045,19 @@ body.od-quick-switcher-open .chat-composer-fixed-layer .composer-att .msg-att-de
   opacity: 0.5;
 }
 
+/* P12: native model picker in the composer footer. */
+.nextore-model-select {
+  display: inline-flex;
+  align-items: center;
+  min-inline-size: 96px;
+}
+.nextore-model-select select {
+  font-size: 12px;
+  min-height: 28px;
+  max-inline-size: 190px;
+  border-radius: 999px;
+}
+
 /* NexTore edition: jump to the site's permission editor from the project header. */
 /* NexTore quarantined project (NXD-D08): the row stays usable, but the
    header has to say that NexTore no longer lists it. */
